@@ -1,0 +1,21 @@
+:root {
+  color-scheme: light;
+  --forest-900: #173b32;
+  --forest-700: #28594a;
+  --ivory-50: #faf8f1;
+  --paper-0: #fff;
+  --sage-100: #e5ede5;
+  --sage-500: #718575;
+  --charcoal-900: #202622;
+  --charcoal-600: #5d665f;
+  --line-200: #d8ded6;
+  --amber-700: #8b5a0a;
+  --danger-700: #a33f38;
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--charcoal-900);
+  background: var(--ivory-50);
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+body { min-width: 320px; }
+:focus-visible { outline: 3px solid var(--forest-700); outline-offset: 3px; }

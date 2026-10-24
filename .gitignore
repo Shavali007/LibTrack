@@ -1,0 +1,49 @@
+# Angular / Node build outputs
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+
+# Java / Maven build outputs
+backend/target/
+**/target/
+*.class
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+*.env
+**/*.env
+application-local.*
+application-*.local.*
+**/application-local.*
+**/application-*.local.*
+secrets/
+**/secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local dependency / tool caches
+.m2/
+.npm-cache/
+.cache/
+**/.cache/
+
+# Logs, IDE, and OS files
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
