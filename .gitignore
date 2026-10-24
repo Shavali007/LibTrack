@@ -47,3 +47,7 @@ secrets/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Temporary test and tool scratch files
+work/
+frontend/work/
