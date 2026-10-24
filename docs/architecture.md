@@ -32,8 +32,8 @@ Backend: authentication/authorization, business rules, DTO validation, transacti
 | auth | credentials, registration, role resolution | members, common |
 | books | title metadata, authors/categories, physical copies, search | common |
 | members | member profile/status | auth, common |
-| borrowing | requests, workflow orchestration, history queries | books, members, circulation |
-| circulation | issue, return, renewal, holiday due dates | books, members, fines |
+| borrowing | member-owned requests, Librarian review, workflow/history | books, auth, circulation |
+| circulation | issue, return, renewal, explicit holiday due dates | books, auth |
 | fines | assessment/status/waiver | circulation, members |
 | feedback | ratings and moderation | books, members |
 | recommendations | category and faculty-to-student recommendations | books, members |
@@ -48,11 +48,16 @@ Use service interfaces and identifiers across modules; avoid cross-module reposi
 Use BCrypt password hashes, deny-by-default Spring Security, and service-level authorization. Sessions use an HttpOnly SameSite=Lax cookie, session-backed CSRF protection, and a 30-minute inactivity timeout. Set `SESSION_COOKIE_SECURE=true` behind HTTPS. A Librarian provisions Students and Faculty after manually checking institutional identity; the server stores the institutional identifier, verification timestamp, and creating account. The `identityVerified` field is an accountable operator attestation, not a real verification API or college approval process. There is no public registration and the API only accepts Student or Faculty roles. The first Librarian is created by a one-time, interactive, no-web-server CLI command that prompts for email and a hidden, confirmed password; it refuses if any Librarian already exists. Never store/log plaintext passwords or expose password hashes. Do not trust route guards. Production identity integration, verification evidence/retention, account recovery, and rate limiting remain open. Require HTTPS in deployment.
 
 ## Transactions for borrowing
-Approval and copy selection must atomically recheck eligibility/availability, transition request state, and record assignment. Issue atomically records loan, due date, and copy state. Return atomically records return, lateness/fine outcome, and copy state. Renewal atomically checks ownership, active state, renewal count, and approved reservation rules. Use row locks or optimistic versioning and a database constraint allowing at most one active loan per copy. Create notifications after commit; use an outbox if delivery reliability requires it.
+Librarian approval and physical issue are separate actions. Issue locks the approved request and selected copy, checks active STANDARD book eligibility and copy availability, then records loan, 30-calendar-day due date, audit history, and ON_LOAN state in one transaction. Return locks the loan/copy, records condition and case note, then updates the copy state atomically. Renewal enforces owner, active STANDARD loan, one-renewal limit, and ON_LOAN copy; it adds 30 calendar days to prior due date. A partial unique index prevents concurrent active loans for a copy. Due dates move only across explicitly configured holiday dates; weekends are not implicit closures. No fine or replacement amount is assessed.
 
 ## Deployment
 Build static frontend assets and run a single backend against PostgreSQL initially. Supply configuration through environment variables/secret management. Backups, observability, retention, and scale-out policy are release decisions.
 
 ## Catalogue implementation status
 
-The catalogue module is implemented as a vertical slice: validated book metadata, author/category normalization, search/filter/pagination, derived copy availability, librarian copy inventory, soft deactivation, and Angular browse/detail/create/edit/copy-management views. Spring Security requires an authenticated session for catalogue APIs; service methods authorize all writes for Librarians, and copy inventory reads are Librarian-only. The frontend consumes only API records and provides an elegant fallback when a cover URL is absent or fails. Catalogue circulation-policy metadata is not circulation enforcement.
+The catalogue module is implemented as a vertical slice: validated book metadata, author/category normalization, search/filter/pagination, derived copy availability, librarian copy inventory, soft deactivation, and Angular browse/detail/create/edit/copy-management views. Spring Security requires an authenticated session for catalogue APIs; service methods authorize all writes for Librarians, and copy inventory reads are Librarian-only. The frontend consumes only API records and provides an elegant fallback when a cover URL is absent or fails. Catalogue policy metadata is now enforced by circulation: only active `STANDARD` books may be requested and issued; other policy values remain blocked pending explicit operating rules.
+
+
+## Implemented circulation slice
+
+Flyway V4 persists member requests, request events, loans, loan events, and an explicit holiday calendar. Spring Security keeps session/CSRF behavior unchanged; method-level role checks authorize member and Librarian operations and service methods recheck account status, ownership, and state. Angular provides member request/loan views and Librarian request/circulation desk views. Active STANDARD-only circulation is implemented; reference, serial, and overnight exception rules remain disabled. The configured library zone must match the institution before use.

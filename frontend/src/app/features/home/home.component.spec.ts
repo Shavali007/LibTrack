@@ -31,7 +31,9 @@ describe('Student dashboard', () => {
   it('labels unsupported library services as unavailable and adds no fake records or counts', () => {
     const text = (fixture.nativeElement.textContent as string).toLowerCase();
     expect(text).toContain('unavailable');
-    expect(text).toContain('not available yet');
+    expect(text).toContain('my borrowings');
+    expect(text).toContain('my requests');
+    expect(text).toContain('available');
     expect(text).toContain('search real catalogue records');
     expect(text).not.toContain('clean code');
     expect(text).not.toContain('effective java');

@@ -5,7 +5,7 @@ Base path `/api/v1`; JSON DTOs, ISO-8601 timestamps with offsets, opaque UUIDs. 
 
 ## Implementation status
 
-Health, authentication, Librarian account-provisioning, and the catalogue endpoints below have live controllers and supporting entities. Members, borrowing, circulation, fines, recommendations, interests, feedback, notifications, insights, and reports remain planned. Catalogue circulation-policy values are metadata only; they are not yet enforced by a circulation workflow.
+Health, authentication, Librarian account-provisioning, catalogue, borrowing requests, circulation, and holiday-calendar endpoints below have live controllers and supporting entities. Member administration, fines, recommendations, interests, feedback, notifications, insights, and reports remain planned. Standard take-home circulation is enforced; restricted-material exceptions are not enabled.
 
 ## Authentication
 
@@ -43,21 +43,22 @@ Sessions use server-side storage and an HttpOnly, SameSite=Lax cookie. Configure
 
 | Method/path | Access | Contract |
 |---|---|---|
-| `POST /borrow-requests` | Student/faculty | `{bookId}` -> 201 request; server checks approved eligibility, duplicates, availability. |
+| `POST /borrow-requests` | Student/faculty | `{bookId}` -> 201 own request; only active STANDARD books are accepted. |
 | `GET /borrow-requests/mine` | Student/faculty | Own paginated requests. |
-| `GET /borrow-requests` | Librarian | Queue filters: status, memberId, bookId, submitted date range. |
-| `POST /borrow-requests/{id}/decision` | Librarian | `{decision: APPROVE|REJECT,reason?}` -> updated request; atomic recheck. |
-| `POST /loans/{id}/issue` | Librarian | `{copyId}` -> 201 loan with approved due date. |
-| `GET /loans/mine` | Student/faculty | Own current loans, due dates and renewal/fine summary. |
+| `GET /borrow-requests` | Librarian | Paginated queue, optional `status` and `bookId` filters. |
+| `POST /borrow-requests/{requestId}/decision` | Librarian | `{decision: APPROVE|REJECT,reason?}` -> updated request. Only pending requests; a Librarian cannot decide their own request. |
+| `POST /borrow-requests/{requestId}/issue` | Librarian | `{copyId,note?}` -> 201 loan; separate from approval, locks the request/copy, requires an available copy for the approved book. |
+| `GET /loans/mine` | Student/faculty | Own active loans and due dates. |
 | `GET /loans/mine/history` | Student/faculty | Own paginated borrowing history. |
-| `GET /loans` | Librarian | Circulation filters: memberId, status, dueBefore. |
-| `POST /loans/{id}/return` | Librarian | `{condition:GOOD|DAMAGED|LOST,note?}` -> recorded return and policy outcome. |
-| `POST /loans/{id}/renew` | Eligible member or librarian | `{}` -> updated loan; approved interpretation of one online renewal applies. |
+| `GET /loans` | Librarian | Paginated filters `status`, `dueBefore`, `overdueOnly`. |
+| `POST /loans/{loanId}/return` | Librarian | `{condition:GOOD|DAMAGED|LOST,note?}` -> recorded return; DAMAGED/LOST require a case note. No fine or replacement amount is calculated. |
+| `POST /loans/{loanId}/renew` | Owner Student/Faculty | `{}` -> one renewal per active standard loan, extending the prior due date by 30 calendar days before holiday adjustment. |
 | `GET /fines/mine` | Student/faculty | Own fine summaries/status. |
 | `GET /fines` | Librarian | Paginated member/status filters. |
 | `POST /fines/{id}/waive` | Librarian | `{reason}`; actor and rationale audited. |
-| `GET /holidays` | Authenticated | Date-range holiday list. |
-| `POST /holidays` | Librarian | `{date,name}` -> 201 holiday. |
+| `GET /holidays` | Authenticated | Configured dates in ascending order. Only explicit dates affect due dates; weekends are not inferred. |
+| `POST /holidays` | Librarian | `{holidayDate,name}` -> 201 holiday; duplicate dates conflict. |
+| `DELETE /holidays/{holidayId}` | Librarian | Removes a configured date. No dates are seeded by the migration. |
 
 ## Smart Services and reports
 

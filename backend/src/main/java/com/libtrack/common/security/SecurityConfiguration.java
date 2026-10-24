@@ -47,7 +47,10 @@ public class SecurityConfiguration {
                 .requestMatchers("/api/health", "/swagger-ui/**", "/v3/api-docs/**",
                                  "/api/v1/auth/csrf", "/api/v1/auth/login").permitAll()
                 .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout", "/api/v1/librarian/accounts/**").authenticated()
-                .requestMatchers("/api/v1/books", "/api/v1/books/**", "/api/v1/categories").authenticated()
+                .requestMatchers("/api/v1/books", "/api/v1/books/**", "/api/v1/categories",
+                                 "/api/v1/borrow-requests", "/api/v1/borrow-requests/**",
+                                 "/api/v1/loans", "/api/v1/loans/**",
+                                 "/api/v1/holidays", "/api/v1/holidays/**").authenticated()
                 .anyRequest().denyAll())
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)

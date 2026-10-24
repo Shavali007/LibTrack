@@ -45,11 +45,11 @@ Original SRS rules: only available books are issued; identity-card misuse and su
 Security through authentication, role authorization, and protected passwords; reliable issue/return consistency; clear navigation/messages; maintainable separation of presentation, application, and persistence; growth in users/books/records; availability during normal library operations; acceptable performance for search/login/views; HTTPS for sensitive network traffic. The SRS sets no measurable performance target.
 
 ## Ambiguities and missing rules
-1. The 30-day loan period is an assumption explicitly requiring library verification.
+1. The 30-calendar-day loan duration is confirmed for this prototype. The configured library time zone must still be set for deployment.
 2. Fine rate and calculation structure are unspecified.
 3. Loan/request limits, eligibility, request expiry, duplicate handling, suspension, and outstanding-fine effects are unspecified.
-4. “One online renewal” scope, renewal duration, and reservation interaction need confirmation.
-5. Holiday ownership, weekends, consecutive closures, and due-date rollover are not defined.
+4. The prototype allows one renewal per active standard loan, extending the previous due date by 30 calendar days; reservation interaction and other renewal restrictions remain unspecified.
+5. Librarians maintain explicit holiday dates; dates roll forward across consecutive configured holidays. Weekends are not automatically treated as holidays. The institution must provide its calendar and configured library time zone.
 6. Restricted-material exceptions and overnight cutoff/return time are not defined.
 7. Lost/damaged replacement amounts, copy disposition, and compensation policy are absent.
 8. Faculty identity provisioning and privileged-account creation are absent.
@@ -67,8 +67,13 @@ The prototype supports session login, logout, current-user lookup, Librarian-med
 
 ## Student dashboard implementation status
 
-The current profile endpoint (`GET /api/v1/auth/me`) supplies only the authenticated account's UUID, email, and role. The dashboard may use the real email and current date, but no display name is available. The backend currently implements no catalogue, member, borrowing, request, fine, recommendation, notification, bookmark, quotation, or reading-progress entity/API; proposed contracts in `api-contracts.md` and proposed entities in `database-design.md` are not live functionality. These areas are shown as clearly unavailable or omitted from active navigation. Catalogue search must be implemented before it can be an active action. Reading goals and page-level progress need separate approved data models; loan records must not be treated as reading statistics. No sample records or demonstration metrics are allowed in production UI.
+The current profile endpoint (`GET /api/v1/auth/me`) supplies only the authenticated account's UUID, email, and role. The dashboard may use the real email and current date, but no display name is available. The backend implements catalogue, borrow-request, loan, circulation-audit, and explicit holiday-calendar records/APIs. Fine, recommendation, notification, bookmark, quotation, and reading-progress services remain unimplemented. These areas are shown as unavailable or omitted from active navigation. Loan records are not treated as reading statistics. Reading goals and page-level progress need separate approved data models. No sample records or demonstration metrics are allowed in production UI.
 
 ## Catalogue implementation status
 
-SRS-FR-03, SRS-FR-04, and SRS-FR-05 now have an initial implementation: Librarians can create, edit, and deactivate catalogue records and manage physical-copy inventory; authenticated users can search by keyword/title/author/ISBN/category and see derived available-copy counts. Records are never seeded with demonstration titles. Reference/serial/overnight exception policy is stored as descriptive metadata; issue eligibility and overnight exception enforcement remain pending circulation policy decisions.
+SRS-FR-03, SRS-FR-04, and SRS-FR-05 are implemented as described above. Reference, serial, and overnight exception policy is stored as catalogue metadata, but these items are not eligible for standard take-home circulation.
+
+
+## Borrowing and circulation implementation status
+
+The initial circulation slice implements Student/Faculty-owned requests, Librarian review, separate physical issue, current loan and history views, one online renewal, Librarian return handling, audit history, and an explicit Librarian-maintained holiday calendar. Only active books with `STANDARD` policy can be requested/issued. Due dates use 30 calendar days in the configured `LIBTRACK_LIBRARY_ZONE`; only configured holiday dates move due dates forward. Weekends are not inferred. Row locks and a database constraint protect copy assignment. Lost/damaged cases require notes; no fines, replacement charge, request caps, suspension rules, or restricted-material overnight rules were invented. PostgreSQL migration validation remains a deployment/CI check if no PostgreSQL service is available locally.

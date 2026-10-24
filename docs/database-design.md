@@ -2,7 +2,7 @@
 
 PostgreSQL is the durable source of truth. Book metadata is separated from physical copies. Derive availability from copy/loan state instead of storing duplicated counts. Use UUID identifiers, foreign keys, timestamps, explicit statuses, and Flyway migrations.
 
-## Proposed entities
+## Planned entities
 
 | Entity | Key fields / responsibility |
 |---|---|
@@ -25,7 +25,7 @@ PostgreSQL is the durable source of truth. Book metadata is separated from physi
 ## Relationships and integrity
 `user_account` has zero or one `member`; a book has many copies; books link many-to-many with authors/categories. Members have many requests and loans. Each copy has historical loans but at most one active loan. Loans may have fine adjustments/assessments. Members may submit feedback, hold interests, receive recommendations, and own notifications.
 
-Use unique normalized email, institutional identifier, and copy barcode. Enforce foreign keys and useful checks. Add a partial unique index on active `loan.copy_id` (`returned_at IS NULL`). Index active loans by member and due date, copies by book/status, requests by status/submitted time, notifications by recipient/read/created, and fines by status. Store timestamps as `timestamptz`, currency explicitly, and amounts exactly. Do not encode the unresolved loan duration or fine rate in defaults. Audit administrative actions without secrets or unnecessary PII.
+For the planned schema, use unique normalized email, institutional identifier, and copy barcode; enforce foreign keys and checks. The implemented V4 loan index is partial on `loan.book_copy_id` where `status = 'ACTIVE'`; active loan queries are indexed by borrower and due date. Copy and request queries have status/book/submission indexes. Planned notification/fine indexes apply only when those modules are implemented. Store event timestamps as `timestamptz`; use `DATE` for library-calendar due dates.
 
 No group/course entity is proposed. Feedback uniqueness/scale, reservation lifecycle, and recommendation impression tracking require decisions before schema constraints are chosen.
 
@@ -33,4 +33,11 @@ No group/course entity is proposed. Feedback uniqueness/scale, reservation lifec
 
 `author`, `category`, and `book` records are linked through `book_author` and `book_category`; `book_copy` stores uniquely identified physical inventory. ISBN is nullable and checksum-validated at the API. Book deactivation is a soft state. Availability is derived from copies with status `AVAILABLE`; withdrawn copies are excluded from total inventory counts. Copy state supports `AVAILABLE`, `ON_LOAN`, `LOST`, `DAMAGED`, and `WITHDRAWN`, but librarian inventory APIs cannot assign `ON_LOAN`; circulation owns that transition.
 
-The `circulation_policy` field records `STANDARD`, `REFERENCE_ONLY`, `SERIAL_RESTRICTED`, or `APPROVED_OVERNIGHT_EXCEPTION`. This records policy intent only. Enforcement, overnight return time and operational exception approvals remain future circulation decisions, consistent with the SRS.
+The `circulation_policy` stores `STANDARD`, `REFERENCE_ONLY`, `SERIAL_RESTRICTED`, or `APPROVED_OVERNIGHT_EXCEPTION`. Flyway V4 enables take-home circulation only for active `STANDARD` books; the other policies remain blocked pending operating decisions.
+
+
+## Implemented borrowing and circulation schema (Flyway V4)
+
+V4 adds `borrow_request`, `borrow_request_event`, `loan`, `loan_event`, and `library_holiday`. Requests reference the borrower account and book, record submission/review state, and preserve actor/time/reason history. Loans reference the issued request, borrower, physical copy, and issuing Librarian; they store `DATE` issue/due/actual-return values, renewal count, state, notes, and an optimistic version. Loan events record issue, renewal, return/loss, effective date, due-date changes, copy status, actor, and optional case note. The holiday table has a unique date and records the creating Librarian.
+
+A partial unique index allows at most one ACTIVE loan per copy; row locks protect request/copy issue and return transitions. No holiday dates, fines, replacement amounts, or production seed accounts are inserted. The application uses `LIBTRACK_LIBRARY_ZONE` to determine the library-local date; deployment must set this to the institution's real zone. The H2 test profile disables Flyway, so those tests do not validate the PostgreSQL V4 migration.

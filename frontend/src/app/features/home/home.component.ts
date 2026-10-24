@@ -31,16 +31,16 @@ import { AuthService } from '../auth/auth.service';
           <section class="dashboard-section" aria-labelledby="activity-title">
             <div class="section-title-row"><div><p class="eyebrow">YOUR LIBRARY</p><h2 id="activity-title">Library activity</h2></div><span class="section-caption">Services not connected</span></div>
             <div class="activity-grid">
-              <article class="activity-card surface-card">
+              <a class="activity-card surface-card activity-link" routerLink="/my/borrowings">
                 <span class="activity-icon" aria-hidden="true">↗</span>
-                <div><h3>My borrowings</h3><p>Loan records will appear here when borrowing services are implemented.</p></div>
-                <span class="status-badge status-badge-neutral">Unavailable</span>
-              </article>
-              <article class="activity-card surface-card">
+                <div><h3>My borrowings</h3><p>View current loans, due dates, and borrowing history.</p></div>
+                <span class="status-badge status-badge-success">Available</span>
+              </a>
+              <a class="activity-card surface-card activity-link" routerLink="/my/requests">
                 <span class="activity-icon" aria-hidden="true">≡</span>
-                <div><h3>My requests</h3><p>The request service is not available yet, so no request data can be shown.</p></div>
-                <span class="status-badge status-badge-neutral">Unavailable</span>
-              </article>
+                <div><h3>My requests</h3><p>Follow the review and issue status of requested books.</p></div>
+                <span class="status-badge status-badge-success">Available</span>
+              </a>
               <article class="activity-card surface-card">
                 <span class="activity-icon" aria-hidden="true">₹</span>
                 <div><h3>Fines</h3><p>LibTrack has no fines data or fine-management service yet.</p></div>
@@ -116,6 +116,8 @@ import { AuthService } from '../auth/auth.service';
     .section-caption { color: var(--color-charcoal-600); font-size: .75rem; }
     .activity-grid { display: grid; gap: .65rem; }
     .activity-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .9rem; padding: .9rem 1rem; }
+    .activity-link { color: inherit; text-decoration: none; }
+    .activity-link:hover { border-color: var(--color-sage-500); background: var(--color-ivory-100); }
     .activity-icon { display: grid; width: 2.4rem; height: 2.4rem; place-items: center; border-radius: var(--radius-control); color: var(--color-forest-900); background: var(--color-sage-100); font-size: 1.1rem; font-weight: 700; }
     .activity-card h3 { margin: 0 0 .15rem; font-size: .92rem; }
     .activity-card p { margin: 0; color: var(--color-charcoal-600); font-size: .77rem; line-height: 1.4; }

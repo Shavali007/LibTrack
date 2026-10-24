@@ -21,3 +21,6 @@ server:
         http-only: true
         same-site: lax
         secure: ${SESSION_COOKIE_SECURE:false}
+libtrack:
+  # Set this to the library's actual IANA zone for server-generated local dates.
+  library-zone: ${LIBTRACK_LIBRARY_ZONE:UTC}
