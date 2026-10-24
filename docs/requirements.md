@@ -58,3 +58,8 @@ Security through authentication, role authorization, and protected passwords; re
 11. Recommendation ranking/exclusions/visibility/expiry and insight definitions/privacy need approval.
 12. “Basic reports” has no precise list, filters, exports, or access rules.
 13. Backup objectives, accessibility target, and performance thresholds are absent.
+
+
+## Authentication and provisioning boundary
+
+The prototype supports session login, logout, current-user lookup, Librarian-mediated Student/Faculty provisioning, and account deactivation. Only an authorized Librarian can use the provisioning API, whose role enum excludes Librarian. The operator must confirm identity manually; an attestation, institutional identifier, timestamp, and creating Librarian are recorded. The prototype does not implement institutional SSO, an identity verification API, or an institutional approval workflow. The first Librarian is created through the controlled interactive CLI bootstrap, not an HTTP endpoint or seeded password. Production verification source/evidence retention, account recovery, rate limiting, and administrative offboarding remain undecided. Thus SRS-FR-01 is only partially implemented: member creation is controlled, but the SRS validation mechanism is not integrated.

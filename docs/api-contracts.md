@@ -3,13 +3,20 @@
 ## Conventions
 Base path `/api/v1`; JSON DTOs, ISO-8601 timestamps with offsets, opaque UUIDs. Authenticated routes require a server-validated principal. Lists accept `page` (0-based), `size` (default 20, maximum 100), and allowlisted `sort`; response `{content,page,size,totalElements,totalPages}`. Validate filters and never expose persistence entities.
 
-## Identity
+## Authentication
 
-| Method/path | Access | Request / response |
+| Method/path | Access | Contract |
 |---|---|---|
-| `POST /auth/register` | Public student-only | `{institutionalId,email,password,displayName}` -> 201 `{userId,role,displayName}`. Identity verification policy pending. |
-| `POST /auth/login` | Public | `{email,password}` -> 200 `{accessToken,expiresAt,user:{id,role,displayName}}`; transport design pending security review. |
-| `GET /me` | Authenticated | Current safe profile/permissions. |
+| `GET /auth/csrf` | Public | Creates/returns a session-bound CSRF token `{headerName,token}`. The client must send that token in the named header for login/logout. |
+| `POST /auth/login` | Public with valid CSRF token | `{email,password}` -> 200 `{id,email,role}` and an HttpOnly session cookie. Invalid/disabled accounts receive the same 401 response. |
+| `GET /auth/me` | Authenticated session | Current safe profile `{id,email,role}`. |
+| `POST /auth/logout` | Authenticated session with valid CSRF token | Invalidates session -> 204. |
+| `POST /librarian/accounts` | Librarian only | `{email,institutionalId,password,role:STUDENT|FACULTY,identityVerified:true}` -> 201 safe profile. Librarian attests that the college identity was checked; this prototype does not call an institutional service. Duplicate email/identity -> generic 409. Other roles are rejected. |
+| `POST /librarian/accounts/{accountId}/disable` | Librarian only | Deactivates the account -> 204; disabled accounts cannot authenticate. |
+
+There is no public registration route. Students and Faculty are provisioned by an authorized Librarian after manual identity verification. Only a trusted operator can create the first Librarian through the one-time interactive CLI bootstrap documented in the README; the HTTP API cannot assign Librarian. Bootstrap accepts a hidden password prompt and refuses to run with a web server. Provisioning requests and responses redact/exclude credentials.
+
+Sessions use server-side storage and an HttpOnly, SameSite=Lax cookie. Configure `SESSION_COOKIE_SECURE=true` behind HTTPS. Session inactivity timeout is 30 minutes by default and can be set with `SESSION_TIMEOUT`. Never return password hashes or store session tokens in browser storage.
 
 ## Catalogue and members
 
@@ -59,4 +66,4 @@ Base path `/api/v1`; JSON DTOs, ISO-8601 timestamps with offsets, opaque UUIDs. 
 | `GET /reports/availability`, `/reports/issued`, `/reports/overdue`, `/reports/transactions` | Librarian | Paginated operational reports with date/status/member/book filters. Individual reminder delivery remains excluded. |
 
 ## Errors and validation
-Return `application/problem+json`, e.g. `{type,title,status,detail,instance,code,fieldErrors:[{field,message}],traceId}`. Use 400 validation, 401 unauthenticated, 403 forbidden, 404 missing, 409 state/concurrency conflict, and 500 with no internal details. Validate identifiers, lengths, enums, dates, and pagination at API and service layers. Do not leak private record existence. DTOs should use Bean Validation; business eligibility is checked in services.
+Return `application/problem+json` for framework validation errors. Invalid login returns `401` with `{code:"INVALID_CREDENTIALS",message:"Email or password is incorrect."}` for unknown, wrong-password, disabled, or locked accounts. A missing/invalid CSRF token returns `403`. Use 401 unauthenticated, 403 forbidden, 404 missing, 409 state/concurrency conflict, and 500 with no internal details. Validate identifiers, lengths, enums, dates, and pagination at API and service layers. Do not leak private record existence. Business eligibility is checked in services.

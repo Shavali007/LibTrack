@@ -4,7 +4,8 @@
 
 | Capability | Student | Faculty | Librarian |
 |---|---:|---:|---:|
-| Register as student | Yes | — | — |
+| Provision student/faculty accounts after identity check | — | — | Yes; server records attestation and actor |
+| Create Librarian account | — | — | Controlled administrative/CLI bootstrap only; no HTTP endpoint |
 | Authenticate/view own profile | Own | Own | Own |
 | Search catalogue and availability | Yes | Yes | Yes |
 | Submit request; see own requests/loans/history/fines/notifications | Own | Own, subject to approved policy | — |

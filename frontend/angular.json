@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
   "newProjectRoot": "projects",
   "projects": {
     "libtrack-frontend": {
@@ -14,44 +15,28 @@
             "browser": "src/main.ts",
             "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
-            "styles": [
-              "src/styles.scss"
-            ]
+            "styles": ["src/styles.scss"]
           },
           "configurations": {
-            "production": {
-              "optimization": true,
-              "outputHashing": "all",
-              "sourceMap": false
-            },
-            "development": {
-              "optimization": false,
-              "extractLicenses": false,
-              "sourceMap": true
-            }
+            "production": { "optimization": true, "outputHashing": "all", "sourceMap": false },
+            "development": { "optimization": false, "extractLicenses": false, "sourceMap": true }
           },
           "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": { "proxyConfig": "proxy.conf.json" },
           "configurations": {
-            "production": {
-              "buildTarget": "libtrack-frontend:build:production"
-            },
-            "development": {
-              "buildTarget": "libtrack-frontend:build:development"
-            }
+            "production": { "buildTarget": "libtrack-frontend:build:production" },
+            "development": { "buildTarget": "libtrack-frontend:build:development" }
           },
           "defaultConfiguration": "development"
         },
         "test": {
           "builder": "@angular/build:unit-test",
-          "options": {
-            "runner": "vitest"
-          }
+          "options": { "runner": "vitest" }
         }
       }
     }
-  },
-  "version": 1
-}\n
+  }
+}

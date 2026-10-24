@@ -1,6 +1,6 @@
 # LibTrack
 
-LibTrack is a modular monolith for academic library catalogue, member, and circulation workflows. This initial setup provides the planning baseline, Angular workspace, Spring Boot health endpoint, PostgreSQL configuration, and starter tests. Business workflows remain staged for later implementation.
+LibTrack is a modular monolith for academic library catalogue, member, and circulation workflows. The current slice includes session authentication and controlled Librarian provisioning of Student and Faculty accounts. Catalogue, borrowing, circulation, and Smart Services remain planned.
 
 ## Technology baseline
 
@@ -8,11 +8,11 @@ LibTrack is a modular monolith for academic library catalogue, member, and circu
 - Java 25 / Spring Boot 4.1.2 / Maven 3.10 / PostgreSQL 17.
 - Locked frontend packages include Angular CLI/build 22.2.4, Angular framework packages 22.2.3, Vitest 4.1.12, and TypeScript 6.0.3.
 
-Compatibility rationale and official references are in `docs/architecture.md`. `Java 25.0.1`, Node `24.22.1`, npm `10.9.2`, and Maven `3.10.0` were observed in this environment. Angular 22's optional peer metadata caused npm 10's dependency resolver to fail; the verified dependency set was installed with `--legacy-peer-deps`. Use that flag for reproducible installs with npm 10.
+Compatibility rationale and official references are in `docs/architecture.md`. Angular uses a dev proxy so `/api` stays same-origin during local development.
 
 ## Local setup
 
-Start PostgreSQL in one terminal from this directory:
+Start PostgreSQL from the repository root:
 
 ```powershell
 docker compose up -d db
@@ -33,7 +33,11 @@ npm install --legacy-peer-deps
 npm start
 ```
 
-The UI is served at `http://localhost:4200`; the API is at `http://localhost:8080`. Check `GET http://localhost:8080/api/health` for `{ "status": "UP" }`. Database defaults target the Compose service (`libtrack` / `libtrack`); override `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` through environment variables. Development credentials are not production secrets.
+The UI is served at `http://localhost:4200`; the API is at `http://localhost:8080`. For local HTTPS deployments, set `SESSION_COOKIE_SECURE=true`. Database values come from `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD`. Compose defaults are for local development only.
+
+Authentication uses server-side sessions, CSRF protection, and BCrypt password hashes. A Librarian manually verifies college identity before provisioning a Student or Faculty account; this prototype records the attestation and does not integrate with an institutional verification service. There is no public registration route and the provisioning API cannot assign Librarian.
+
+To create the initial Librarian, run the backend from an interactive trusted terminal after configuring database connectivity: `mvn spring-boot:run -Dspring-boot.run.arguments=--libtrack.bootstrap-librarian`. The process runs without an HTTP server, prompts for the account email and hidden password twice, and refuses if a Librarian already exists. Do not run this bootstrap through an exposed service or CI job. No production password is stored in source or silently seeded. The API provides `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout`, and Librarian-only account provisioning/deactivation routes documented in `docs/api-contracts.md`.
 
 ## Checks
 
@@ -45,4 +49,4 @@ npm test -- --watch=false
 npm run build
 ```
 
-No business policy is inferred for the SRS's unverified 30-day borrowing period or unspecified fine rate; see `docs/decision-log.md`. The next recommended implementation slice is identity and member provisioning, beginning with approved student/faculty identity rules and server-enforced roles.
+The 30-day loan period and fine rate remain unresolved; see `docs/decision-log.md`. Catalogue, borrowing, circulation, and Smart Services are planned next slices, not current features.
