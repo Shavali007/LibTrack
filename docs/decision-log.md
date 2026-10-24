@@ -21,3 +21,4 @@
 | D-15 | Technology | Decided for initial baseline | Angular 22 / Node 24 / TypeScript 6; Java 25 / Spring Boot 4.1.2 / Maven 3.9+ / PostgreSQL 17. Recheck in CI. |
 | D-16 | Architecture | Decided | One Angular frontend, one Spring Boot modular monolith, one PostgreSQL database; no microservices. |
 | D-17 | Physical inventory | Decided | Separate `Book` metadata from `BookCopy`; derive availability from copy/loan state. |
+| D-18 | Catalogue enforcement boundary | Unresolved | Catalogue rows store STANDARD, REFERENCE_ONLY, SERIAL_RESTRICTED, and APPROVED_OVERNIGHT_EXCEPTION as descriptive metadata. Circulation must enforce the approved rules after D-06 resolves overnight eligibility and timing. No copy can be manually moved to ON_LOAN from catalogue administration. |

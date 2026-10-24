@@ -32,13 +32,11 @@ describe('Student dashboard', () => {
     const text = (fixture.nativeElement.textContent as string).toLowerCase();
     expect(text).toContain('unavailable');
     expect(text).toContain('not available yet');
-    expect(text).toContain('no sample titles or availability are shown');
+    expect(text).toContain('search real catalogue records');
     expect(text).not.toContain('clean code');
     expect(text).not.toContain('effective java');
     expect(text).not.toContain('12 / 20');
-    const actions = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-    expect(actions.length).toBe(1);
-    expect(actions[0].disabled).toBe(true);
+    expect(fixture.nativeElement.querySelector('a[href="/books"]')?.textContent).toContain('Search books');
   });
 
   it('does not render the Student dashboard for Faculty or Librarian accounts', () => {

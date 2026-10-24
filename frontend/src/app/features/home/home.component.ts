@@ -50,10 +50,10 @@ import { AuthService } from '../auth/auth.service';
           </section>
 
           <section class="discovery-card surface-card" aria-labelledby="discovery-title">
-            <div class="section-title-row"><div><p class="eyebrow">CATALOGUE</p><h2 id="discovery-title">Discover books</h2></div><span class="status-badge status-badge-neutral">Coming later</span></div>
-            <p class="muted">Book search and catalogue records are not connected yet. No sample titles or availability are shown.</p>
-            <button class="button button-secondary" type="button" disabled aria-describedby="catalogue-unavailable">Search books</button>
-            <p class="unavailable-note" id="catalogue-unavailable">Catalogue service unavailable</p>
+            <div class="section-title-row"><div><p class="eyebrow">CATALOGUE</p><h2 id="discovery-title">Discover books</h2></div><span class="status-badge status-badge-success">Available</span></div>
+            <p class="muted">Search real catalogue records and see availability derived from physical-copy inventory.</p>
+            <a class="button button-secondary" routerLink="/books">Search books</a>
+
           </section>
 
           <section class="recommendations-card surface-card" aria-labelledby="recommendations-title">

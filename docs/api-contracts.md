@@ -5,7 +5,7 @@ Base path `/api/v1`; JSON DTOs, ISO-8601 timestamps with offsets, opaque UUIDs. 
 
 ## Implementation status
 
-The API tables below describe the project contract. At this point, only the health endpoint, authentication endpoints, and Librarian account-provisioning endpoints have implemented controllers. Catalogue, members, borrowing, circulation, fines, recommendations, interests, feedback, notifications, insights, and reports remain planned contracts; they do not yet have live endpoints or supporting business entities/migrations. The Student dashboard must display these services as unavailable until their APIs are implemented.
+Health, authentication, Librarian account-provisioning, and the catalogue endpoints below have live controllers and supporting entities. Members, borrowing, circulation, fines, recommendations, interests, feedback, notifications, insights, and reports remain planned. Catalogue circulation-policy values are metadata only; they are not yet enforced by a circulation workflow.
 
 ## Authentication
 
@@ -26,10 +26,15 @@ Sessions use server-side storage and an HttpOnly, SameSite=Lax cookie. Configure
 
 | Method/path | Access | Contract |
 |---|---|---|
-| `GET /books` | Authenticated | Filters `q,title,author,isbn,categoryId,available`; paginated summary with derived availability. |
-| `GET /books/{id}` | Authenticated | Metadata, authors/categories and availability summary; no private loan details. |
-| `POST /books` | Librarian | `{isbn?,title,edition?,publisher?,publicationYear?,authorIds[],categoryIds[]}` -> 201 detail. |
+| `GET /books` | Student, Faculty, Librarian | Filters `q,title,author,isbn,category,available`; paginated summary; sort by title, publicationYear, or createdAt. |
+| `GET /books/{id}` | Student, Faculty, Librarian | Metadata, authors/categories and availability summary; inactive record is visible only to Librarian. |
+| `POST /books` | Librarian | Validated title, optional checksummed ISBN, author/category names, metadata, cover URL and circulation policy -> 201 detail. |
 | `PATCH /books/{id}` | Librarian | Validated metadata update -> detail. |
+| `POST /books/{id}/deactivate` | Librarian | Soft-deactivates the record; copies/history are retained. |
+| `GET /books/{id}/copies` | Librarian | Physical inventory details; never exposed to members. |
+| `POST /books/{id}/copies` | Librarian | Adds an initially available uniquely identified physical copy. |
+| `PATCH /books/{id}/copies/{copyId}` | Librarian | Updates copy identifier/location/manageable status; ON_LOAN is circulation-managed. |
+| `GET /categories` | Student, Faculty, Librarian | Existing category values for catalogue filters. |
 | `GET /members` | Librarian | `q,role,active` filters; safe paginated summary. |
 | `GET /members/{id}` | Librarian or self | Profile and permitted borrowing summary. |
 | `PATCH /members/{id}` | Librarian | Approved fields/status only. |

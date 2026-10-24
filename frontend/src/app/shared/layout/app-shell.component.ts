@@ -19,6 +19,7 @@ import { AuthService } from '../../features/auth/auth.service';
           <span class="nav-section-label">WORKSPACE</span>
           <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
             <span class="nav-icon" aria-hidden="true">⌂</span><span>Overview</span>
+          <a class="nav-link" routerLink="/books" routerLinkActive="active" ariaCurrentWhenActive="page"><span class="nav-icon" aria-hidden="true">⌕</span><span>Search books</span></a>
           </a>
           @if (auth.profile()?.role === 'LIBRARIAN') {
             <span class="nav-section-label nav-section-spaced">ADMINISTRATION</span>

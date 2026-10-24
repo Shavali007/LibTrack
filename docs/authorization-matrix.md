@@ -23,3 +23,7 @@
 | Operational reports | — | — | All |
 
 Enforce deny-by-default Spring Security request and method authorization. Recheck ownership in services; route guards are not security. Faculty receives only expressly approved student-permitted operations and never inherits librarian permissions. Registration cannot accept a caller-selected privileged role. Audit administrative actions without credentials or sensitive secrets. Use privacy-preserving 404 where resource existence is sensitive.
+
+## Implemented catalogue enforcement
+
+Catalogue browsing and category lookup require Student, Faculty, or Librarian authentication. Book metadata create/update/deactivation and copy inventory access require Librarian authority, enforced by Spring method security as well as client route guards. Students and Faculty see aggregate availability only; copy identifiers and locations are withheld. Manual inventory updates cannot transition a copy to `ON_LOAN`, which belongs to circulation. Catalogue routes require CSRF tokens for state-changing requests under the existing session security configuration.

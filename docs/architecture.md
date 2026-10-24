@@ -52,3 +52,7 @@ Approval and copy selection must atomically recheck eligibility/availability, tr
 
 ## Deployment
 Build static frontend assets and run a single backend against PostgreSQL initially. Supply configuration through environment variables/secret management. Backups, observability, retention, and scale-out policy are release decisions.
+
+## Catalogue implementation status
+
+The catalogue module is implemented as a vertical slice: validated book metadata, author/category normalization, search/filter/pagination, derived copy availability, librarian copy inventory, soft deactivation, and Angular browse/detail/create/edit/copy-management views. Spring Security requires an authenticated session for catalogue APIs; service methods authorize all writes for Librarians, and copy inventory reads are Librarian-only. The frontend consumes only API records and provides an elegant fallback when a cover URL is absent or fails. Catalogue circulation-policy metadata is not circulation enforcement.

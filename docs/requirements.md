@@ -68,3 +68,7 @@ The prototype supports session login, logout, current-user lookup, Librarian-med
 ## Student dashboard implementation status
 
 The current profile endpoint (`GET /api/v1/auth/me`) supplies only the authenticated account's UUID, email, and role. The dashboard may use the real email and current date, but no display name is available. The backend currently implements no catalogue, member, borrowing, request, fine, recommendation, notification, bookmark, quotation, or reading-progress entity/API; proposed contracts in `api-contracts.md` and proposed entities in `database-design.md` are not live functionality. These areas are shown as clearly unavailable or omitted from active navigation. Catalogue search must be implemented before it can be an active action. Reading goals and page-level progress need separate approved data models; loan records must not be treated as reading statistics. No sample records or demonstration metrics are allowed in production UI.
+
+## Catalogue implementation status
+
+SRS-FR-03, SRS-FR-04, and SRS-FR-05 now have an initial implementation: Librarians can create, edit, and deactivate catalogue records and manage physical-copy inventory; authenticated users can search by keyword/title/author/ISBN/category and see derived available-copy counts. Records are never seeded with demonstration titles. Reference/serial/overnight exception policy is stored as descriptive metadata; issue eligibility and overnight exception enforcement remain pending circulation policy decisions.

@@ -1,0 +1,12 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { AuthService } from '../auth/auth.service';
+import { BookListComponent } from './book-list.component';
+describe('BookListComponent',()=>{let fixture:ComponentFixture<BookListComponent>;let http:HttpTestingController;beforeEach(async()=>{await TestBed.configureTestingModule({imports:[BookListComponent],providers:[provideHttpClient(),provideHttpClientTesting(),provideRouter([]),{provide:AuthService,useValue:{profile:signal({id:'user',email:'lib@example.edu',role:'LIBRARIAN'})}}]}).compileComponents();fixture=TestBed.createComponent(BookListComponent);fixture.detectChanges();http=TestBed.inject(HttpTestingController)});afterEach(()=>http.verify());
+it('renders records returned by the catalogue API and exposes librarian creation action',()=>{http.expectOne('/api/v1/categories').flush([]);http.expectOne(r=>r.url==='/api/v1/books').flush({content:[{id:'b-1',title:'Real API Book',isbn:null,authors:['A. Author'],categories:['Computing'],publisher:null,publicationYear:null,coverImageUrl:null,circulationPolicy:'STANDARD',totalCopies:2,availableCopies:1}],page:0,size:12,totalElements:1,totalPages:1});fixture.detectChanges();expect(fixture.nativeElement.textContent).toContain('Real API Book');expect(fixture.nativeElement.textContent).toContain('1 of 2 copies');expect(fixture.nativeElement.querySelector('a[href="/librarian/books/new"]')).not.toBeNull()});
+it('shows an honest empty state when the live API has no books',()=>{http.expectOne('/api/v1/categories').flush([]);http.expectOne(r=>r.url==='/api/v1/books').flush({content:[],page:0,size:12,totalElements:0,totalPages:0});fixture.detectChanges();expect(fixture.nativeElement.textContent).toContain('No books found');expect(fixture.nativeElement.textContent).not.toContain('Clean Code')});
+});
