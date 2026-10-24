@@ -18,8 +18,8 @@
 | D-12 | Reading insights | Unresolved | Define metrics, window, privacy and retention. |
 | D-13 | Reports | Unresolved | Confirm report list, filters, export and audiences. |
 | D-14 | Auth transport | Decided for initial slice | Server-side Spring Security sessions, HttpOnly SameSite=Lax cookie, session-backed CSRF token, BCrypt strength 12, and 30-minute inactivity timeout. Require `SESSION_COOKIE_SECURE=true` behind HTTPS. Account recovery, rate limiting, evidence retention, and institutional identity integration remain open. |
-| D-15 | Technology | Decided for initial baseline | Angular 22 / Node 24 / TypeScript 6; Java 25 / Spring Boot 4.1.2 / Maven 3.9+ / PostgreSQL 17. Recheck in CI. |
-| D-16 | Architecture | Decided | One Angular frontend, one Spring Boot modular monolith, one PostgreSQL database; no microservices. |
+| D-15 | Technology | Decided | Angular 22 / Node 24 / TypeScript 6; Java 25 / Spring Boot 4.1.2 / Maven 3.10 / MySQL 8.4 LTS. Keep PostgreSQL V1–V4 unchanged as historical migrations; MySQL uses a parallel Flyway location. Recheck in CI. |
+| D-16 | Architecture | Decided | One Angular frontend, one Spring Boot modular monolith, one MySQL 8.4 database; no microservices. |
 | D-17 | Physical inventory | Decided | Separate `Book` metadata from `BookCopy`; derive availability from copy/loan state. |
 | D-18 | Catalogue enforcement boundary | Decided for prototype | Only active STANDARD materials enter take-home requests and issue. Reference, serial, and overnight-exception items are blocked until their specific rules are approved. Catalogue inventory cannot set ON_LOAN. |
 

@@ -1,10 +1,10 @@
 # LibTrack Architecture
 
 ## System shape
-One Angular frontend, one Spring Boot modular monolith, and one PostgreSQL database. The browser uses JSON REST endpoints over HTTPS in deployment. Business modules run in one backend process; no microservices.
+One Angular frontend, one Spring Boot modular monolith, and one MySQL 8.4 database. The browser uses JSON REST endpoints over HTTPS in deployment. Business modules run in one backend process; no microservices.
 
 ```text
-Angular browser -- HTTPS/JSON --> Spring Boot modules --> PostgreSQL
+Angular browser -- HTTPS/JSON --> Spring Boot modules --> MySQL
                                   REST + services         JPA + Flyway
 ```
 
@@ -17,7 +17,7 @@ Angular browser -- HTTPS/JSON --> Spring Boot modules --> PostgreSQL
 | TypeScript | 6.0.3 (locked) | Angular 22 supports >=6.0 and <6.1. |
 | Java | 25 (observed JDK 25.0.1) | Available locally and supported by the selected Spring baseline. |
 | Spring Boot | 4.1.2 | Stable release; official system requirements say Java 17+ and Maven 3.6.3+. |
-| PostgreSQL | 17.x | Conservative relational baseline; pin deployment patch/digest. |
+| MySQL | 8.4 LTS | Supported Flyway/JDBC target; pin the server patch/digest. |
 | Maven | 3.10.0 (observed) | Satisfies the Spring Boot Maven requirement; direct launcher works in the managed environment. |
 
 References: [Angular compatibility](https://angular.dev/reference/versions), [Spring Boot requirements](https://docs.spring.io/spring-boot/system-requirements.html), [Node release schedule](https://nodejs.org/en/about/previous-releases). Verify patch compatibility in CI when dependency installation is available.
@@ -48,10 +48,10 @@ Use service interfaces and identifiers across modules; avoid cross-module reposi
 Use BCrypt password hashes, deny-by-default Spring Security, and service-level authorization. Sessions use an HttpOnly SameSite=Lax cookie, session-backed CSRF protection, and a 30-minute inactivity timeout. Set `SESSION_COOKIE_SECURE=true` behind HTTPS. A Librarian provisions Students and Faculty after manually checking institutional identity; the server stores the institutional identifier, verification timestamp, and creating account. The `identityVerified` field is an accountable operator attestation, not a real verification API or college approval process. There is no public registration and the API only accepts Student or Faculty roles. The first Librarian is created by a one-time, interactive, no-web-server CLI command that prompts for email and a hidden, confirmed password; it refuses if any Librarian already exists. Never store/log plaintext passwords or expose password hashes. Do not trust route guards. Production identity integration, verification evidence/retention, account recovery, and rate limiting remain open. Require HTTPS in deployment.
 
 ## Transactions for borrowing
-Librarian approval and physical issue are separate actions. Issue locks the approved request and selected copy, checks active STANDARD book eligibility and copy availability, then records loan, 30-calendar-day due date, audit history, and ON_LOAN state in one transaction. Return locks the loan/copy, records condition and case note, then updates the copy state atomically. Renewal enforces owner, active STANDARD loan, one-renewal limit, and ON_LOAN copy; it adds 30 calendar days to prior due date. A partial unique index prevents concurrent active loans for a copy. Due dates move only across explicitly configured holiday dates; weekends are not implicit closures. No fine or replacement amount is assessed.
+Librarian approval and physical issue are separate actions. Issue locks the approved request and selected copy, checks active STANDARD book eligibility and copy availability, then records loan, 30-calendar-day due date, audit history, and ON_LOAN state in one transaction. Return locks the loan/copy, records condition and case note, then updates the copy state atomically. Renewal enforces owner, active STANDARD loan, one-renewal limit, and ON_LOAN copy; it adds 30 calendar days to prior due date. A generated nullable key with a unique index prevents concurrent active loans for a copy on MySQL (the historical PostgreSQL migration uses a partial unique index). Due dates move only across explicitly configured holiday dates; weekends are not implicit closures. No fine or replacement amount is assessed.
 
 ## Deployment
-Build static frontend assets and run a single backend against PostgreSQL initially. Supply configuration through environment variables/secret management. Backups, observability, retention, and scale-out policy are release decisions.
+Build static frontend assets and run a single backend against MySQL 8.4. Supply configuration through environment variables/secret management. Backups, observability, retention, and scale-out policy are release decisions.
 
 ## Catalogue implementation status
 
@@ -61,3 +61,8 @@ The catalogue module is implemented as a vertical slice: validated book metadata
 ## Implemented circulation slice
 
 Flyway V4 persists member requests, request events, loans, loan events, and an explicit holiday calendar. Spring Security keeps session/CSRF behavior unchanged; method-level role checks authorize member and Librarian operations and service methods recheck account status, ownership, and state. Angular provides member request/loan views and Librarian request/circulation desk views. Active STANDARD-only circulation is implemented; reference, serial, and overnight exception rules remain disabled. The configured library zone must match the institution before use.
+
+
+## Database engine and migration history
+
+MySQL 8.4 is the active runtime target. Spring Boot uses the MySQL Connector/J driver and UTC-normalized `DATETIME(6)` values for `Instant`; library business dates remain SQL `DATE`. Flyway defaults to `classpath:db/migration/mysql`. PostgreSQL V1–V4 remain unchanged under `classpath:db/migration` to preserve checksums and historical deployment evidence. The MySQL V1–V4 scripts create the equivalent logical model for a fresh MySQL database. This is not an in-place conversion: populated PostgreSQL data requires a separately planned/exported/imported transfer.

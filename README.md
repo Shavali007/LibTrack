@@ -5,16 +5,18 @@ LibTrack is a modular monolith for academic library catalogue, member, and circu
 ## Technology baseline
 
 - Angular 22.2.x / TypeScript 6.0.x / Node.js 24 LTS / SCSS.
-- Java 25 / Spring Boot 4.1.2 / Maven 3.10 / PostgreSQL 17.
+- Java 25 / Spring Boot 4.1.2 / Maven 3.10 / MySQL 8.4 LTS.
 - Locked frontend packages include Angular CLI/build 22.2.4, Angular framework packages 22.2.3, Vitest 4.1.12, and TypeScript 6.0.3.
 
 Compatibility rationale and official references are in `docs/architecture.md`. Angular uses a dev proxy so `/api` stays same-origin during local development.
 
 ## Local setup
 
-Start PostgreSQL from the repository root:
+Start MySQL 8.4 from the repository root. Copy `.env.example` to `.env` and replace both local-only password placeholders first; `.env` is ignored by Git.
 
 ```powershell
+Copy-Item .env.example .env
+# Edit .env and set unique local MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD values.
 docker compose up -d db
 ```
 
@@ -33,7 +35,7 @@ npm install --legacy-peer-deps
 npm start
 ```
 
-The UI is served at `http://localhost:4200`; the API is at `http://localhost:8080`. For local HTTPS deployments, set `SESSION_COOKIE_SECURE=true`. Database values come from `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD`. Compose defaults are for local development only.
+The UI is served at `http://localhost:4200`; the API is at `http://localhost:8080`. For local HTTPS deployments, set `SESSION_COOKIE_SECURE=true`. The backend reads `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` from its process environment. Set `DB_URL=jdbc:mysql://localhost:3307/libtrack?serverTimezone=UTC`, `DB_USERNAME` to the `MYSQL_USER` in `.env`, and `DB_PASSWORD` to the matching `MYSQL_PASSWORD`. Never use the local Compose credentials in production.
 
 Authentication uses server-side sessions, CSRF protection, and BCrypt password hashes. A Librarian manually verifies college identity before provisioning a Student or Faculty account; this prototype records the attestation and does not integrate with an institutional verification service. There is no public registration route and the provisioning API cannot assign Librarian.
 
@@ -49,4 +51,4 @@ npm test -- --watch=false
 npm run build
 ```
 
-Borrowing uses a confirmed 30-calendar-day term and one renewal. Only explicitly configured holidays shift a due date; weekends are not automatically excluded. Set `LIBTRACK_LIBRARY_ZONE` to the real library time zone and maintain the holiday calendar before operational use. Fine and replacement policies remain unresolved. Flyway V4 is covered only by H2-backed automated tests here; run migration verification against PostgreSQL in CI before deployment. Smart Services remain planned.
+Borrowing uses a confirmed 30-calendar-day term and one renewal. Only explicitly configured holidays shift a due date; weekends are not automatically excluded. Set `LIBTRACK_LIBRARY_ZONE` to the real library time zone and maintain the holiday calendar before operational use. Fine and replacement policies remain unresolved. The existing PostgreSQL Flyway V1–V4 files remain untouched as migration history. MySQL runs the parallel `db/migration/mysql` V1–V4 set; it targets a fresh MySQL schema and preserves the same logical data model. H2-backed automated tests do not validate the MySQL migration scripts, so run MySQL migration and schema-validation integration tests before deployment. Smart Services remain planned.

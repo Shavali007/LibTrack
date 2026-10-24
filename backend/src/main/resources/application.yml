@@ -2,16 +2,21 @@ spring:
   application:
     name: libtrack
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/libtrack}
-    username: ${DB_USERNAME:libtrack}
-    password: ${DB_PASSWORD:libtrack}
-    driver-class-name: org.postgresql.Driver
+    url: ${DB_URL:jdbc:mysql://localhost:3307/libtrack}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
     hibernate:
       ddl-auto: validate
   flyway:
     enabled: true
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration/mysql}
 server:
   port: ${SERVER_PORT:8080}
   servlet:
