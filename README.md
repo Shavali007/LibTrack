@@ -1,6 +1,6 @@
 # LibTrack
 
-LibTrack is a modular monolith for academic library catalogue, member, and circulation workflows. The current slice includes session authentication and controlled Librarian provisioning of Student and Faculty accounts. Catalogue, borrowing, circulation, and Smart Services remain planned.
+LibTrack is a modular monolith for academic library catalogue, member, and circulation workflows. The current slices include session authentication and controlled Librarian provisioning, catalogue search and inventory, member borrowing requests, Librarian approval/issue/return workflows, loan history, one online renewal, and an explicit holiday calendar. Fine policy and Smart Services remain planned.
 
 ## Technology baseline
 
@@ -49,4 +49,4 @@ npm test -- --watch=false
 npm run build
 ```
 
-The 30-day loan period and fine rate remain unresolved; see `docs/decision-log.md`. Catalogue, borrowing, circulation, and Smart Services are planned next slices, not current features.
+Borrowing uses a confirmed 30-calendar-day term and one renewal. Only explicitly configured holidays shift a due date; weekends are not automatically excluded. Set `LIBTRACK_LIBRARY_ZONE` to the real library time zone and maintain the holiday calendar before operational use. Fine and replacement policies remain unresolved. Flyway V4 is covered only by H2-backed automated tests here; run migration verification against PostgreSQL in CI before deployment. Smart Services remain planned.
