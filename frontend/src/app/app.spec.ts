@@ -12,7 +12,7 @@ describe('AppComponent', () => {
     fixture.detectChanges();
   });
 
-  it('shows the LibTrack brand', () => {
-    expect(fixture.nativeElement.textContent).toContain('LibTrack');
+  it('provides the application route outlet', () => {
+    expect(fixture.nativeElement.querySelector('router-outlet')).not.toBeNull();
   });
 });
