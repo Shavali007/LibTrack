@@ -5,7 +5,7 @@ Deliver small vertical slices and do not build policy-dependent circulation beha
 | Phase | Slice | Completion checks |
 |---|---|---|
 | 0 Foundation | Angular/Spring scaffolds, environment config, PostgreSQL, health endpoint, OpenAPI and CI | Clean builds, health integration test, no committed secrets |
-| 1 Identity | **Current slice:** session login/logout/current user, and Librarian-provisioned Student/Faculty accounts. Initial Librarian is created by the interactive offline CLI bootstrap. No public registration. | Auth/provisioning tests cover hashing, session rotation/invalidation, CSRF, roles, duplicate identities, and no privileged self-assignment; PostgreSQL migration integration remains to run in CI. |
+| 1 Identity | Session login/logout/current user, and Librarian-provisioned Student/Faculty accounts. Initial Librarian is created by the interactive offline CLI bootstrap. No public registration. Student dashboard shell uses only real profile data and marks unavailable services honestly. | Auth/provisioning tests cover hashing, session rotation/invalidation, CSRF, roles, duplicate identities, and no privileged self-assignment; PostgreSQL migration integration remains to run in CI. Frontend dashboard tests reject demonstration data. |
 | 2 Catalogue | Books, authors/categories, copies, search/availability | Migration, CRUD, search and Angular service/form tests |
 | 3 Members | Member administration and status | Librarian gate and inactive-member tests |
 | 4 Requests | Submit, review, approve/reject, concurrency-safe assignment | End-to-end request/decision flow; eligibility policy confirmed |

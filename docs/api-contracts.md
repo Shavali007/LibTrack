@@ -3,6 +3,10 @@
 ## Conventions
 Base path `/api/v1`; JSON DTOs, ISO-8601 timestamps with offsets, opaque UUIDs. Authenticated routes require a server-validated principal. Lists accept `page` (0-based), `size` (default 20, maximum 100), and allowlisted `sort`; response `{content,page,size,totalElements,totalPages}`. Validate filters and never expose persistence entities.
 
+## Implementation status
+
+The API tables below describe the project contract. At this point, only the health endpoint, authentication endpoints, and Librarian account-provisioning endpoints have implemented controllers. Catalogue, members, borrowing, circulation, fines, recommendations, interests, feedback, notifications, insights, and reports remain planned contracts; they do not yet have live endpoints or supporting business entities/migrations. The Student dashboard must display these services as unavailable until their APIs are implemented.
+
 ## Authentication
 
 | Method/path | Access | Contract |
