@@ -4,7 +4,7 @@ import { LoginComponent } from './features/auth/login.component';
 import { VerifyEmailComponent } from './features/auth/verify-email.component';
 import { HomeComponent } from './features/home/home.component';
 import { PublicLandingComponent } from './features/home/public-landing.component';
-import { AccountProvisionComponent } from './features/home/account-provision.component';
+
 import { BookListComponent } from './features/catalogue/book-list.component';
 import { BookDetailComponent, BookEditorComponent } from './features/catalogue/book-detail-editor.component';
 import { CopyManagerComponent } from './features/catalogue/copy-manager.component';
@@ -20,7 +20,7 @@ export const routes: Routes = [
   { path: 'books', component: BookListComponent },
   { path: 'books/:bookId', component: BookDetailComponent },
   { path: 'workspace', component: AppShellComponent, canMatch: [authenticatedGuard], children: [
-    { path: 'librarian/accounts/new', component: AccountProvisionComponent, canMatch: [librarianGuard] },
+   
     { path: 'librarian/books/new', component: BookEditorComponent, canMatch: [librarianGuard] },
     { path: 'librarian/books/:bookId/edit', component: BookEditorComponent, canMatch: [librarianGuard] },
     { path: 'librarian/books/:bookId/copies', component: CopyManagerComponent, canMatch: [librarianGuard] },

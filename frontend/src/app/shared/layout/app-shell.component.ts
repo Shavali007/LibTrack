@@ -20,7 +20,7 @@ import { AuthService } from '../../features/auth/auth.service';
           }
           @if (auth.profile()?.role === 'LIBRARIAN') {
             <span class="nav-section-label nav-section-spaced">LIBRARY OPERATIONS</span>
-            <a class="nav-link" routerLink="/workspace/librarian/accounts/new" routerLinkActive="active" ariaCurrentWhenActive="page"><span class="nav-icon" aria-hidden="true">＋</span><span>Member accounts</span></a>
+           
             <a class="nav-link" routerLink="/workspace/librarian/requests" routerLinkActive="active" ariaCurrentWhenActive="page"><span class="nav-icon" aria-hidden="true">≡</span><span>Requests</span></a>
             <a class="nav-link" routerLink="/workspace/librarian/circulation" routerLinkActive="active" ariaCurrentWhenActive="page"><span class="nav-icon" aria-hidden="true">↔</span><span>Circulation</span></a>
           }
