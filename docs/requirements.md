@@ -69,6 +69,10 @@ The prototype supports session login, logout, current-user lookup, Librarian-med
 
 The current profile endpoint (`GET /api/v1/auth/me`) supplies only the authenticated account's UUID, email, and role. The dashboard may use the real email and current date, but no display name is available. The backend implements catalogue, borrow-request, loan, circulation-audit, and explicit holiday-calendar records/APIs. Fine, recommendation, notification, bookmark, quotation, and reading-progress services remain unimplemented. These areas are shown as unavailable or omitted from active navigation. Loan records are not treated as reading statistics. Reading goals and page-level progress need separate approved data models. No sample records or demonstration metrics are allowed in production UI.
 
+## Public experience and dashboard status
+
+The public landing page, redesigned role-context sign-in dialog, and read-only catalogue browse/detail flow are implemented. Role tabs remain contextual and never grant a role. Student/Faculty self-registration validates institutional domains and password rules; new accounts remain disabled until a single-use, expiring institutional-email token is validated. With the explicit development Spring profile, an in-memory localhost-only mail capture exposes verification links for local testing. Outside development/test, registration fails closed until a real provider is configured. Existing Librarian-provisioned accounts remain enabled only after the established identity review. Librarian public registration is unavailable. Workspace pages continue to expose only implemented API-backed services; password recovery and unsupported catalogue-adjacent features remain incomplete.
+
 ## Catalogue implementation status
 
 SRS-FR-03, SRS-FR-04, and SRS-FR-05 are implemented as described above. Reference, serial, and overnight exception policy is stored as catalogue metadata, but these items are not eligible for standard take-home circulation.

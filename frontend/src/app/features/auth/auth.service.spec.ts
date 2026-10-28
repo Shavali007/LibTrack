@@ -68,5 +68,26 @@ describe('AuthService', () => {
     expect(error).toBeInstanceOf(Error);
     http.expectNone('/api/v1/auth/login');
   });
-});
 
+  it('submits email verification with a fresh CSRF token and does not create a session profile', () => {
+    service.verifyEmail('secure-token-from-link').subscribe(response => expect(response.status).toBe('VERIFIED'));
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'csrf-verify' });
+    const request = http.expectOne('/api/v1/auth/verify-email');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ token: 'secure-token-from-link' });
+    expect(request.request.headers.get('X-CSRF-TOKEN')).toBe('csrf-verify');
+    request.flush({ status: 'VERIFIED', message: 'Verified' });
+    expect(service.profile()).toBeNull();
+  });
+
+  it('sends self-registration with CSRF and does not authenticate pending accounts', () => {
+    const body = { email: 'shavali.23mic7248@vitapstudent.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!', role: 'STUDENT' as const };
+    service.register(body).subscribe(response => expect(response.status).toBe('PENDING_VERIFICATION'));
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'csrf-value' });
+    const request = http.expectOne('/api/v1/auth/register');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(body);
+    expect(request.request.headers.get('X-CSRF-TOKEN')).toBe('csrf-value');
+    request.flush({ status: 'PENDING_VERIFICATION', message: 'Waiting for email verification.' });
+    expect(service.profile()).toBeNull();
+  });});

@@ -63,7 +63,7 @@ import { AuthService, ProvisionableRole } from '../auth/auth.service';
           <p>Only Librarians can provision member accounts. Student and Faculty identities must be checked before you submit.</p>
           <ul><li>Librarian roles are not available here.</li><li>Email and institutional ID must be unique.</li><li>The password is hashed and never shown in the response.</li></ul>
         </div>
-        <a class="back-link" routerLink="/">Return to workspace</a>
+        <a class="back-link" routerLink="/workspace">Return to workspace</a>
       </aside>
     </section>
   `,

@@ -6,7 +6,7 @@ MySQL 8.4 is the durable source of truth. Book metadata is separated from physic
 
 | Entity | Key fields / responsibility |
 |---|---|
-| `user_account` | id, normalized unique email, password_hash, role, enabled, timestamps |
+| `user_account` | id, normalized unique email, password_hash, role, enabled, institutional_id, identity_verified_at, provisioning_source, creating actor, timestamps |
 | `member` | id, institutional identifier, unique user_id, display/contact fields, active status |
 | `book` | id, nullable ISBN, title, edition, publisher/year, description, active status |
 | `author`, `book_author` | normalized author identity and unique many-to-many link |
@@ -46,3 +46,7 @@ A unique index on the MySQL generated nullable active-copy key allows at most on
 ## Database-engine migration note
 
 The original `db/migration/V1`–`V4` PostgreSQL scripts are retained without edits so any existing PostgreSQL Flyway checksums remain intact. The active MySQL 8.4 location contains parallel versioned scripts with equivalent tables, constraints, indexes, and relationships, adapted for `BINARY(16)` UUIDs, `DATETIME(6)` audit instants, MySQL check expressions, and generated nullable keys for conditional uniqueness. Existing MySQL-free local environments can run the H2 test profile, but H2 does not prove Flyway/MySQL compatibility. A populated PostgreSQL database must not be pointed at the MySQL JDBC URL; data conversion needs a separately planned export/import.
+
+## Pending self-registration state (Flyway V5–V7)
+
+V5 extends the allowed provisioning audit source with `SELF_REGISTRATION` and initially permits that source only for disabled Student/Faculty rows with null institutional ID, null verification timestamp, and null creating Librarian. Registration stores a BCrypt hash but makes no verification claim. Flyway V6 adds `email_verification_token` with one row per self-registered account, a unique SHA-256 token hash, expiry, consumption time, and creation time. Flyway V7 replaces only the provisioning-audit check constraint: it retains the self-registration role and null audit-field requirements but allows `enabled` to transition from false to true after token verification. Without V7, the verification transaction would be rejected by the database constraint and rolled back. V7 does not rewrite V1–V6 or update/delete existing account or catalogue rows. Raw tokens are never stored. Verification locks the token row and activates the pending Student/Faculty account in one transaction. Local development mail capture is in-memory and not persisted.

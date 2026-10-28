@@ -4,6 +4,9 @@ import { Observable, switchMap, tap } from 'rxjs';
 
 export type AccountRole = 'STUDENT' | 'FACULTY' | 'LIBRARIAN';
 export type ProvisionableRole = 'STUDENT' | 'FACULTY';
+export type RegistrationRole = 'STUDENT' | 'FACULTY';
+export interface RegistrationResponse { status: 'PENDING_VERIFICATION'; message: string; }
+export interface RegistrationRequest { email: string; password: string; confirmPassword: string; role: RegistrationRole; }
 
 export interface UserProfile {
   id: string;
@@ -44,6 +47,17 @@ export class AuthService {
     );
   }
 
+  verifyEmail(token: string): Observable<{status: 'VERIFIED'; message: string}> {
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.post<{status: 'VERIFIED'; message: string}>(this.api + '/verify-email', { token }, { headers })),
+    );
+  }
+
+  register(request: RegistrationRequest): Observable<RegistrationResponse> {
+    return this.csrfHeaders().pipe(
+      switchMap((headers) => this.http.post<RegistrationResponse>(`${this.api}/register`, request, { headers })),
+    );
+  }
   logout(): Observable<void> {
     return this.csrfHeaders().pipe(
       switchMap((headers) => this.http.post<void>(`${this.api}/logout`, {}, { headers })),

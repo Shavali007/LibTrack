@@ -18,7 +18,7 @@
             "styles": ["src/styles.scss"]
           },
           "configurations": {
-            "production": { "optimization": true, "outputHashing": "all", "sourceMap": false },
+            "production": { "optimization": { "scripts": true, "styles": true, "fonts": false }, "outputHashing": "all", "sourceMap": false },
             "development": { "optimization": false, "extractLicenses": false, "sourceMap": true }
           },
           "defaultConfiguration": "production"
@@ -38,5 +38,8 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": false
   }
 }

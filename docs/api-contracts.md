@@ -5,7 +5,7 @@ Base path `/api/v1`; JSON DTOs, ISO-8601 timestamps with offsets, opaque UUIDs. 
 
 ## Implementation status
 
-Health, authentication, Librarian account-provisioning, catalogue, borrowing requests, circulation, and holiday-calendar endpoints below have live controllers and supporting entities. Member administration, fines, recommendations, interests, feedback, notifications, insights, and reports remain planned. Standard take-home circulation is enforced; restricted-material exceptions are not enabled.
+Health, authentication, Librarian account-provisioning, public read-only catalogue, borrowing requests, circulation, and holiday-calendar endpoints below have live controllers and supporting entities. Member administration, fines, recommendations, interests, feedback, notifications, insights, and reports remain planned. Standard take-home circulation is enforced; restricted-material exceptions are not enabled.
 
 ## Authentication
 
@@ -13,28 +13,33 @@ Health, authentication, Librarian account-provisioning, catalogue, borrowing req
 |---|---|---|
 | `GET /auth/csrf` | Public | Creates/returns a session-bound CSRF token `{headerName,token}`. The client must send that token in the named header for login/logout. |
 | `POST /auth/login` | Public with valid CSRF token | `{email,password}` -> 200 `{id,email,role}` and an HttpOnly session cookie. Invalid/disabled accounts receive the same 401 response. |
+| `POST /auth/register` | Public with valid CSRF token | `{email,password,confirmPassword,role:STUDENT|FACULTY}` -> 202 `{status:PENDING_VERIFICATION,message}`. The service assigns only the selected non-privileged role; pending accounts are disabled and never automatically signed in. |
+| POST /auth/verify-email | Public with valid CSRF token | A valid token returns 200 once; invalid, expired, or reused tokens receive a generic 400. Activation and token consumption are transactional. |
+| GET /dev/mail-capture | Loopback only, development profile only | Returns in-memory captured verification messages. Controller is absent outside development. POST /dev/mail-capture/reissue accepts an email and returns 204 whether or not a matching pending self-registration exists; it never activates an account. DELETE clears capture and requires CSRF. |
 | `GET /auth/me` | Authenticated session | Current safe profile `{id,email,role}`. |
 | `POST /auth/logout` | Authenticated session with valid CSRF token | Invalidates session -> 204. |
 | `POST /librarian/accounts` | Librarian only | `{email,institutionalId,password,role:STUDENT|FACULTY,identityVerified:true}` -> 201 safe profile. Librarian attests that the college identity was checked; this prototype does not call an institutional service. Duplicate email/identity -> generic 409. Other roles are rejected. |
 | `POST /librarian/accounts/{accountId}/disable` | Librarian only | Deactivates the account -> 204; disabled accounts cannot authenticate. |
 
-There is no public registration route. Students and Faculty are provisioned by an authorized Librarian after manual identity verification. Only a trusted operator can create the first Librarian through the one-time interactive CLI bootstrap documented in the README; the HTTP API cannot assign Librarian. Bootstrap accepts a hidden password prompt and refuses to run with a web server. Provisioning requests and responses redact/exclude credentials.
+Public self-registration is available only for Student and Faculty at `POST /auth/register`; it validates institutional email and password policy, stores a BCrypt-hashed account disabled, and returns `PENDING_VERIFICATION`. Verification links are delivered by the in-memory capture adapter only in the explicit development profile. A production email provider is not configured; outside development/test, registration fails closed with 503 until a real provider is installed. Librarian accounts remain limited to the controlled interactive CLI bootstrap or a later administrative process; HTTP APIs cannot assign Librarian.
 
 Sessions use server-side storage and an HttpOnly, SameSite=Lax cookie. Configure `SESSION_COOKIE_SECURE=true` behind HTTPS. Session inactivity timeout is 30 minutes by default and can be set with `SESSION_TIMEOUT`. Never return password hashes or store session tokens in browser storage.
 
 ## Catalogue and members
 
+The public catalogue read surface contains active book metadata, categories, and aggregate physical-copy availability. It does not return member data, copy identifiers, or copy locations. Inactive records are visible only to authenticated Librarians. Catalogue mutations and physical inventory access remain Librarian-only.
+
 | Method/path | Access | Contract |
 |---|---|---|
-| `GET /books` | Student, Faculty, Librarian | Filters `q,title,author,isbn,category,available`; paginated summary; sort by title, publicationYear, or createdAt. |
-| `GET /books/{id}` | Student, Faculty, Librarian | Metadata, authors/categories and availability summary; inactive record is visible only to Librarian. |
+| `GET /books` | Public | Filters `q,title,author,isbn,category,available`; paginated summary; sort by title, publicationYear, or createdAt. |
+| `GET /books/{id}` | Public | Metadata, authors/categories and availability summary; inactive record is visible only to Librarian. |
 | `POST /books` | Librarian | Validated title, optional checksummed ISBN, author/category names, metadata, cover URL and circulation policy -> 201 detail. |
 | `PATCH /books/{id}` | Librarian | Validated metadata update -> detail. |
 | `POST /books/{id}/deactivate` | Librarian | Soft-deactivates the record; copies/history are retained. |
-| `GET /books/{id}/copies` | Librarian | Physical inventory details; never exposed to members. |
+| `GET /books/{id}/copies` | Librarian | Physical inventory details; never exposed publicly or to members. |
 | `POST /books/{id}/copies` | Librarian | Adds an initially available uniquely identified physical copy. |
 | `PATCH /books/{id}/copies/{copyId}` | Librarian | Updates copy identifier/location/manageable status; ON_LOAN is circulation-managed. |
-| `GET /categories` | Student, Faculty, Librarian | Existing category values for catalogue filters. |
+| `GET /categories` | Public | Existing category values for catalogue filters. |
 | `GET /members` | Librarian | `q,role,active` filters; safe paginated summary. |
 | `GET /members/{id}` | Librarian or self | Profile and permitted borrowing summary. |
 | `PATCH /members/{id}` | Librarian | Approved fields/status only. |
@@ -53,27 +58,13 @@ Sessions use server-side storage and an HttpOnly, SameSite=Lax cookie. Configure
 | `GET /loans` | Librarian | Paginated filters `status`, `dueBefore`, `overdueOnly`. |
 | `POST /loans/{loanId}/return` | Librarian | `{condition:GOOD|DAMAGED|LOST,note?}` -> recorded return; DAMAGED/LOST require a case note. No fine or replacement amount is calculated. |
 | `POST /loans/{loanId}/renew` | Owner Student/Faculty | `{}` -> one renewal per active standard loan, extending the prior due date by 30 calendar days before holiday adjustment. |
-| `GET /fines/mine` | Student/faculty | Own fine summaries/status. |
-| `GET /fines` | Librarian | Paginated member/status filters. |
-| `POST /fines/{id}/waive` | Librarian | `{reason}`; actor and rationale audited. |
 | `GET /holidays` | Authenticated | Configured dates in ascending order. Only explicit dates affect due dates; weekends are not inferred. |
 | `POST /holidays` | Librarian | `{holidayDate,name}` -> 201 holiday; duplicate dates conflict. |
 | `DELETE /holidays/{holidayId}` | Librarian | Removes a configured date. No dates are seeded by the migration. |
 
 ## Smart Services and reports
 
-| Method/path | Access | Contract |
-|---|---|---|
-| `GET /recommendations/mine` | Student/faculty | Category suggestions with factual reason and availability. |
-| `POST /recommendations` | Faculty | `{recipientMemberId,bookId,note?}`; individual only. |
-| `GET /recommendations/inbox` | Student/faculty | Own incoming recommendations. |
-| `GET /interests/mine`, `PUT /interests/mine` | Student/faculty | Get/replace `{categoryIds[]}`. |
-| `POST /books/{id}/feedback` | Student/faculty | `{rating,text?}`; moderation rules pending. |
-| `GET /books/{id}/feedback` | Authenticated | Paginated approved feedback; aggregation pending policy. |
-| `GET /notifications` | Authenticated | Own notifications, optional unreadOnly. |
-| `POST /notifications/{id}/read` | Owner | Mark own notification read. |
-| `GET /insights/reading` | Student/faculty | Own derived summary; metric/time/privacy decisions pending. |
-| `GET /reports/availability`, `/reports/issued`, `/reports/overdue`, `/reports/transactions` | Librarian | Paginated operational reports with date/status/member/book filters. Individual reminder delivery remains excluded. |
+Recommendations, feedback, notifications, insights, fines, and operational reports do not yet have implemented API endpoints. See requirements and implementation plan for unresolved decisions.
 
 ## Errors and validation
 Return `application/problem+json` for framework validation errors. Invalid login returns `401` with `{code:"INVALID_CREDENTIALS",message:"Email or password is incorrect."}` for unknown, wrong-password, disabled, or locked accounts. A missing/invalid CSRF token returns `403`. Use 401 unauthenticated, 403 forbidden, 404 missing, 409 state/concurrency conflict, and 500 with no internal details. Validate identifiers, lengths, enums, dates, and pagination at API and service layers. Do not leak private record existence. Business eligibility is checked in services.

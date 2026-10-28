@@ -35,7 +35,7 @@ npm install --legacy-peer-deps
 npm start
 ```
 
-The UI is served at `http://localhost:4200`; the API is at `http://localhost:8080`. For local HTTPS deployments, set `SESSION_COOKIE_SECURE=true`. The backend reads `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` from its process environment. Set `DB_URL=jdbc:mysql://localhost:3307/libtrack?serverTimezone=UTC`, `DB_USERNAME` to the `MYSQL_USER` in `.env`, and `DB_PASSWORD` to the matching `MYSQL_PASSWORD`. Never use the local Compose credentials in production.
+The UI is served at `http://localhost:4200`; the API is at `http://localhost:8080`. For local HTTPS deployments, set `SESSION_COOKIE_SECURE=true`. The backend reads `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` from its process environment. Its default URL targets `jdbc:mysql://localhost:3306/libtrack`; when using the Compose service (mapped to port 3307 by default), set `DB_URL=jdbc:mysql://localhost:3307/libtrack?serverTimezone=UTC`. Set `DB_USERNAME` to the `MYSQL_USER` in `.env` and `DB_PASSWORD` to the matching `MYSQL_PASSWORD`. Never use the local Compose credentials in production.
 
 Authentication uses server-side sessions, CSRF protection, and BCrypt password hashes. A Librarian manually verifies college identity before provisioning a Student or Faculty account; this prototype records the attestation and does not integrate with an institutional verification service. There is no public registration route and the provisioning API cannot assign Librarian.
 
@@ -52,3 +52,5 @@ npm run build
 ```
 
 Borrowing uses a confirmed 30-calendar-day term and one renewal. Only explicitly configured holidays shift a due date; weekends are not automatically excluded. Set `LIBTRACK_LIBRARY_ZONE` to the real library time zone and maintain the holiday calendar before operational use. Fine and replacement policies remain unresolved. The existing PostgreSQL Flyway V1–V4 files remain untouched as migration history. MySQL runs the parallel `db/migration/mysql` V1–V4 set; it targets a fresh MySQL schema and preserves the same logical data model. H2-backed automated tests do not validate the MySQL migration scripts, so run MySQL migration and schema-validation integration tests before deployment. Smart Services remain planned.
+
+See [the local email verification guide](docs/email-verification-local.md) for the development-only captured mail workflow and provider handoff.
