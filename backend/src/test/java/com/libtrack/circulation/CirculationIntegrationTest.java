@@ -14,14 +14,12 @@ import java.util.concurrent.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.*;
-@SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test")
+import com.libtrack.LibTrackIntegrationTest;
+@LibTrackIntegrationTest
 class CirculationIntegrationTest {
  private static final String PASSWORD="Sufficiently Long Test Password 1!";
  @Autowired MockMvc mvc;@Autowired UserAccountRepository accounts;@Autowired PasswordEncoder encoder;@Autowired BookRepository books;@Autowired BookCopyRepository copies;@Autowired BorrowRequestRepository requests;@Autowired LoanRepository loans;@Autowired LibraryHolidayRepository holidays;@Autowired DueDateService dueDates;

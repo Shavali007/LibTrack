@@ -5,6 +5,7 @@ import java.util.Locale;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @RequestMapping("/api/v1/auth")
 public class AuthController {
     private final AuthenticationManager authenticationManager;
@@ -61,8 +63,11 @@ public class AuthController {
             contextHolderStrategy.setContext(context);
             securityContextRepository.saveContext(context, servletRequest, servletResponse);
             return ResponseEntity.ok(UserProfileResponse.from((AccountUserDetails) authentication.getPrincipal()));
-        } catch (BadCredentialsException | DisabledException | LockedException |
-                 AccountExpiredException | CredentialsExpiredException exception) {
+        } catch (DisabledException exception) {
+            contextHolderStrategy.clearContext();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new AuthenticationError("ACCOUNT_NOT_ACTIVE", "This account is not active. Recently registered accounts must complete institutional email verification; contact library staff if you need help."));
+        } catch (BadCredentialsException | LockedException | AccountExpiredException | CredentialsExpiredException exception) {
             contextHolderStrategy.clearContext();
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new AuthenticationError("INVALID_CREDENTIALS", "Email or password is incorrect."));

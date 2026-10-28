@@ -1,12 +1,17 @@
 package com.libtrack.common.security;
 
+import jakarta.servlet.DispatcherType;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,6 +35,7 @@ public class SecurityConfiguration {
     }
 
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
         return configuration.getAuthenticationManager();
     }
@@ -37,21 +43,29 @@ public class SecurityConfiguration {
     @Bean
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     SecurityFilterChain applicationSecurity(HttpSecurity http,
-                                            SecurityContextRepository securityContextRepository) throws Exception {
+                                            SecurityContextRepository securityContextRepository,
+                                            Environment environment) throws Exception {
         return http
             .securityContext(context -> context.securityContextRepository(securityContextRepository))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(new HttpSessionCsrfTokenRepository())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
-            .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/health", "/swagger-ui/**", "/v3/api-docs/**",
-                                 "/api/v1/auth/csrf", "/api/v1/auth/login").permitAll()
-                .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout", "/api/v1/librarian/accounts/**").authenticated()
-                .requestMatchers("/api/v1/books", "/api/v1/books/**", "/api/v1/categories",
-                                 "/api/v1/borrow-requests", "/api/v1/borrow-requests/**",
-                                 "/api/v1/loans", "/api/v1/loans/**",
-                                 "/api/v1/holidays", "/api/v1/holidays/**").authenticated()
-                .anyRequest().denyAll())
+            .authorizeHttpRequests(authorize -> {
+                authorize.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
+                authorize.requestMatchers("/api/health", "/swagger-ui/**", "/v3/api-docs/**",
+                        "/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/auth/register",
+                        "/api/v1/auth/verify-email").permitAll();
+                if (environment.acceptsProfiles(Profiles.of("development"))) {
+                    authorize.requestMatchers("/api/v1/dev/mail-capture", "/api/v1/dev/mail-capture/**").permitAll();
+                }
+                authorize.requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout", "/api/v1/librarian/accounts/**").authenticated();
+                authorize.requestMatchers(HttpMethod.GET, "/api/v1/books", "/api/v1/books/*", "/api/v1/categories").permitAll();
+                authorize.requestMatchers("/api/v1/books", "/api/v1/books/**", "/api/v1/categories",
+                        "/api/v1/borrow-requests", "/api/v1/borrow-requests/**",
+                        "/api/v1/loans", "/api/v1/loans/**",
+                        "/api/v1/holidays", "/api/v1/holidays/**").authenticated();
+                authorize.anyRequest().denyAll();
+            })
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 .sessionFixation(fixation -> fixation.changeSessionId()))

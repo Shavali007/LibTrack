@@ -1,5 +1,7 @@
 package com.libtrack.auth;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -26,16 +28,26 @@ public class LibrarianBootstrapService {
 
     @Transactional
     public void createInitialLibrarian(String emailInput, String password) {
-        BootstrapLibrarianRequest request = new BootstrapLibrarianRequest(emailInput, password);
+        String email = emailInput == null ? null : emailInput.strip().toLowerCase(Locale.ROOT);
+        BootstrapLibrarianRequest request = new BootstrapLibrarianRequest(email, password);
         Set<ConstraintViolation<BootstrapLibrarianRequest>> violations = validator.validate(request);
         if (!violations.isEmpty()) {
-            throw new IllegalArgumentException("The entered account details do not meet the required format or password policy.");
+            List<String> errors = violations.stream()
+                    .map(violation -> {
+                        String path = violation.getPropertyPath().toString();
+                        String field = path.equals("email") ? "email" : "password";
+                        return field + ": " + violation.getMessage();
+                    })
+                    .distinct()
+                    .sorted(Comparator.naturalOrder())
+                    .toList();
+            throw new IllegalArgumentException("Initial Librarian account validation failed: "
+                    + String.join("; ", errors) + ".");
         }
         if (accounts.existsByRole(AccountRole.LIBRARIAN)) {
             throw new IllegalStateException("A Librarian account already exists; the bootstrap command is one-time.");
         }
 
-        String email = emailInput.strip().toLowerCase(Locale.ROOT);
         if (accounts.existsByEmail(email)) {
             throw new AccountIdentityConflictException();
         }

@@ -73,6 +73,16 @@ public class UserAccount {
         return account;
     }
 
+    public static UserAccount pendingSelfRegistration(String email, String passwordHash, AccountRole role) {
+        if (role != AccountRole.STUDENT && role != AccountRole.FACULTY) throw new IllegalArgumentException("Only Student and Faculty accounts may self-register.");
+        UserAccount account = new UserAccount();
+        account.email = email;
+        account.passwordHash = passwordHash;
+        account.role = role;
+        account.provisioningSource = ProvisioningSource.SELF_REGISTRATION;
+        account.enabled = false;
+        return account;
+    }
     public static UserAccount initialLibrarian(String email, String passwordHash) {
         UserAccount account = new UserAccount();
         account.email = email;
@@ -100,6 +110,13 @@ public class UserAccount {
     public String getPasswordHash() { return passwordHash; }
     public AccountRole getRole() { return role; }
     public boolean isEnabled() { return enabled; }
+    public void activateAfterEmailVerification() {
+        if (enabled || provisioningSource != ProvisioningSource.SELF_REGISTRATION
+                || (role != AccountRole.STUDENT && role != AccountRole.FACULTY)) {
+            throw new IllegalStateException("Only a pending Student or Faculty self-registration can be verified.");
+        }
+        enabled = true;
+    }
     public void deactivate() { enabled = false; }
     public String getInstitutionalId() { return institutionalId; }
     public Instant getIdentityVerifiedAt() { return identityVerifiedAt; }

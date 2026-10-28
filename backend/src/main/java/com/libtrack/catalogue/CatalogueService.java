@@ -31,7 +31,7 @@ public class CatalogueService {
         this.books = books; this.authors = authors; this.categories = categories; this.copies = copies;
     }
 
-    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    @PreAuthorize("permitAll()")
     @Transactional(readOnly = true)
     public PageResponse<BookSummaryResponse> search(String q, String title, String author, String isbn, String category, Boolean available,
                                                      int page, int size, String sortField, String direction) {
@@ -54,14 +54,14 @@ public class CatalogueService {
         return new PageResponse<>(content, result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
-    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    @PreAuthorize("permitAll()")
     @Transactional(readOnly = true)
     public BookDetailResponse getBook(UUID id, boolean librarian) {
         Book book = books.findById(id).filter(found -> found.isActive() || librarian).orElseThrow(BookNotFoundException::new);
         return detail(book, availability(List.of(book)).get(book.getId()));
     }
 
-    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    @PreAuthorize("permitAll()")
     @Transactional(readOnly = true)
     public List<CategoryResponse> listCategories() {
         return categories.findAllByOrderByNameAsc().stream().map(category -> new CategoryResponse(category.getId(), category.getName())).toList();

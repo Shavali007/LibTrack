@@ -36,7 +36,7 @@ public class CatalogueController {
 
     @GetMapping("/books/{bookId}")
     public BookDetailResponse getBook(@PathVariable UUID bookId, Authentication authentication) {
-        boolean librarian = authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_LIBRARIAN"));
+        boolean librarian = authentication != null && authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_LIBRARIAN"));
         return catalogue.getBook(bookId, librarian);
     }
 

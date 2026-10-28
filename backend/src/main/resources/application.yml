@@ -2,7 +2,7 @@ spring:
   application:
     name: libtrack
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3307/libtrack}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/libtrack}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -27,5 +27,8 @@ server:
         same-site: lax
         secure: ${SESSION_COOKIE_SECURE:false}
 libtrack:
+  registration:
+    verification-token-ttl: ${LIBTRACK_VERIFICATION_TOKEN_TTL:PT24H}
+    frontend-base-url: ${LIBTRACK_FRONTEND_BASE_URL:http://localhost:4200}
   # Set this to the library's actual IANA zone for server-generated local dates.
   library-zone: ${LIBTRACK_LIBRARY_ZONE:UTC}
