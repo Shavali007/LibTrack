@@ -7,4 +7,5 @@ import java.util.UUID;
 public record BookDetailResponse(
         UUID id, String title, String isbn, String description, List<String> authors, List<String> categories,
         String publisher, Integer publicationYear, String coverImageUrl, CirculationPolicy circulationPolicy,
-        boolean active, long totalCopies, long availableCopies, Instant createdAt, Instant updatedAt) {}
+        boolean active, long totalCopies, long availableCopies, long onLoanCopies, long lostCopies,
+        long damagedCopies, long withdrawnCopies, Instant createdAt, Instant updatedAt) {}

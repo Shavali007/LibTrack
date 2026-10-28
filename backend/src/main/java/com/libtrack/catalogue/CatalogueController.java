@@ -67,6 +67,11 @@ public class CatalogueController {
         return ResponseEntity.status(HttpStatus.CREATED).body(catalogue.addCopy(bookId, request));
     }
 
+    @PostMapping("/books/{bookId}/copies/bulk")
+    public ResponseEntity<List<BookCopyResponse>> addCopies(@PathVariable UUID bookId, @Valid @RequestBody BookCopyBulkCreateRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(catalogue.addCopies(bookId, request));
+    }
+
     @PatchMapping("/books/{bookId}/copies/{copyId}")
     public BookCopyResponse updateCopy(@PathVariable UUID bookId, @PathVariable UUID copyId, @Valid @RequestBody BookCopyUpdateRequest request) {
         return catalogue.updateCopy(bookId, copyId, request);

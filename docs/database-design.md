@@ -31,9 +31,11 @@ No group/course entity is proposed. Feedback uniqueness/scale, reservation lifec
 
 ## Implemented catalogue schema (Flyway V3)
 
-`author`, `category`, and `book` records are linked through `book_author` and `book_category`; `book_copy` stores uniquely identified physical inventory. ISBN is nullable and checksum-validated at the API. Book deactivation is a soft state. Availability is derived from copies with status `AVAILABLE`; withdrawn copies are excluded from total inventory counts. Copy state supports `AVAILABLE`, `ON_LOAN`, `LOST`, `DAMAGED`, and `WITHDRAWN`, but librarian inventory APIs cannot assign `ON_LOAN`; circulation owns that transition.
+`author`, `category`, and `book` records are linked through `book_author` and `book_category`; `book_copy` stores uniquely identified physical inventory. ISBN is nullable and checksum-validated at the API. Book deactivation is a soft state. Total counts include all physical copy records, including withdrawn copies; only `AVAILABLE` contributes to availability. Copy state supports `AVAILABLE`, `ON_LOAN`, `LOST`, `DAMAGED`, and `WITHDRAWN`, but librarian inventory APIs cannot assign `ON_LOAN`; circulation owns that transition.
 
 The `circulation_policy` stores `STANDARD`, `REFERENCE_ONLY`, `SERIAL_RESTRICTED`, or `APPROVED_OVERNIGHT_EXCEPTION`. Flyway V4 enables take-home circulation only for active `STANDARD` books; the other policies remain blocked pending operating decisions.
+
+Creating a catalogue record may include a physical-copy quantity from 1 through 500. The book, author/category links, and generated copies are persisted in one transaction. A Librarian can also add 1–500 copies to an existing book through one transactional bulk operation. Generated identifiers are uppercase UUID strings (no assumed institutional prefix), fit the existing copy-identifier format, and are protected by the global unique constraint. Omitting the optional initial quantity preserves the earlier metadata-only API behavior. Requests do not reserve inventory; issue and eligible return transitions update the copy state.
 
 
 ## Implemented borrowing and circulation schema (Flyway V4)

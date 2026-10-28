@@ -29,12 +29,13 @@ describe('BookListComponent', () => {
     http.expectOne('/api/v1/categories').flush([]);
     http.expectOne(request => request.url === '/api/v1/books').flush({
       content: [{ id: 'b-1', title: 'Real API Book', isbn: null, authors: ['A. Author'], categories: ['Computing'], publisher: null,
-        publicationYear: null, coverImageUrl: null, circulationPolicy: 'STANDARD', totalCopies: 2, availableCopies: 1 }],
+        publicationYear: null, coverImageUrl: null, circulationPolicy: 'STANDARD', totalCopies: 2, availableCopies: 1,
+        onLoanCopies: 1, lostCopies: 0, damagedCopies: 0, withdrawnCopies: 0 }],
       page: 0, size: 12, totalElements: 1, totalPages: 1,
     });
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Real API Book');
-    expect(fixture.nativeElement.textContent).toContain('1 of 2 copies');
+    expect(fixture.nativeElement.textContent).toContain('2 total · 1 available · 1 on loan');
     expect(fixture.nativeElement.querySelector('a[href="/workspace/librarian/books/new"]')).not.toBeNull();
   });
 

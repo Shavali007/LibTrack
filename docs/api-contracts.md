@@ -31,13 +31,14 @@ The public catalogue read surface contains active book metadata, categories, and
 
 | Method/path | Access | Contract |
 |---|---|---|
-| `GET /books` | Public | Filters `q,title,author,isbn,category,available`; paginated summary; sort by title, publicationYear, or createdAt. |
-| `GET /books/{id}` | Public | Metadata, authors/categories and availability summary; inactive record is visible only to Librarian. |
-| `POST /books` | Librarian | Validated title, optional checksummed ISBN, author/category names, metadata, cover URL and circulation policy -> 201 detail. |
-| `PATCH /books/{id}` | Librarian | Validated metadata update -> detail. |
+| `GET /books` | Public | Filters `q,title,author,isbn,category,available`; paginated summary with total, available, on-loan, lost, damaged, and withdrawn copy counts; sort by title, publicationYear, or createdAt. |
+| `GET /books/{id}` | Public | Metadata, authors/categories and per-status inventory summary; inactive record is visible only to Librarian. Total includes withdrawn records; available counts only `AVAILABLE` copies. |
+| `POST /books` | Librarian | Validated title, optional checksummed ISBN, author/category names, metadata, cover URL and circulation policy -> 201 detail. Optional `numberOfCopies` (1–500) creates that many available physical copies atomically; omitting it preserves the legacy metadata-only behavior. |
+| `PATCH /books/{id}` | Librarian | Validated metadata update -> detail. Copy quantity is not an edit operation; inventory remains managed through copy workflows. |
 | `POST /books/{id}/deactivate` | Librarian | Soft-deactivates the record; copies/history are retained. |
 | `GET /books/{id}/copies` | Librarian | Physical inventory details; never exposed publicly or to members. |
 | `POST /books/{id}/copies` | Librarian | Adds an initially available uniquely identified physical copy. |
+| `POST /books/{id}/copies/bulk` | Librarian | `{numberOfCopies, location}` creates 1–500 available copies atomically and returns the created copy records. |
 | `PATCH /books/{id}/copies/{copyId}` | Librarian | Updates copy identifier/location/manageable status; ON_LOAN is circulation-managed. |
 | `GET /categories` | Public | Existing category values for catalogue filters. |
 | `GET /members` | Librarian | `q,role,active` filters; safe paginated summary. |

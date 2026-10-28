@@ -12,9 +12,17 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, UUID> {
     List<BookCopy> findAllByBookIdOrderByCopyIdentifierAsc(UUID bookId);
     Optional<BookCopy> findByIdAndBookId(UUID id, UUID bookId);
 
-    @Query("select new com.libtrack.catalogue.BookAvailability(c.book.id, count(c), sum(case when c.status = :available then 1 else 0 end)) " +
-           "from BookCopy c where c.book.id in :bookIds and c.status <> :withdrawn group by c.book.id")
+    @Query("select new com.libtrack.catalogue.BookAvailability(c.book.id, count(c), " +
+           "sum(case when c.status = :available then 1 else 0 end), " +
+           "sum(case when c.status = :onLoan then 1 else 0 end), " +
+           "sum(case when c.status = :lost then 1 else 0 end), " +
+           "sum(case when c.status = :damaged then 1 else 0 end), " +
+           "sum(case when c.status = :withdrawn then 1 else 0 end)) " +
+           "from BookCopy c where c.book.id in :bookIds group by c.book.id")
     List<BookAvailability> summarize(@Param("bookIds") Collection<UUID> bookIds,
                                      @Param("available") CopyStatus available,
+                                     @Param("onLoan") CopyStatus onLoan,
+                                     @Param("lost") CopyStatus lost,
+                                     @Param("damaged") CopyStatus damaged,
                                      @Param("withdrawn") CopyStatus withdrawn);
 }

@@ -19,6 +19,7 @@ public class CatalogueExceptionHandler {
                 case "isbnValid" -> "isbn";
                 case "publicationYearValid" -> "publicationYear";
                 case "coverImageUrlValid" -> "coverImageUrl";
+                case "numberOfCopies" -> "numberOfCopies";
                 default -> error.getField();
             };
             fieldErrors.putIfAbsent(field, error.getDefaultMessage() == null ? "This value is invalid." : error.getDefaultMessage());

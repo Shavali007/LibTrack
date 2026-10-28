@@ -46,9 +46,11 @@ describe('role-aware dashboards', () => {
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('LIBRARIAN WORKSPACE');
+    expect(text).toContain('Catalogue and copies');
     expect(text).toContain('Borrowing requests');
     expect(text).toContain('Circulation desk');
-    expect(fixture.nativeElement.querySelector('a[href="/workspace/librarian/accounts/new"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('a[href="/books"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('a[href="/workspace/librarian/accounts/new"]')).toBeNull();
     expect(text).not.toContain('12 / 20');
   });
 });

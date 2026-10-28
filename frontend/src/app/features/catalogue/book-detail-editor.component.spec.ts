@@ -11,7 +11,8 @@ import { BookDetailComponent, BookEditorComponent } from './book-detail-editor.c
 const book = {
   id: 'book-1', title: 'Available title', isbn: '9780306406157', authors: ['A. Author'], categories: ['Computing'],
   publisher: null, publicationYear: null, coverImageUrl: null, circulationPolicy: 'STANDARD', totalCopies: 1,
-  availableCopies: 1, description: null, active: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+  availableCopies: 1, onLoanCopies: 0, lostCopies: 0, damagedCopies: 0, withdrawnCopies: 0,
+  description: null, active: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
 };
 
 describe('BookDetailComponent public reservation guard', () => {
@@ -34,6 +35,7 @@ describe('BookDetailComponent public reservation guard', () => {
     http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/v1/books/book-1').flush(book);
     fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('1 total copies · 1 available · 0 on loan');
   });
 
   afterEach(() => http.verify());
@@ -73,7 +75,7 @@ describe('BookEditorComponent create validation and API flow', () => {
   function fillValidForm(overrides: Record<string, string> = {}): void {
     fixture.componentInstance.form.patchValue({
       title: 'Python', authors: 'Shavali', categories: 'Programming', isbn: '9780306406157',
-      publisher: 'Sravan', publicationYear: '2019', coverImageUrl: '', description: 'Nice',
+      numberOfCopies: '1', publisher: 'Sravan', publicationYear: '2019', coverImageUrl: '', description: 'Nice',
       circulationPolicy: 'STANDARD', ...overrides,
     });
   }
@@ -118,7 +120,20 @@ describe('BookEditorComponent create validation and API flow', () => {
     expect(request.request.body.isbn).toBe('9780306406157');
     expect(request.request.body.publicationYear).toBe(2019);
     expect(request.request.body.coverImageUrl).toBeNull();
+    expect(request.request.body.numberOfCopies).toBe(1);
     request.flush({ id: 'created-book' }, { status: 201, statusText: 'Created' });
+  });
+
+  it('defaults quantity to one and reports invalid whole-number ranges', () => {
+    expect(fixture.componentInstance.form.controls.numberOfCopies.value).toBe('1');
+    expect(fixture.nativeElement.querySelector('#numberOfCopies')).not.toBeNull();
+    for (const quantity of ['', '0', '-1', '501', '1.5']) {
+      fillValidForm({ numberOfCopies: quantity });
+      fixture.componentInstance.submit();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('#number-of-copies-error')?.textContent).toContain('whole number from 1 to 500');
+      http.expectNone('/api/v1/auth/csrf');
+    }
   });
 
   it('shows structured backend validation beside the field and sanitizes database errors', () => {
@@ -136,6 +151,72 @@ describe('BookEditorComponent create validation and API flow', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('server or database error');
     expect(fixture.nativeElement.textContent).not.toContain('SQL constraint details');
+  });
+});
+
+describe('BookEditorComponent edit quantity behavior', () => {
+  let fixture: ComponentFixture<BookEditorComponent>;
+  let http: HttpTestingController;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [BookEditorComponent],
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(),
+        provideRouter([{ path: 'books/:bookId', component: BookEditorRouteStub }]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'book-1' } } } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(BookEditorComponent);
+    fixture.detectChanges();
+    http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/v1/books/book-1').flush(book);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => http.verify());
+
+  it('does not render or submit the quantity on an existing book edit', () => {
+    expect(fixture.nativeElement.querySelector('#numberOfCopies')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Total copies');
+    expect(fixture.nativeElement.textContent).toContain('Available');
+    expect(fixture.nativeElement.textContent).toContain('Withdrawn');
+    expect(fixture.nativeElement.querySelector('a[href="/workspace/librarian/books/book-1/copies"]')).not.toBeNull();
+    fixture.componentInstance.form.patchValue({ title: 'Updated title', authors: 'A. Author', categories: 'Computing', numberOfCopies: '25' });
+    fixture.componentInstance.submit();
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'edit-csrf' });
+    const update = http.expectOne('/api/v1/books/book-1');
+    expect(update.request.method).toBe('PATCH');
+    expect(update.request.body).not.toHaveProperty('numberOfCopies');
+    update.flush({ ...book, title: 'Updated title' });
+  });
+});
+
+describe('BookEditorComponent inventory load failure', () => {
+  let fixture: ComponentFixture<BookEditorComponent>;
+  let http: HttpTestingController;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [BookEditorComponent],
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'book-1' } } } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(BookEditorComponent);
+    fixture.detectChanges();
+    http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/v1/books/book-1').flush({ message: 'private API error' }, { status: 500, statusText: 'Internal Server Error' });
+    fixture.detectChanges();
+  });
+
+  afterEach(() => http.verify());
+
+  it('shows an error and never renders misleading zero inventory counts', () => {
+    expect(fixture.nativeElement.textContent).toContain('Inventory counts could not be loaded');
+    expect(fixture.nativeElement.querySelector('.inventory-counts')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('private API error');
   });
 });
 

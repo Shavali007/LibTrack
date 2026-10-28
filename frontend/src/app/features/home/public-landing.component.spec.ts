@@ -9,7 +9,7 @@ import { PublicLandingComponent } from './public-landing.component';
 
 describe('PublicLandingComponent', () => {
   const emptyPage: Page<BookSummary> = { content: [], page: 0, size: 12, totalElements: 0, totalPages: 0 };
-  const realBook: BookSummary = { id: 'real-1', title: 'Real catalogue title', isbn: null, authors: ['A. Writer'], categories: ['History'], publisher: null, publicationYear: 2025, coverImageUrl: null, circulationPolicy: 'STANDARD' as const, totalCopies: 3, availableCopies: 2 };
+  const realBook: BookSummary = { id: 'real-1', title: 'Real catalogue title', isbn: null, authors: ['A. Writer'], categories: ['History'], publisher: null, publicationYear: 2025, coverImageUrl: null, circulationPolicy: 'STANDARD' as const, totalCopies: 3, availableCopies: 2, onLoanCopies: 1, lostCopies: 0, damagedCopies: 0, withdrawnCopies: 0 };
 
   async function setup(profile: UserProfile | null = null, page: Page<BookSummary> = emptyPage) {
     await TestBed.configureTestingModule({

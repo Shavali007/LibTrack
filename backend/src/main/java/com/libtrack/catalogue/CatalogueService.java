@@ -26,9 +26,12 @@ public class CatalogueService {
     private final AuthorRepository authors;
     private final CategoryRepository categories;
     private final BookCopyRepository copies;
+    private final CopyIdentifierGenerator copyIdentifierGenerator;
 
-    public CatalogueService(BookRepository books, AuthorRepository authors, CategoryRepository categories, BookCopyRepository copies) {
+    public CatalogueService(BookRepository books, AuthorRepository authors, CategoryRepository categories, BookCopyRepository copies,
+                           CopyIdentifierGenerator copyIdentifierGenerator) {
         this.books = books; this.authors = authors; this.categories = categories; this.copies = copies;
+        this.copyIdentifierGenerator = copyIdentifierGenerator;
     }
 
     @PreAuthorize("permitAll()")
@@ -82,6 +85,7 @@ public class CatalogueService {
                 clean(request.publisher()), request.publicationYear(), clean(request.coverImageUrl()), request.circulationPolicy(), names.authors(), names.categories());
         try {
             book = books.saveAndFlush(book);
+            if (request.numberOfCopies() != null) createPhysicalCopies(book, request.numberOfCopies().intValueExact(), null);
             return detail(book, availability(List.of(book)).get(book.getId()));
         } catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
     }
@@ -118,6 +122,16 @@ public class CatalogueService {
 
     @PreAuthorize("hasRole('LIBRARIAN')")
     @Transactional
+    public List<BookCopyResponse> addCopies(UUID bookId, BookCopyBulkCreateRequest request) {
+        Book book = books.findById(bookId).filter(Book::isActive).orElseThrow(BookNotFoundException::new);
+        try {
+            return createPhysicalCopies(book, request.numberOfCopies().intValueExact(), clean(request.location()))
+                    .stream().map(CatalogueService::copyResponse).toList();
+        } catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
+    }
+
+    @PreAuthorize("hasRole('LIBRARIAN')")
+    @Transactional
     public BookCopyResponse updateCopy(UUID bookId, UUID copyId, BookCopyUpdateRequest request) {
         BookCopy copy = copies.findByIdAndBookId(copyId, bookId).orElseThrow(BookCopyNotFoundException::new);
         if (copy.getStatus() == CopyStatus.ON_LOAN) throw new InvalidCopyStateException();
@@ -144,22 +158,41 @@ public class CatalogueService {
     private Map<UUID, BookAvailability> availability(Collection<Book> bookList) {
         if (bookList.isEmpty()) return Map.of();
         List<UUID> ids = bookList.stream().map(Book::getId).toList();
-        return copies.summarize(ids, CopyStatus.AVAILABLE, CopyStatus.WITHDRAWN).stream()
+        return copies.summarize(ids, CopyStatus.AVAILABLE, CopyStatus.ON_LOAN, CopyStatus.LOST,
+                        CopyStatus.DAMAGED, CopyStatus.WITHDRAWN).stream()
                 .collect(Collectors.toMap(BookAvailability::bookId, Function.identity()));
     }
 
     private static BookSummaryResponse summary(Book book, BookAvailability counts) {
         long total = counts == null ? 0 : counts.totalCopies();
         long available = counts == null ? 0 : counts.availableCopies();
+        long onLoan = counts == null ? 0 : counts.onLoanCopies();
+        long lost = counts == null ? 0 : counts.lostCopies();
+        long damaged = counts == null ? 0 : counts.damagedCopies();
+        long withdrawn = counts == null ? 0 : counts.withdrawnCopies();
         return new BookSummaryResponse(book.getId(), book.getTitle(), book.getIsbn(), sortedAuthors(book), sortedCategories(book),
-                book.getPublisher(), book.getPublicationYear(), book.getCoverImageUrl(), book.getCirculationPolicy(), total, available);
+                book.getPublisher(), book.getPublicationYear(), book.getCoverImageUrl(), book.getCirculationPolicy(),
+                total, available, onLoan, lost, damaged, withdrawn);
     }
 
     private static BookDetailResponse detail(Book book, BookAvailability counts) {
         long total = counts == null ? 0 : counts.totalCopies();
         long available = counts == null ? 0 : counts.availableCopies();
+        long onLoan = counts == null ? 0 : counts.onLoanCopies();
+        long lost = counts == null ? 0 : counts.lostCopies();
+        long damaged = counts == null ? 0 : counts.damagedCopies();
+        long withdrawn = counts == null ? 0 : counts.withdrawnCopies();
         return new BookDetailResponse(book.getId(), book.getTitle(), book.getIsbn(), book.getDescription(), sortedAuthors(book), sortedCategories(book),
-                book.getPublisher(), book.getPublicationYear(), book.getCoverImageUrl(), book.getCirculationPolicy(), book.isActive(), total, available, book.getCreatedAt(), book.getUpdatedAt());
+                book.getPublisher(), book.getPublicationYear(), book.getCoverImageUrl(), book.getCirculationPolicy(), book.isActive(),
+                total, available, onLoan, lost, damaged, withdrawn, book.getCreatedAt(), book.getUpdatedAt());
+    }
+
+    private List<BookCopy> createPhysicalCopies(Book book, int quantity, String location) {
+        List<BookCopy> newCopies = new ArrayList<>(quantity);
+        for (int index = 0; index < quantity; index++) {
+            newCopies.add(new BookCopy(book, copyIdentifierGenerator.generate(), location));
+        }
+        return copies.saveAllAndFlush(newCopies);
     }
 
     private static List<String> sortedAuthors(Book book) { return book.getAuthors().stream().map(Author::getName).sorted(String.CASE_INSENSITIVE_ORDER).toList(); }
