@@ -85,7 +85,7 @@ public class CatalogueService {
                 clean(request.publisher()), request.publicationYear(), clean(request.coverImageUrl()), request.circulationPolicy(), names.authors(), names.categories());
         try {
             book = books.saveAndFlush(book);
-            if (request.numberOfCopies() != null) createPhysicalCopies(book, request.numberOfCopies().intValueExact(), null);
+            if (request.numberOfCopies() != null) createPhysicalCopies(book, request.numberOfCopies().intValueExact(), clean(request.location()));
             return detail(book, availability(List.of(book)).get(book.getId()));
         } catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
     }
@@ -139,6 +139,50 @@ public class CatalogueService {
                 request.location() == null ? copy.getLocation() : clean(request.location()), CopyStatus.valueOf(request.status().name()));
         try { copies.flush(); return copyResponse(copy); }
         catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
+    }
+
+    @PreAuthorize("hasRole('LIBRARIAN')")
+    @Transactional
+    public BookDetailResponse reconcileInventory(UUID bookId, InventoryReconciliationRequest request) {
+        Book book = books.findById(bookId).filter(Book::isActive).orElseThrow(BookNotFoundException::new);
+        List<BookCopy> allCopies = copies.findAllByBookIdOrderByCopyIdentifierAsc(bookId);
+        int currentTotal = allCopies.size();
+        int target = request.targetQuantity();
+
+        if (target > currentTotal) {
+            int toAdd = target - currentTotal;
+            try {
+                createPhysicalCopies(book, toAdd, clean(request.location()));
+            } catch (DataIntegrityViolationException exception) {
+                throw new CatalogueConflictException("Generated identifier conflicted with existing inventory. Please retry.");
+            }
+        } else if (target < currentTotal) {
+            int toRemove = currentTotal - target;
+            List<BookCopy> deletable = copies.findDeletableCopies(bookId);
+            if (deletable.size() < toRemove) {
+                long onLoan = allCopies.stream().filter(c -> c.getStatus() == CopyStatus.ON_LOAN).count();
+                long nonAvailable = allCopies.stream().filter(c -> c.getStatus() != CopyStatus.AVAILABLE && c.getStatus() != CopyStatus.ON_LOAN).count();
+                long withHistory = allCopies.stream().filter(c -> c.getStatus() == CopyStatus.AVAILABLE).count() - deletable.size();
+                StringBuilder sb = new StringBuilder();
+                sb.append("Cannot reduce inventory to ").append(target).append(" copies. ");
+                sb.append("Only ").append(deletable.size()).append(" unreferenced available ").append(deletable.size() == 1 ? "copy can" : "copies can").append(" be safely removed. ");
+                if (onLoan > 0) sb.append(onLoan).append(" on loan. ");
+                if (withHistory > 0) sb.append(withHistory).append(" have past loan history. ");
+                if (nonAvailable > 0) sb.append(nonAvailable).append(" are lost, damaged, or withdrawn. ");
+                sb.append("Copies with circulation history or non-available status must be managed individually in Manage Physical Copies.");
+                throw new CatalogueConflictException(sb.toString().trim());
+            }
+            try {
+                List<BookCopy> toDelete = deletable.subList(0, toRemove);
+                copies.deleteAll(toDelete);
+                copies.flush();
+            } catch (DataIntegrityViolationException exception) {
+                throw new CatalogueConflictException("Could not remove copies due to active foreign key references.");
+            }
+        }
+
+        copies.flush();
+        return detail(book, availability(List.of(book)).get(book.getId()));
     }
 
     private SetNames resolveNames(List<String> authorNames, List<String> categoryNames) {

@@ -66,6 +66,42 @@ describe('CopyManagerComponent bulk physical inventory', () => {
     expect(fixture.nativeElement.textContent).toContain('2 copies added successfully.');
     expect(fixture.nativeElement.querySelector('.inventory-summary').textContent).toContain('7');
   });
+
+  it('updates copy status without losing copyIdentifier', () => {
+    const firstCopy = copy('1', 'AVAILABLE', 'Shelf A');
+    fixture.componentInstance.edit(firstCopy, 'status', 'DAMAGED');
+    fixture.componentInstance.save(firstCopy);
+
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'csrf' });
+    const patchReq = http.expectOne('/api/v1/books/book-1/copies/1');
+    expect(patchReq.request.method).toBe('PATCH');
+    expect(patchReq.request.body.copyIdentifier).toBe('COPY-1');
+    expect(patchReq.request.body.status).toBe('DAMAGED');
+    patchReq.flush({ ...firstCopy, status: 'DAMAGED' });
+    http.expectOne('/api/v1/books/book-1/copies').flush([
+      { ...firstCopy, status: 'DAMAGED' },
+      copy('2', 'ON_LOAN'), copy('3', 'LOST'), copy('4', 'DAMAGED'), copy('5', 'WITHDRAWN'),
+    ]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Copy details updated.');
+  });
+
+  it('adds one copy with specified identifier and optional empty location', () => {
+    fixture.componentInstance.singleForm.patchValue({ copyIdentifier: 'ACC-101', location: '' });
+    fixture.componentInstance.addOne();
+
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'csrf' });
+    const postReq = http.expectOne('/api/v1/books/book-1/copies');
+    expect(postReq.request.method).toBe('POST');
+    expect(postReq.request.body).toEqual({ copyIdentifier: 'ACC-101', location: null });
+    postReq.flush(copy('101', 'AVAILABLE', null), { status: 201, statusText: 'Created' });
+    http.expectOne('/api/v1/books/book-1/copies').flush([
+      copy('1'), copy('2', 'ON_LOAN'), copy('3', 'LOST'), copy('4', 'DAMAGED'), copy('5', 'WITHDRAWN'),
+      copy('101', 'AVAILABLE', null),
+    ]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Copy added.');
+  });
 });
 
 describe('CopyManagerComponent inventory load errors', () => {

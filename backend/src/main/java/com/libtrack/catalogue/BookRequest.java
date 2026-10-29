@@ -26,7 +26,8 @@ public record BookRequest(
         @Min(value = 1, message = "Number of copies must be a whole number from 1 to 500")
         @Max(value = 500, message = "Number of copies must be a whole number from 1 to 500")
         @Digits(integer = 3, fraction = 0, message = "Number of copies must be a whole number from 1 to 500")
-        BigDecimal numberOfCopies) {
+        BigDecimal numberOfCopies,
+        @Size(max = 120) String location) {
 
     @AssertTrue(message = "ISBN must be a valid ISBN-10 or ISBN-13")
     public boolean isIsbnValid() { return IsbnValidator.isValid(isbn); }

@@ -76,4 +76,9 @@ public class CatalogueController {
     public BookCopyResponse updateCopy(@PathVariable UUID bookId, @PathVariable UUID copyId, @Valid @RequestBody BookCopyUpdateRequest request) {
         return catalogue.updateCopy(bookId, copyId, request);
     }
+
+    @PostMapping("/books/{bookId}/inventory/reconcile")
+    public ResponseEntity<BookDetailResponse> reconcileInventory(@PathVariable UUID bookId, @Valid @RequestBody InventoryReconciliationRequest request) {
+        return ResponseEntity.ok(catalogue.reconcileInventory(bookId, request));
+    }
 }

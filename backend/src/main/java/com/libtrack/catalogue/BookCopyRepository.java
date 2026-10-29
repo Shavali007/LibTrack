@@ -13,11 +13,11 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, UUID> {
     Optional<BookCopy> findByIdAndBookId(UUID id, UUID bookId);
 
     @Query("select new com.libtrack.catalogue.BookAvailability(c.book.id, count(c), " +
-           "sum(case when c.status = :available then 1 else 0 end), " +
-           "sum(case when c.status = :onLoan then 1 else 0 end), " +
-           "sum(case when c.status = :lost then 1 else 0 end), " +
-           "sum(case when c.status = :damaged then 1 else 0 end), " +
-           "sum(case when c.status = :withdrawn then 1 else 0 end)) " +
+           "count(case when c.status = :available then 1 else null end), " +
+           "count(case when c.status = :onLoan then 1 else null end), " +
+           "count(case when c.status = :lost then 1 else null end), " +
+           "count(case when c.status = :damaged then 1 else null end), " +
+           "count(case when c.status = :withdrawn then 1 else null end)) " +
            "from BookCopy c where c.book.id in :bookIds group by c.book.id")
     List<BookAvailability> summarize(@Param("bookIds") Collection<UUID> bookIds,
                                      @Param("available") CopyStatus available,
@@ -25,4 +25,9 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, UUID> {
                                      @Param("lost") CopyStatus lost,
                                      @Param("damaged") CopyStatus damaged,
                                      @Param("withdrawn") CopyStatus withdrawn);
+
+    @Query("select c from BookCopy c where c.book.id = :bookId and c.status = com.libtrack.catalogue.CopyStatus.AVAILABLE " +
+           "and not exists (select 1 from Loan l where l.copy.id = c.id) " +
+           "order by c.createdAt desc, c.copyIdentifier desc")
+    List<BookCopy> findDeletableCopies(@Param("bookId") UUID bookId);
 }

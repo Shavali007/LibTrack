@@ -10,7 +10,7 @@ export interface Page<T> { content: T[]; page: number; size: number; totalElemen
 export interface Category { id: string; name: string; }
 export interface BookCopy { id: string; bookId: string; copyIdentifier: string; location: string | null; status: CopyStatus; }
 export interface BookWrite { title: string; isbn: string | null; description: string | null; publisher: string | null; publicationYear: number | null; coverImageUrl: string | null; circulationPolicy: CirculationPolicy; authors: string[]; categories: string[]; }
-export interface BookCreate extends BookWrite { numberOfCopies: number; }
+export interface BookCreate extends BookWrite { numberOfCopies: number; location?: string | null; }
 @Injectable({ providedIn: 'root' }) export class CatalogueService {
   private readonly http = inject(HttpClient);
   private csrfHeaders(): Observable<HttpHeaders> {
@@ -35,4 +35,5 @@ export interface BookCreate extends BookWrite { numberOfCopies: number; }
   addCopy(id: string, body: { copyIdentifier: string; location: string | null }): Observable<BookCopy> { return this.post<BookCopy>(`/api/v1/books/${id}/copies`, body); }
   addCopies(id: string, body: { numberOfCopies: number; location: string | null }): Observable<BookCopy[]> { return this.post<BookCopy[]>(`/api/v1/books/${id}/copies/bulk`, body); }
   updateCopy(bookId: string, copyId: string, body: { copyIdentifier: string; location: string | null; status: Exclude<CopyStatus, 'ON_LOAN'> }): Observable<BookCopy> { return this.patch<BookCopy>(`/api/v1/books/${bookId}/copies/${copyId}`, body); }
+  reconcileInventory(bookId: string, body: { targetQuantity: number; location?: string | null }): Observable<BookDetail> { return this.post<BookDetail>(`/api/v1/books/${bookId}/inventory/reconcile`, body); }
 }

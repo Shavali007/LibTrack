@@ -1,22 +1,21 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { AbstractControl, FormsModule, NonNullableFormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { AbstractControl, NonNullableFormBuilder, ReactiveFormsModule, ValidationErrors, Validators, FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { BookCopy, CatalogueService, CopyStatus } from './catalogue.service';
 
 function validWholeQuantity(control: AbstractControl): ValidationErrors | null {
-  const quantity = Number(control.value);
-  return Number.isInteger(quantity) && quantity >= 1 && quantity <= 500 ? null : { invalidQuantity: true };
+  const value = Number(control.value);
+  return Number.isInteger(value) && value >= 1 && value <= 500 ? null : { invalidWholeQuantity: true };
 }
 
 @Component({
   selector: 'app-copy-manager',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, FormsModule, RouterLink],
   template: `
-    <a class="back-link" [routerLink]="['/books',bookId]">← Back to book record</a>
     <header class="page-heading">
-      <p class="eyebrow">LIBRARIAN · INVENTORY</p>
+      <a class="back-link" [routerLink]="['/books', bookId]">← Back to book</a>
       <h1>Manage physical copies</h1>
       <p class="muted">Every physical copy has its own globally unique identifier and circulation status.</p>
     </header>
@@ -39,7 +38,7 @@ function validWholeQuantity(control: AbstractControl): ValidationErrors | null {
         </div>
         <div class="field">
           <label for="bulk-location">Shelf / location</label>
-          <input id="bulk-location" formControlName="location" maxlength="120" autocomplete="off">
+          <input id="bulk-location" formControlName="location" maxlength="120" autocomplete="off" placeholder="Optional location">
         </div>
         <button class="button button-primary" type="submit" [disabled]="bulkForm.invalid||pending()">{{pending()?'Adding…':'Add Copies'}}</button>
       </form>
@@ -50,12 +49,17 @@ function validWholeQuantity(control: AbstractControl): ValidationErrors | null {
       <form [formGroup]="singleForm" (ngSubmit)="addOne()">
         <div class="field">
           <label for="identifier">Copy identifier <span class="required-mark">*</span></label>
-          <input id="identifier" formControlName="copyIdentifier" required autocomplete="off">
-          <p class="field-hint">Use this for accession numbers already assigned by the library.</p>
+          <input id="identifier" formControlName="copyIdentifier" required autocomplete="off"
+            [attr.aria-invalid]="singleForm.controls.copyIdentifier.touched && singleForm.controls.copyIdentifier.invalid"
+            aria-describedby="single-identifier-help">
+          <p id="single-identifier-help" class="field-hint">Use this for accession numbers already assigned by the library (e.g. LIB-001).</p>
+          @if(singleForm.controls.copyIdentifier.touched && singleForm.controls.copyIdentifier.invalid){
+            <p class="field-error" role="alert">Enter a valid identifier (letters, numbers, dots, dashes, slashes, underscores; 2–100 characters).</p>
+          }
         </div>
         <div class="field">
           <label for="single-location">Shelf / location</label>
-          <input id="single-location" formControlName="location" maxlength="120">
+          <input id="single-location" formControlName="location" maxlength="120" placeholder="Optional location">
         </div>
         <button class="button button-secondary" type="submit" [disabled]="singleForm.invalid||pending()">Add one copy</button>
       </form>
@@ -78,10 +82,10 @@ function validWholeQuantity(control: AbstractControl): ValidationErrors | null {
           <caption class="sr-only">Physical copy inventory</caption>
           <thead><tr><th scope="col">Identifier</th><th scope="col">Location</th><th scope="col">Status</th><th scope="col">Update</th></tr></thead>
           <tbody>@for(copy of copies();track copy.id){<tr>
-            <td><input [ngModel]="draft(copy).copyIdentifier" (ngModelChange)="edit(copy.id,'copyIdentifier',$event)" [ngModelOptions]="{standalone:true}" [attr.aria-label]="'Identifier for '+copy.copyIdentifier" [disabled]="pending()||copy.status==='ON_LOAN'"></td>
-            <td><input [ngModel]="draft(copy).location" (ngModelChange)="edit(copy.id,'location',$event)" [ngModelOptions]="{standalone:true}" [attr.aria-label]="'Location for '+copy.copyIdentifier" [disabled]="pending()||copy.status==='ON_LOAN'"></td>
+            <td><input [ngModel]="draft(copy).copyIdentifier" (ngModelChange)="edit(copy,'copyIdentifier',$event)" [ngModelOptions]="{standalone:true}" [attr.aria-label]="'Identifier for '+copy.copyIdentifier" [disabled]="pending()||copy.status==='ON_LOAN'"></td>
+            <td><input [ngModel]="draft(copy).location" (ngModelChange)="edit(copy,'location',$event)" [ngModelOptions]="{standalone:true}" [attr.aria-label]="'Location for '+copy.copyIdentifier" [disabled]="pending()||copy.status==='ON_LOAN'"></td>
             <td><span class="status-badge" [class.status-badge-success]="draft(copy).status==='AVAILABLE'" [class.status-badge-warning]="draft(copy).status==='LOST'||draft(copy).status==='DAMAGED'" [class.status-badge-neutral]="draft(copy).status==='ON_LOAN'||draft(copy).status==='WITHDRAWN'">{{draft(copy).status.replace('_',' ')}}</span></td>
-            <td class="update-cell"><select [attr.aria-label]="'Set status for '+copy.copyIdentifier" [ngModel]="draft(copy).status" (ngModelChange)="edit(copy.id,'status',$event)" [ngModelOptions]="{standalone:true}" [disabled]="pending()||copy.status==='ON_LOAN'"><option value="AVAILABLE">Available</option><option value="LOST">Lost</option><option value="DAMAGED">Damaged</option><option value="WITHDRAWN">Withdrawn</option></select><button class="button button-secondary save-copy" type="button" (click)="save(copy)" [disabled]="pending()||draft(copy).status==='ON_LOAN'">Save changes</button></td>
+            <td class="update-cell"><select [attr.aria-label]="'Set status for '+copy.copyIdentifier" [ngModel]="draft(copy).status" (ngModelChange)="edit(copy,'status',$event)" [ngModelOptions]="{standalone:true}" [disabled]="pending()||copy.status==='ON_LOAN'"><option value="AVAILABLE">Available</option><option value="LOST">Lost</option><option value="DAMAGED">Damaged</option><option value="WITHDRAWN">Withdrawn</option></select><button class="button button-secondary save-copy" type="button" (click)="save(copy)" [disabled]="pending()||draft(copy).status==='ON_LOAN'">Save changes</button></td>
           </tr>}</tbody>
         </table></div>
       }
@@ -198,17 +202,34 @@ export class CopyManagerComponent {
   }
 
   draft(copy: BookCopy) { return this.drafts()[copy.id] ?? { copyIdentifier: copy.copyIdentifier, location: copy.location || '', status: copy.status }; }
-  edit(id: string, key: 'copyIdentifier' | 'location' | 'status', value: string): void {
-    this.drafts.update(all => ({ ...all, [id]: { ...(all[id] ?? { copyIdentifier: '', location: '', status: 'AVAILABLE' }), [key]: value } }));
+  edit(copyOrId: BookCopy | string, key: 'copyIdentifier' | 'location' | 'status', value: string): void {
+    const id = typeof copyOrId === 'string' ? copyOrId : copyOrId.id;
+    const existing = this.drafts()[id];
+    let base: { copyIdentifier: string; location: string; status: CopyStatus };
+    if (existing) {
+      base = existing;
+    } else {
+      const found = typeof copyOrId === 'string' ? this.copies().find(c => c.id === id) : copyOrId;
+      base = found
+        ? { copyIdentifier: found.copyIdentifier, location: found.location || '', status: found.status }
+        : { copyIdentifier: '', location: '', status: 'AVAILABLE' };
+    }
+    this.drafts.update(all => ({ ...all, [id]: { ...base, [key]: value } }));
   }
   save(copy: BookCopy): void {
     const value = this.draft(copy);
     if (value.status === 'ON_LOAN' || this.pending()) return;
+    const trimmedIdentifier = value.copyIdentifier.trim();
+    if (!trimmedIdentifier) {
+      this.error.set('Copy identifier is required.');
+      return;
+    }
     this.error.set('');
     this.notice.set('');
     this.pending.set(true);
     this.service.updateCopy(this.bookId, copy.id, {
-      copyIdentifier: value.copyIdentifier.trim(), location: value.location,
+      copyIdentifier: trimmedIdentifier,
+      location: value.location.trim() || null,
       status: value.status as Exclude<CopyStatus, 'ON_LOAN'>,
     }).pipe(finalize(() => this.pending.set(false))).subscribe({
       next: () => {
@@ -223,6 +244,8 @@ export class CopyManagerComponent {
   private safeMutationError(status: number): string {
     if (status === 401) return 'Sign in to manage inventory.';
     if (status === 403) return 'Only Librarians can manage physical copies.';
+    if (status === 404) return 'The book record or inventory service was not found.';
+    if (status === 400) return 'Invalid inventory details. Review the quantity and location.';
     return 'The inventory change could not be saved. Please try again.';
   }
 }

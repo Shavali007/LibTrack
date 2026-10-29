@@ -176,7 +176,7 @@ describe('BookEditorComponent edit quantity behavior', () => {
 
   afterEach(() => http.verify());
 
-  it('does not render or submit the quantity on an existing book edit', () => {
+  it('does not render or submit the quantity on an existing book edit metadata form', () => {
     expect(fixture.nativeElement.querySelector('#numberOfCopies')).toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Total copies');
     expect(fixture.nativeElement.textContent).toContain('Available');
@@ -189,6 +189,44 @@ describe('BookEditorComponent edit quantity behavior', () => {
     expect(update.request.method).toBe('PATCH');
     expect(update.request.body).not.toHaveProperty('numberOfCopies');
     update.flush({ ...book, title: 'Updated title' });
+  });
+
+  it('renders reconciliation section, previews changes, and successfully reconciles inventory', () => {
+    expect(fixture.nativeElement.querySelector('.reconcile-panel')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#reconcile-target')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Target matches current total');
+
+    // Preview increase
+    fixture.componentInstance.onTargetChange('5');
+    fixture.componentInstance.reconcileLocation.set('Shelf B');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('+4 copies will be generated');
+
+    // Apply increase
+    fixture.componentInstance.applyReconciliation();
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'reconcile-csrf' });
+    const reconcileReq = http.expectOne('/api/v1/books/book-1/inventory/reconcile');
+    expect(reconcileReq.request.method).toBe('POST');
+    expect(reconcileReq.request.body).toEqual({ targetQuantity: 5, location: 'Shelf B' });
+    reconcileReq.flush({ ...book, totalCopies: 5, availableCopies: 5 });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Inventory reconciled successfully. Total copies is now 5');
+    expect(fixture.nativeElement.querySelector('.inventory-counts').textContent).toContain('5');
+  });
+
+  it('displays reconciliation error message when reduction cannot be performed', () => {
+    fixture.componentInstance.onTargetChange('0');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('-1 copies');
+
+    fixture.componentInstance.applyReconciliation();
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'reconcile-csrf' });
+    const reconcileReq = http.expectOne('/api/v1/books/book-1/inventory/reconcile');
+    reconcileReq.flush({ message: 'Cannot reduce inventory: copies have loan history.' }, { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Cannot reduce inventory: copies have loan history.');
   });
 });
 
@@ -219,4 +257,3 @@ describe('BookEditorComponent inventory load failure', () => {
     expect(fixture.nativeElement.textContent).not.toContain('private API error');
   });
 });
-
