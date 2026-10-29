@@ -47,6 +47,12 @@ public class SecurityConfiguration {
                                             Environment environment) throws Exception {
         return http
             .securityContext(context -> context.securityContextRepository(securityContextRepository))
+            .headers(headers -> headers
+                .frameOptions(frame -> frame.sameOrigin())
+                .contentSecurityPolicy(csp -> csp
+                    .policyDirectives("frame-ancestors 'self' http://localhost:4200 http://localhost:8080")
+                )
+            )
             .csrf(csrf -> csrf
                 .csrfTokenRepository(new HttpSessionCsrfTokenRepository())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
@@ -58,12 +64,15 @@ public class SecurityConfiguration {
                 if (environment.acceptsProfiles(Profiles.of("development"))) {
                     authorize.requestMatchers("/api/v1/dev/mail-capture", "/api/v1/dev/mail-capture/**").permitAll();
                 }
-                authorize.requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout", "/api/v1/librarian/accounts/**").authenticated();
-                authorize.requestMatchers(HttpMethod.GET, "/api/v1/books", "/api/v1/books/*", "/api/v1/categories").permitAll();
+                authorize.requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout", "/api/v1/librarian/**").authenticated();
+                authorize.requestMatchers(HttpMethod.GET, "/api/v1/books", "/api/v1/books/*", "/api/v1/books/*/digital-edition", "/api/v1/categories").permitAll();
                 authorize.requestMatchers("/api/v1/books", "/api/v1/books/**", "/api/v1/categories",
                         "/api/v1/borrow-requests", "/api/v1/borrow-requests/**",
                         "/api/v1/loans", "/api/v1/loans/**",
-                        "/api/v1/holidays", "/api/v1/holidays/**").authenticated();
+                        "/api/v1/holidays", "/api/v1/holidays/**",
+                        "/api/v1/feedback", "/api/v1/feedback/**",
+                        "/api/v1/notifications", "/api/v1/notifications/**",
+                        "/api/v1/fines", "/api/v1/fines/**").authenticated();
                 authorize.anyRequest().denyAll();
             })
             .sessionManagement(session -> session

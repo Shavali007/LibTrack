@@ -118,8 +118,11 @@ public class UserAccount {
         enabled = true;
     }
     public void deactivate() { enabled = false; }
+    public void enable() { enabled = true; }
     public String getInstitutionalId() { return institutionalId; }
     public Instant getIdentityVerifiedAt() { return identityVerifiedAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
     public UUID getCreatedByAccountId() { return createdByAccountId; }
     public ProvisioningSource getProvisioningSource() { return provisioningSource; }
 }

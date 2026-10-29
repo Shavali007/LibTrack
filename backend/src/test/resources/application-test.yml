@@ -12,3 +12,7 @@ spring:
     enabled: false
 libtrack:
   library-zone: UTC
+  storage:
+    digital-books-dir: target/test-storage/digital-books
+  digital-edition:
+    max-file-size: 25MB

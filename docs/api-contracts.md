@@ -41,6 +41,12 @@ The public catalogue read surface contains active book metadata, categories, and
 | `POST /books/{id}/copies/bulk` | Librarian | `{numberOfCopies, location}` creates 1–500 available copies atomically and returns the created copy records. |
 | `PATCH /books/{id}/copies/{copyId}` | Librarian | Updates copy identifier/location/manageable status; ON_LOAN is circulation-managed. |
 | `POST /books/{id}/inventory/reconcile` | Librarian | `{targetQuantity, location?}` reconciles total physical copies to target: generates additional copies if target > current, or safely deletes unreferenced available copies if target < current. Rejects with 409 if reduction exceeds available unreferenced copies or if copies are on loan/have history. |
+| `GET /books/{id}/digital-edition` | Public | Returns active digital edition metadata `{id,bookId,originalFilename,contentType,fileSize,editionLabel,uploadedAt}` or 404 if not present. |
+| `POST /books/{id}/digital-edition` | Librarian | Multipart `file` (max 25MB PDF, verified magic header `%PDF-`) + optional `editionLabel`. Uploads and associates digital PDF edition with book record -> 201. Replaces any prior edition if present. |
+| `PUT /books/{id}/digital-edition` | Librarian | Multipart `file` + optional `editionLabel`. Replaces active edition and deletes old file -> 200. |
+| `DELETE /books/{id}/digital-edition` | Librarian | Removes digital edition metadata and deletes stored PDF file -> 204. Physical copies and circulation state remain completely untouched. |
+| `GET /books/{id}/digital-edition/content` | Student, Faculty, Librarian | Streams PDF inline (`Content-Disposition: inline; filename="..."`, `application/pdf`, `X-Content-Type-Options: nosniff`). Requires active book (or Librarian access). |
+| `GET /books/{id}/digital-edition/download` | Student, Faculty, Librarian | Downloads PDF as attachment (`Content-Disposition: attachment; filename="..."`, `application/pdf`). Requires active book (or Librarian access). |
 | `GET /categories` | Public | Existing category values for catalogue filters. |
 | `GET /members` | Librarian | `q,role,active` filters; safe paginated summary. |
 | `GET /members/{id}` | Librarian or self | Profile and permitted borrowing summary. |

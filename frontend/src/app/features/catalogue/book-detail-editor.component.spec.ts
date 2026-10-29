@@ -171,6 +171,7 @@ describe('BookEditorComponent edit quantity behavior', () => {
     fixture.detectChanges();
     http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/v1/books/book-1').flush(book);
+    http.expectOne('/api/v1/books/book-1/digital-edition').flush(null, { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
   });
 
@@ -246,6 +247,7 @@ describe('BookEditorComponent inventory load failure', () => {
     fixture.detectChanges();
     http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/v1/books/book-1').flush({ message: 'private API error' }, { status: 500, statusText: 'Internal Server Error' });
+    http.expectOne('/api/v1/books/book-1/digital-edition').flush(null, { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
   });
 
@@ -255,5 +257,130 @@ describe('BookEditorComponent inventory load failure', () => {
     expect(fixture.nativeElement.textContent).toContain('Inventory counts could not be loaded');
     expect(fixture.nativeElement.querySelector('.inventory-counts')).toBeNull();
     expect(fixture.nativeElement.textContent).not.toContain('private API error');
+  });
+});
+
+describe('BookDetailComponent digital edition behavior', () => {
+  let fixture: ComponentFixture<BookDetailComponent>;
+  let http: HttpTestingController;
+  let profile: ReturnType<typeof signal<UserProfile | null>>;
+
+  const digitalBook = {
+    ...book,
+    hasDigitalEdition: true,
+  };
+
+  const edition = {
+    id: 'de-1',
+    bookId: 'book-1',
+    originalFilename: 'algorithms.pdf',
+    contentType: 'application/pdf',
+    fileSize: 2048576,
+    editionLabel: '2nd Ed',
+    uploadedAt: '2026-02-01T10:00:00Z',
+  };
+
+  beforeEach(async () => {
+    profile = signal<UserProfile | null>(null);
+    await TestBed.configureTestingModule({
+      imports: [BookDetailComponent],
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'book-1' } } } },
+        { provide: AuthService, useValue: { profile, login: () => {} } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(BookDetailComponent);
+    fixture.detectChanges();
+    http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/v1/books/book-1').flush(digitalBook);
+    http.expectOne('/api/v1/books/book-1/digital-edition').flush(edition);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => http.verify());
+
+  it('renders digital edition section with metadata and prompts authentication for visitor', () => {
+    expect(fixture.nativeElement.textContent).toContain('PDF Book Edition');
+    expect(fixture.nativeElement.textContent).toContain('Digital Available');
+    expect(fixture.nativeElement.textContent).toContain('algorithms.pdf');
+    expect(fixture.nativeElement.textContent).toContain('2.0 MB');
+    expect(fixture.nativeElement.textContent).toContain('2nd Ed');
+
+    const readBtn = fixture.nativeElement.querySelector('.digital-actions button');
+    expect(readBtn.textContent).toContain('Sign in to Read Online');
+    readBtn.click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Authentication Required: Please sign in to read the digital edition.');
+    expect(fixture.nativeElement.querySelector('dialog.sign-in-dialog')).not.toBeNull();
+  });
+
+  it('exposes direct Read Online and Download links when signed in as student', () => {
+    profile.set({ id: 's-1', email: 'student@example.com', role: 'STUDENT' });
+    fixture.detectChanges();
+
+    const readLink = fixture.nativeElement.querySelector('.digital-actions a[href="/books/book-1/read"]');
+    expect(readLink).not.toBeNull();
+    expect(readLink.textContent).toContain('Read Online');
+
+    const downloadLink = fixture.nativeElement.querySelector('.digital-actions a[download]');
+    expect(downloadLink).not.toBeNull();
+    expect(downloadLink.getAttribute('href')).toBe('/api/v1/books/book-1/digital-edition/download');
+  });
+});
+
+describe('BookEditorComponent digital edition management', () => {
+  let fixture: ComponentFixture<BookEditorComponent>;
+  let http: HttpTestingController;
+
+  const edition = {
+    id: 'de-1',
+    bookId: 'book-1',
+    originalFilename: 'course-text.pdf',
+    contentType: 'application/pdf',
+    fileSize: 1048576,
+    editionLabel: '1st Edition',
+    uploadedAt: '2026-03-01T12:00:00Z',
+  };
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [BookEditorComponent],
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'book-1' } } } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(BookEditorComponent);
+    fixture.detectChanges();
+    http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/v1/books/book-1').flush({ ...book, hasDigitalEdition: true });
+    http.expectOne('/api/v1/books/book-1/digital-edition').flush(edition);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => http.verify());
+
+  it('renders attached digital edition and allows deletion with confirmation without touching copies', () => {
+    expect(fixture.nativeElement.querySelector('.digital-editor-card')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('PDF Attached');
+    expect(fixture.nativeElement.textContent).toContain('course-text.pdf');
+    expect(fixture.nativeElement.textContent).toContain('1.0 MB');
+
+    // Click remove digital edition
+    fixture.componentInstance.confirmingDelete.set(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Confirm removing PDF edition?');
+
+    fixture.componentInstance.deleteEdition();
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'del-csrf' });
+    const delReq = http.expectOne('/api/v1/books/book-1/digital-edition');
+    expect(delReq.request.method).toBe('DELETE');
+    delReq.flush(null);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Digital edition removed successfully.');
+    expect(fixture.nativeElement.textContent).toContain('None Attached');
   });
 });

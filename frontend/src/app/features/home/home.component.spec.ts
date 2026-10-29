@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AuthService, UserProfile } from '../auth/auth.service';
@@ -13,7 +15,7 @@ describe('role-aware dashboards', () => {
     currentProfile = signal<UserProfile | null>({ id: 'member-1', email: 'reader@vitap.ac.in', role: 'STUDENT' });
     await TestBed.configureTestingModule({
       imports: [HomeComponent],
-      providers: [provideRouter([]), { provide: AuthService, useValue: { profile: currentProfile } }],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: { profile: currentProfile } }],
     }).compileComponents();
     fixture = TestBed.createComponent(HomeComponent);
     fixture.detectChanges();

@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 public interface BookCopyRepository extends JpaRepository<BookCopy, UUID> {
     List<BookCopy> findAllByBookIdOrderByCopyIdentifierAsc(UUID bookId);
     Optional<BookCopy> findByIdAndBookId(UUID id, UUID bookId);
+    long countByStatus(CopyStatus status);
 
     @Query("select new com.libtrack.catalogue.BookAvailability(c.book.id, count(c), " +
            "count(case when c.status = :available then 1 else null end), " +

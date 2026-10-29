@@ -2,14 +2,17 @@ package com.libtrack.catalogue;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.libtrack.digital.DigitalEditionRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,11 +30,13 @@ public class CatalogueService {
     private final CategoryRepository categories;
     private final BookCopyRepository copies;
     private final CopyIdentifierGenerator copyIdentifierGenerator;
+    private final DigitalEditionRepository digitalEditions;
 
     public CatalogueService(BookRepository books, AuthorRepository authors, CategoryRepository categories, BookCopyRepository copies,
-                           CopyIdentifierGenerator copyIdentifierGenerator) {
+                           CopyIdentifierGenerator copyIdentifierGenerator, DigitalEditionRepository digitalEditions) {
         this.books = books; this.authors = authors; this.categories = categories; this.copies = copies;
         this.copyIdentifierGenerator = copyIdentifierGenerator;
+        this.digitalEditions = digitalEditions;
     }
 
     @PreAuthorize("permitAll()")
@@ -53,7 +58,11 @@ public class CatalogueService {
         Specification<Book> filters = BookSpecifications.search(q, title, author, isbn, category, available);
         Page<Book> result = books.findAll(filters, PageRequest.of(page, size, sort));
         Map<UUID, BookAvailability> availability = availability(result.getContent());
-        List<BookSummaryResponse> content = result.getContent().stream().map(book -> summary(book, availability.get(book.getId()))).toList();
+        List<UUID> bookIds = result.getContent().stream().map(Book::getId).toList();
+        Set<UUID> digitalIds = bookIds.isEmpty() ? Set.of() : new HashSet<>(digitalEditions.findBookIdsWithDigitalEdition(bookIds));
+        List<BookSummaryResponse> content = result.getContent().stream()
+                .map(book -> summary(book, availability.get(book.getId()), digitalIds.contains(book.getId())))
+                .toList();
         return new PageResponse<>(content, result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
@@ -61,7 +70,8 @@ public class CatalogueService {
     @Transactional(readOnly = true)
     public BookDetailResponse getBook(UUID id, boolean librarian) {
         Book book = books.findById(id).filter(found -> found.isActive() || librarian).orElseThrow(BookNotFoundException::new);
-        return detail(book, availability(List.of(book)).get(book.getId()));
+        boolean hasDigitalEdition = digitalEditions.existsByBookId(book.getId());
+        return detail(book, availability(List.of(book)).get(book.getId()), hasDigitalEdition);
     }
 
     @PreAuthorize("permitAll()")
@@ -86,7 +96,7 @@ public class CatalogueService {
         try {
             book = books.saveAndFlush(book);
             if (request.numberOfCopies() != null) createPhysicalCopies(book, request.numberOfCopies().intValueExact(), clean(request.location()));
-            return detail(book, availability(List.of(book)).get(book.getId()));
+            return detail(book, availability(List.of(book)).get(book.getId()), false);
         } catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
     }
 
@@ -99,7 +109,8 @@ public class CatalogueService {
                 clean(request.publisher()), request.publicationYear(), clean(request.coverImageUrl()), request.circulationPolicy(), names.authors(), names.categories());
         try {
             books.flush();
-            return detail(book, availability(List.of(book)).get(book.getId()));
+            boolean hasDigital = digitalEditions.existsByBookId(book.getId());
+            return detail(book, availability(List.of(book)).get(book.getId()), hasDigital);
         } catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
     }
 
@@ -182,7 +193,8 @@ public class CatalogueService {
         }
 
         copies.flush();
-        return detail(book, availability(List.of(book)).get(book.getId()));
+        boolean hasDigital = digitalEditions.existsByBookId(book.getId());
+        return detail(book, availability(List.of(book)).get(book.getId()), hasDigital);
     }
 
     private SetNames resolveNames(List<String> authorNames, List<String> categoryNames) {
@@ -207,7 +219,7 @@ public class CatalogueService {
                 .collect(Collectors.toMap(BookAvailability::bookId, Function.identity()));
     }
 
-    private static BookSummaryResponse summary(Book book, BookAvailability counts) {
+    private static BookSummaryResponse summary(Book book, BookAvailability counts, boolean hasDigitalEdition) {
         long total = counts == null ? 0 : counts.totalCopies();
         long available = counts == null ? 0 : counts.availableCopies();
         long onLoan = counts == null ? 0 : counts.onLoanCopies();
@@ -216,10 +228,10 @@ public class CatalogueService {
         long withdrawn = counts == null ? 0 : counts.withdrawnCopies();
         return new BookSummaryResponse(book.getId(), book.getTitle(), book.getIsbn(), sortedAuthors(book), sortedCategories(book),
                 book.getPublisher(), book.getPublicationYear(), book.getCoverImageUrl(), book.getCirculationPolicy(),
-                total, available, onLoan, lost, damaged, withdrawn);
+                total, available, onLoan, lost, damaged, withdrawn, hasDigitalEdition);
     }
 
-    private static BookDetailResponse detail(Book book, BookAvailability counts) {
+    private static BookDetailResponse detail(Book book, BookAvailability counts, boolean hasDigitalEdition) {
         long total = counts == null ? 0 : counts.totalCopies();
         long available = counts == null ? 0 : counts.availableCopies();
         long onLoan = counts == null ? 0 : counts.onLoanCopies();
@@ -228,7 +240,7 @@ public class CatalogueService {
         long withdrawn = counts == null ? 0 : counts.withdrawnCopies();
         return new BookDetailResponse(book.getId(), book.getTitle(), book.getIsbn(), book.getDescription(), sortedAuthors(book), sortedCategories(book),
                 book.getPublisher(), book.getPublicationYear(), book.getCoverImageUrl(), book.getCirculationPolicy(), book.isActive(),
-                total, available, onLoan, lost, damaged, withdrawn, book.getCreatedAt(), book.getUpdatedAt());
+                total, available, onLoan, lost, damaged, withdrawn, book.getCreatedAt(), book.getUpdatedAt(), hasDigitalEdition);
     }
 
     private List<BookCopy> createPhysicalCopies(Book book, int quantity, String location) {

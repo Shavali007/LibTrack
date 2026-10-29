@@ -15,4 +15,8 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest,UUI
  Page<BorrowRequest> findByBorrower_IdOrderBySubmittedAtDesc(UUID borrowerId,Pageable pageable);
  Page<BorrowRequest> findAllByOrderBySubmittedAtDesc(Pageable pageable);
  Page<BorrowRequest> findByStatusOrderBySubmittedAtDesc(BorrowRequestStatus status,Pageable pageable);
+ @Query("select r from BorrowRequest r join fetch r.book join fetch r.borrower where r.decidedAt is not null order by r.decidedAt desc")
+ List<BorrowRequest> findRecentDecisions(Pageable pageable);
+ long countByStatus(BorrowRequestStatus status);
+ List<BorrowRequest> findByBorrower_IdOrderBySubmittedAtDesc(UUID borrowerId);
 }

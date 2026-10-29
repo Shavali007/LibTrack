@@ -1,0 +1,77 @@
+package com.libtrack.notifications;
+
+import java.time.Instant;
+import java.util.Objects;
+import java.util.UUID;
+
+import com.libtrack.auth.AccountRole;
+import com.libtrack.auth.UserAccount;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "app_notification")
+public class AppNotification {
+    @Id
+    @Column(name = "id", nullable = false, updatable = false)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recipient_account_id")
+    private UserAccount recipient;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "target_role", length = 20)
+    private AccountRole targetRole;
+
+    @Column(name = "title", nullable = false, length = 150)
+    private String title;
+
+    @Column(name = "message", nullable = false, length = 1000)
+    private String message;
+
+    @Column(name = "category", nullable = false, length = 50)
+    private String category;
+
+    @Column(name = "is_read", nullable = false)
+    private boolean isRead;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    protected AppNotification() {}
+
+    public AppNotification(UUID id, UserAccount recipient, AccountRole targetRole,
+                           String title, String message, String category,
+                           boolean isRead, Instant createdAt) {
+        this.id = Objects.requireNonNull(id, "id must not be null");
+        this.recipient = recipient;
+        this.targetRole = targetRole;
+        this.title = Objects.requireNonNull(title, "title must not be null");
+        this.message = Objects.requireNonNull(message, "message must not be null");
+        this.category = Objects.requireNonNull(category, "category must not be null");
+        this.isRead = isRead;
+        this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
+    }
+
+    public UUID getId() { return id; }
+    public UserAccount getRecipient() { return recipient; }
+    public AccountRole getTargetRole() { return targetRole; }
+    public String getTitle() { return title; }
+    public String getMessage() { return message; }
+    public String getCategory() { return category; }
+    public boolean isRead() { return isRead; }
+    public Instant getCreatedAt() { return createdAt; }
+
+    public void markRead() {
+        this.isRead = true;
+    }
+}

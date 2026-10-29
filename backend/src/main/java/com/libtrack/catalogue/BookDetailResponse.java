@@ -8,4 +8,16 @@ public record BookDetailResponse(
         UUID id, String title, String isbn, String description, List<String> authors, List<String> categories,
         String publisher, Integer publicationYear, String coverImageUrl, CirculationPolicy circulationPolicy,
         boolean active, long totalCopies, long availableCopies, long onLoanCopies, long lostCopies,
-        long damagedCopies, long withdrawnCopies, Instant createdAt, Instant updatedAt) {}
+        long damagedCopies, long withdrawnCopies, Instant createdAt, Instant updatedAt,
+        boolean hasDigitalEdition) {
+
+    public BookDetailResponse(
+            UUID id, String title, String isbn, String description, List<String> authors, List<String> categories,
+            String publisher, Integer publicationYear, String coverImageUrl, CirculationPolicy circulationPolicy,
+            boolean active, long totalCopies, long availableCopies, long onLoanCopies, long lostCopies,
+            long damagedCopies, long withdrawnCopies, Instant createdAt, Instant updatedAt) {
+        this(id, title, isbn, description, authors, categories, publisher, publicationYear, coverImageUrl,
+                circulationPolicy, active, totalCopies, availableCopies, onLoanCopies, lostCopies,
+                damagedCopies, withdrawnCopies, createdAt, updatedAt, false);
+    }
+}

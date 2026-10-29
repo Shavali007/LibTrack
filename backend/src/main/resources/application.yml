@@ -17,6 +17,10 @@ spring:
   flyway:
     enabled: true
     locations: ${FLYWAY_LOCATIONS:classpath:db/migration/mysql}
+  servlet:
+    multipart:
+      max-file-size: ${LIBTRACK_MAX_FILE_SIZE:25MB}
+      max-request-size: ${LIBTRACK_MAX_REQUEST_SIZE:30MB}
 server:
   port: ${SERVER_PORT:8080}
   servlet:
@@ -32,3 +36,7 @@ libtrack:
     frontend-base-url: ${LIBTRACK_FRONTEND_BASE_URL:http://localhost:4200}
   # Set this to the library's actual IANA zone for server-generated local dates.
   library-zone: ${LIBTRACK_LIBRARY_ZONE:UTC}
+  storage:
+    digital-books-dir: ${LIBTRACK_STORAGE_DIR:./storage/digital-books}
+  digital-edition:
+    max-file-size: ${LIBTRACK_MAX_FILE_SIZE:25MB}

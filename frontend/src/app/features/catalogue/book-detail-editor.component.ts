@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService, UserProfile } from '../auth/auth.service';
 import { SignInDialogComponent } from '../auth/sign-in-dialog.component';
-import { BookDetail, BookWrite, CatalogueService, InventorySummary } from './catalogue.service';
+import { BookDetail, BookWrite, CatalogueService, DigitalEdition, InventorySummary } from './catalogue.service';
 import { BorrowingService } from '../circulation/borrowing.service';
 import { ToastService } from '../../shared/layout/toast.component';
 
@@ -57,12 +57,45 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
 @if(loading()){<div class="loading-state" role="status">Loading book record…</div>}
 @else if(loadError()){<div class="alert alert-error" role="alert">{{loadError()}} <button class="text-button" type="button" (click)="reload()">Retry</button></div>}
 @else if(book();as b){
-  <header class="catalogue-header"><a class="brand" routerLink="/" aria-label="LibTrack home"><span aria-hidden="true">▤</span><strong>LibTrack</strong></a><nav aria-label="Catalogue navigation"><a routerLink="/books">Explore books</a>@if(auth.profile()){<a routerLink="/workspace">My workspace</a>}@else{<button class="button button-secondary" type="button" (click)="openSignIn()">Sign in</button>}</nav></header>
-  <a class="back-link" routerLink="/books">← Back to catalogue</a>
+  @if(!isInsideWorkspace()){<header class="catalogue-header"><a class="brand" routerLink="/" aria-label="LibTrack home"><span aria-hidden="true">▤</span><strong>LibTrack</strong></a><nav aria-label="Catalogue navigation"><a routerLink="/books">Explore books</a>@if(auth.profile()){<a routerLink="/workspace">My workspace</a>}@else{<button class="button button-secondary" type="button" (click)="openSignIn()">Sign in</button>}</nav></header>}
+  <a class="back-link" [routerLink]="backLink()" [queryParams]="savedQueryParams()">← Back to catalogue</a>
   <article class="detail-layout"><div class="cover-wrap">@if(b.coverImageUrl&&!broken()){<img class="book-cover-large" [src]="b.coverImageUrl" [alt]="'Cover of '+b.title" (error)="broken.set(true)">}@else{<div class="cover-fallback" aria-hidden="true"><span>LIBTRACK</span><strong>{{b.title}}</strong><small>{{b.authors.join(' · ')}}</small></div>}</div>
     <section class="detail-copy"><p class="eyebrow">{{b.categories.join(' · ')||'CATALOGUE RECORD'}}</p><h1>{{b.title}}</h1><p class="authors">{{b.authors.join(', ')}}</p><p class="muted">{{b.publisher||'Publisher not listed'}}@if(b.publicationYear){ · {{b.publicationYear}}}</p>@if(b.isbn){<p><strong>ISBN</strong> {{b.isbn}}</p>}@if(b.description){<p class="description">{{b.description}}</p>}
       <div class="availability-row"><span class="status-badge" [class.status-badge-success]="b.availableCopies>0" [class.status-badge-neutral]="b.availableCopies===0">{{b.availableCopies>0?'Available':'Unavailable'}}</span><strong>{{b.totalCopies}} total copies · {{b.availableCopies}} available · {{b.onLoanCopies}} on loan</strong></div>
       <p class="field-hint inventory-total-note">Total includes withdrawn copy records.</p><p><strong>Loan policy:</strong> {{policyLabel(b.circulationPolicy)}}</p><p class="policy-note">Only standard circulation is eligible for take-home requests. Reference, serial, and overnight exception policies remain unavailable until their operating rules are defined.</p>
+
+      <section class="digital-card" aria-labelledby="digital-edition-title">
+        <div class="digital-header">
+          <div>
+            <p class="eyebrow">DIGITAL EDITION</p>
+            <h3 id="digital-edition-title">PDF Book Edition</h3>
+            @if(digitalEdition(); as ed){
+              <p class="digital-meta"><strong>{{ed.originalFilename}}</strong> ({{formatBytes(ed.fileSize)}})@if(ed.editionLabel){ · <em>{{ed.editionLabel}}</em>}</p>
+            }@else if(b.hasDigitalEdition){
+              <p class="digital-meta">Digital PDF edition available</p>
+            }@else{
+              <p class="digital-meta muted">No digital edition available for this record.</p>
+            }
+          </div>
+          @if(b.hasDigitalEdition){
+            <span class="status-badge status-badge-success">Digital Available</span>
+          }@else{
+            <span class="status-badge status-badge-neutral">Physical Only</span>
+          }
+        </div>
+        @if(b.hasDigitalEdition){
+          <div class="digital-actions">
+            @if(auth.profile()){
+              <a class="button button-primary" [routerLink]="readLink(b.id)" [queryParams]="savedQueryParams()">Read Online</a>
+              <a class="button button-secondary" [href]="downloadUrl(b.id)" download>Download PDF</a>
+            }@else{
+              <button class="button button-primary" type="button" (click)="requireAuthForReading()">Sign in to Read Online</button>
+              <button class="button button-secondary" type="button" (click)="requireAuthForDownload()">Sign in to Download</button>
+            }
+          </div>
+        }
+      </section>
+
       @if(auth.profile()?.role==='STUDENT'||auth.profile()?.role==='FACULTY'){<div class="actions"><button class="button button-primary" type="button" (click)="requestBook()" [disabled]="pending()||!b.active||b.circulationPolicy!=='STANDARD'||b.availableCopies<1">{{pending()?'Submitting…':'Request this book'}}</button></div>}
       @else if(!auth.profile()){<div class="actions"><button class="button button-primary" type="button" (click)="requireAuthentication()" [disabled]="!b.active||b.circulationPolicy!=='STANDARD'||b.availableCopies<1">Sign in to request this book</button></div>}
       @else{<p class="muted">Librarian accounts cannot submit member borrowing requests.</p>}
@@ -74,19 +107,27 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
 }
 @if(showSignIn()){<app-sign-in-dialog initialRole="STUDENT" [contextMessage]="signInContext()" (dismissed)="showSignIn.set(false)" (authenticated)="onSignedIn($event)" />}
 `,styles:[`
-:host{display:block}.catalogue-header{position:sticky;top:0;z-index:5;display:flex;min-height:3.7rem;align-items:center;justify-content:space-between;margin-bottom:1.5rem;padding-bottom:.7rem;border-bottom:1px solid var(--color-line-200)}.brand{display:flex;align-items:center;gap:.5rem;color:var(--color-forest-950);text-decoration:none}.brand>span{display:grid;width:2rem;height:2rem;place-items:center;border-radius:5px;color:white;background:var(--color-forest-900)}.brand strong{font:600 1.25rem var(--font-serif)}.catalogue-header nav{display:flex;align-items:center;gap:1rem}.catalogue-header nav>a{font-size:.85rem;text-decoration:none}.back-link{display:inline-block;margin-bottom:1.2rem}.detail-layout{display:grid;grid-template-columns:minmax(12rem,19rem) minmax(0,1fr);gap:clamp(1.5rem,5vw,4rem);padding:clamp(1rem,3vw,2rem);border:1px solid var(--color-line-200);border-radius:var(--radius-panel);background:var(--color-paper)}.cover-wrap{display:grid;min-height:18rem;place-items:center;padding:1rem;background:#f0efe7}.book-cover-large{width:auto;max-width:100%;height:17rem;aspect-ratio:2/3;object-fit:cover;box-shadow:var(--shadow-panel)}.cover-fallback{display:flex;width:12rem;height:17rem;flex-direction:column;justify-content:space-between;padding:1.2rem;border-left:6px solid var(--color-sage-500);color:var(--color-forest-950);background:linear-gradient(145deg,var(--color-sage-100),var(--color-ivory-100));box-shadow:var(--shadow-panel)}.cover-fallback strong{font:600 1.5rem/1.2 var(--font-serif)}.cover-fallback span,.cover-fallback small{font-size:.7rem;letter-spacing:.1em}.detail-copy h1{margin-bottom:.5rem}.authors{font-size:1.05rem}.description{max-width:52rem;white-space:pre-line}.availability-row{display:flex;align-items:center;gap:.8rem;margin:1.2rem 0;padding:1rem;border-block:1px solid var(--color-line-200)}.policy-note{color:var(--color-charcoal-600);font-size:.82rem}.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.5rem}.text-button{padding:.2rem;border:0;color:var(--color-forest-900);background:transparent;text-decoration:underline;cursor:pointer}@media(max-width:680px){.detail-layout{grid-template-columns:1fr}.cover-wrap{min-height:14rem}.book-cover-large,.cover-fallback{height:13rem}.cover-fallback{width:9rem}.actions>*{flex:1 1 auto}}
+:host{display:block}.catalogue-header{position:sticky;top:0;z-index:5;display:flex;min-height:3.7rem;align-items:center;justify-content:space-between;margin-bottom:1.5rem;padding-bottom:.7rem;border-bottom:1px solid var(--color-line-200)}.brand{display:flex;align-items:center;gap:.5rem;color:var(--color-forest-950);text-decoration:none}.brand>span{display:grid;width:2rem;height:2rem;place-items:center;border-radius:5px;color:white;background:var(--color-forest-900)}.brand strong{font:600 1.25rem var(--font-serif)}.catalogue-header nav{display:flex;align-items:center;gap:1rem}.catalogue-header nav>a{font-size:.85rem;text-decoration:none}.back-link{display:inline-block;margin-bottom:1.2rem}.detail-layout{display:grid;grid-template-columns:minmax(12rem,19rem) minmax(0,1fr);gap:clamp(1.5rem,5vw,4rem);padding:clamp(1rem,3vw,2rem);border:1px solid var(--color-line-200);border-radius:var(--radius-panel);background:var(--color-paper)}.cover-wrap{display:grid;min-height:18rem;place-items:center;padding:1rem;background:#f0efe7}.book-cover-large{width:auto;max-width:100%;height:17rem;aspect-ratio:2/3;object-fit:cover;box-shadow:var(--shadow-panel)}.cover-fallback{display:flex;width:12rem;height:17rem;flex-direction:column;justify-content:space-between;padding:1.2rem;border-left:6px solid var(--color-sage-500);color:var(--color-forest-950);background:linear-gradient(145deg,var(--color-sage-100),var(--color-ivory-100));box-shadow:var(--shadow-panel)}.cover-fallback strong{font:600 1.5rem/1.2 var(--font-serif)}.cover-fallback span,.cover-fallback small{font-size:.7rem;letter-spacing:.1em}.detail-copy h1{margin-bottom:.5rem}.authors{font-size:1.05rem}.description{max-width:52rem;white-space:pre-line}.availability-row{display:flex;align-items:center;gap:.8rem;margin:1.2rem 0;padding:1rem;border-block:1px solid var(--color-line-200)}.digital-card{margin:1.2rem 0;padding:1rem 1.2rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.digital-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.6rem}.digital-header h3{margin:0 0 .2rem;font-size:1.05rem}.digital-meta{margin:0;font-size:.82rem;color:var(--color-charcoal-700)}.digital-actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:.85rem}.policy-note{color:var(--color-charcoal-600);font-size:.82rem}.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.5rem}.text-button{padding:.2rem;border:0;color:var(--color-forest-900);background:transparent;text-decoration:underline;cursor:pointer}@media(max-width:680px){.detail-layout{grid-template-columns:1fr}.cover-wrap{min-height:14rem}.book-cover-large,.cover-fallback{height:13rem}.cover-fallback{width:9rem}.actions>*{flex:1 1 auto}}
 `]} )
 export class BookDetailComponent {
-  readonly auth=inject(AuthService);private readonly toast=inject(ToastService);private readonly service=inject(CatalogueService);private readonly route=inject(ActivatedRoute);private readonly router=inject(Router);readonly book=signal<BookDetail|null>(null);readonly loading=signal(true);readonly loadError=signal('');readonly error=signal('');readonly pending=signal(false);readonly broken=signal(false);readonly notice=signal('');readonly showSignIn=signal(false);private readonly borrowing=inject(BorrowingService);private id='';
+  readonly auth=inject(AuthService);private readonly toast=inject(ToastService);private readonly service=inject(CatalogueService);private readonly route=inject(ActivatedRoute);private readonly router=inject(Router);readonly book=signal<BookDetail|null>(null);readonly digitalEdition=signal<DigitalEdition|null>(null);readonly loading=signal(true);readonly loadError=signal('');readonly error=signal('');readonly pending=signal(false);readonly broken=signal(false);readonly notice=signal('');readonly showSignIn=signal(false);private readonly borrowing=inject(BorrowingService);private id='';
   constructor(){this.id=this.route.snapshot.paramMap.get('bookId')||'';this.reload()}
-  reload(){this.loading.set(true);this.loadError.set('');this.service.get(this.id).pipe(finalize(()=>this.loading.set(false))).subscribe({next:b=>this.book.set(b),error:e=>this.loadError.set(e.status===404?'This book record is unavailable.':'The book record could not be loaded.')})}
+  reload(){this.loading.set(true);this.loadError.set('');this.service.get(this.id).pipe(finalize(()=>this.loading.set(false))).subscribe({next:b=>{this.book.set(b);if(b.hasDigitalEdition){this.service.getDigitalEdition(this.id).subscribe({next:ed=>this.digitalEdition.set(ed),error:()=>this.digitalEdition.set(null)});}else{this.digitalEdition.set(null);}},error:e=>this.loadError.set(e.status===404?'This book record is unavailable.':'The book record could not be loaded.')})}
   policyLabel(p:string){const labels:Record<string,string>={STANDARD:'Standard circulation',REFERENCE_ONLY:'Reference only',SERIAL_RESTRICTED:'Serial material · restricted',APPROVED_OVERNIGHT_EXCEPTION:'Approved overnight exception'};return labels[p]??p}
+  downloadUrl(id:string){return this.service.digitalEditionDownloadUrl(id);}
+  formatBytes(bytes:number):string{if(!bytes||bytes<=0)return '0 B';const units=['B','KB','MB','GB'];const i=Math.floor(Math.log(bytes)/Math.log(1024));return `${(bytes/Math.pow(1024,i)).toFixed(1)} ${units[i]}`;}
   openSignIn(){this.showSignIn.set(true)}
   signInContext(){const title=this.book()?.title;return title?`You selected “${title}”. No request has been sent. After sign-in, review eligibility and submit the request yourself.`:''}
   requireAuthentication(){this.notice.set('Authentication Required: Please sign in to reserve books. No borrowing request was sent.');this.toast.show('Sign in is required before you can request this book. No request was sent.','warning');this.showSignIn.set(true)}
-  onSignedIn(profile:UserProfile){this.showSignIn.set(false);this.notice.set(profile.role==='STUDENT'||profile.role==='FACULTY'?'Signed in. This book is still selected; you can now submit your request.':'You are signed in as a Librarian. Member borrowing is not available to this account.')}
+  requireAuthForReading(){this.notice.set('Authentication Required: Please sign in to read the digital edition.');this.toast.show('Please sign in to read this book online.','warning');this.showSignIn.set(true)}
+  requireAuthForDownload(){this.notice.set('Authentication Required: Please sign in to download the digital edition.');this.toast.show('Please sign in to download this PDF.','warning');this.showSignIn.set(true)}
+  onSignedIn(profile:UserProfile){this.showSignIn.set(false);this.notice.set(profile.role==='STUDENT'||profile.role==='FACULTY'?'Signed in. You can now request or access digital editions.':'You are signed in as a Librarian.')}
   requestBook(){const role=this.auth.profile()?.role;if(!role){this.requireAuthentication();return}if(role==='LIBRARIAN'){this.error.set('Librarian accounts cannot submit member borrowing requests.');return}const b=this.book();if(!b||!b.active||b.circulationPolicy!=='STANDARD'||b.availableCopies<1||this.pending())return;this.pending.set(true);this.error.set('');this.notice.set('');this.borrowing.submit(b.id).pipe(finalize(()=>this.pending.set(false))).subscribe({next:()=>{this.notice.set('Request submitted. Track its review in My requests.');this.toast.show('Request submitted. Track its review in My requests.','success')},error:e=>{const message=e.status===409?'This book is no longer eligible or available. Refresh the record.':'Your request could not be submitted. Please try again.';this.error.set(message);this.toast.show(message,'error')}})}
-  deactivate(){if(!this.id||this.pending())return;this.pending.set(true);this.service.deactivate(this.id).pipe(finalize(()=>this.pending.set(false))).subscribe({next:()=>void this.router.navigateByUrl('/books'),error:()=>this.error.set('The book could not be deactivated.')})}
+  deactivate(){if(!this.id||this.pending())return;this.pending.set(true);this.service.deactivate(this.id).pipe(finalize(()=>this.pending.set(false))).subscribe({next:()=>void this.router.navigateByUrl(this.isInsideWorkspace() ? '/workspace/books' : '/books'),error:()=>this.error.set('The book could not be deactivated.')})}
+  isInsideWorkspace(): boolean { return this.router.url.startsWith('/workspace'); }
+  backLink(): string { return this.isInsideWorkspace() ? '/workspace/books' : '/books'; }
+  savedQueryParams(): Record<string, string> { return this.route.snapshot.queryParams; }
+  readLink(id: string): string[] { return this.isInsideWorkspace() ? ['/workspace/books', id, 'read'] : ['/books', id, 'read']; }
 }
 @Component({selector:'app-book-editor',standalone:true,imports:[ReactiveFormsModule,RouterLink],template:`
 <header class="page-heading"><p class="eyebrow">LIBRARIAN · CATALOGUE</p><h1>{{editing?'Edit book':'Add a book'}}</h1><p class="muted">Maintain the verified catalogue record. Availability is calculated from managed copies.</p></header>@if(editing){<section class="inventory-summary surface-card" aria-labelledby="inventory-summary-title"><div class="inventory-summary-heading"><div><p class="eyebrow">PHYSICAL INVENTORY</p><h2 id="inventory-summary-title">Current copies</h2></div><a class="button button-secondary" [routerLink]="['/workspace/librarian/books',id,'copies']">Manage physical copies</a></div>@if(inventory();as counts){<dl class="inventory-counts"><div><dt>Total copies</dt><dd>{{counts.totalCopies}}</dd></div><div><dt>Available</dt><dd>{{counts.availableCopies}}</dd></div><div><dt>On loan</dt><dd>{{counts.onLoanCopies}}</dd></div><div><dt>Lost</dt><dd>{{counts.lostCopies}}</dd></div><div><dt>Damaged</dt><dd>{{counts.damagedCopies}}</dd></div><div><dt>Withdrawn</dt><dd>{{counts.withdrawnCopies}}</dd></div></dl><p class="field-hint">Total includes withdrawn records; all figures come from physical-copy records.</p>
@@ -135,15 +176,107 @@ export class BookDetailComponent {
     </button>
   </div>
 </div>
-}@else if(inventoryLoadFailed()){<p class="alert alert-error" role="alert">Inventory counts could not be loaded. Retry loading this book before relying on inventory figures.</p>}@else{<div class="loading-state" role="status">Loading inventory summary…</div>}</section>}@if(error()){<p class="alert alert-error" role="alert">{{error()}}</p>}@if(loading()){<div class="loading-state" role="status">Loading record…</div>}@else{<form class="editor surface-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+}@else if(inventoryLoadFailed()){<p class="alert alert-error" role="alert">Inventory counts could not be loaded. Retry loading this book before relying on inventory figures.</p>}@else{<div class="loading-state" role="status">Loading inventory summary…</div>}</section>
+
+<section class="digital-editor-card surface-card" aria-labelledby="digital-library-title">
+  <div class="digital-editor-heading">
+    <div>
+      <p class="eyebrow">DIGITAL LIBRARY</p>
+      <h2 id="digital-library-title">Digital PDF edition</h2>
+    </div>
+    @if(digitalEdition()){
+      <span class="status-badge status-badge-success">PDF Attached</span>
+    }@else{
+      <span class="status-badge status-badge-neutral">None Attached</span>
+    }
+  </div>
+
+  @if(digitalNotice()){<p class="alert alert-success" role="status" aria-live="polite">{{digitalNotice()}}</p>}
+  @if(digitalError()){<p class="alert alert-error" role="alert">{{digitalError()}}</p>}
+
+  @if(loadingDigital()){
+    <div class="loading-state" role="status">Checking digital edition…</div>
+  }@else if(digitalEdition(); as ed){
+    <div class="current-edition-box">
+      <dl class="edition-meta-grid">
+        <div><dt>Original file</dt><dd>{{ed.originalFilename}}</dd></div>
+        <div><dt>File size</dt><dd>{{formatBytes(ed.fileSize)}}</dd></div>
+        <div><dt>Edition label</dt><dd>{{ed.editionLabel || 'None'}}</dd></div>
+        <div><dt>Uploaded</dt><dd>{{ed.uploadedAt.substring(0, 10)}}</dd></div>
+      </dl>
+      <div class="edition-actions">
+        <a class="button button-secondary" [routerLink]="['/books', id, 'read']" target="_blank">View online</a>
+        <a class="button button-secondary" [href]="service.digitalEditionDownloadUrl(id!)" download>Download</a>
+      </div>
+    </div>
+
+    <div class="digital-manage-panel">
+      <h3>Replace digital edition</h3>
+      <p class="field-hint">Upload a replacement PDF. The old file will be deleted automatically.</p>
+      <div class="digital-form-fields">
+        <div class="field">
+          <label for="replace-file">New PDF file (max 25MB)</label>
+          <input id="replace-file" type="file" accept=".pdf,application/pdf" (change)="onFileSelected($event)" [disabled]="digitalBusy()">
+        </div>
+        <div class="field">
+          <label for="replace-label">Edition label (optional)</label>
+          <input id="replace-label" [value]="editionLabelInput()" (input)="editionLabelInput.set($any($event.target).value)" placeholder="e.g. 2nd Edition" maxlength="100" [disabled]="digitalBusy()">
+        </div>
+      </div>
+      <div class="digital-button-row">
+        <button class="button button-primary" type="button" (click)="uploadOrReplace(true)" [disabled]="!selectedFile() || digitalBusy()">
+          {{digitalBusy() ? 'Uploading…' : 'Replace PDF'}}
+        </button>
+        @if(!confirmingDelete()){
+          <button class="button button-danger" type="button" (click)="confirmingDelete.set(true)" [disabled]="digitalBusy()">
+            Remove digital edition
+          </button>
+        }@else{
+          <div class="confirm-box">
+            <span>Confirm removing PDF edition?</span>
+            <button class="button button-danger" type="button" (click)="deleteEdition()" [disabled]="digitalBusy()">Yes, remove</button>
+            <button class="button button-secondary" type="button" (click)="confirmingDelete.set(false)" [disabled]="digitalBusy()">Cancel</button>
+          </div>
+        }
+      </div>
+    </div>
+  }@else{
+    <div class="digital-manage-panel">
+      <h3>Attach a digital edition</h3>
+      <p class="field-hint">Upload an authorized PDF file for students and faculty to read and download (max 25MB).</p>
+      <div class="digital-form-fields">
+        <div class="field">
+          <label for="upload-file">PDF file (max 25MB) <span class="required-mark">*</span></label>
+          <input id="upload-file" type="file" accept=".pdf,application/pdf" (change)="onFileSelected($event)" [disabled]="digitalBusy()">
+        </div>
+        <div class="field">
+          <label for="upload-label">Edition label (optional)</label>
+          <input id="upload-label" [value]="editionLabelInput()" (input)="editionLabelInput.set($any($event.target).value)" placeholder="e.g. 1st Digital Edition" maxlength="100" [disabled]="digitalBusy()">
+        </div>
+      </div>
+      <div class="digital-button-row">
+        <button class="button button-primary" type="button" (click)="uploadOrReplace(false)" [disabled]="!selectedFile() || digitalBusy()">
+          {{digitalBusy() ? 'Uploading…' : 'Upload digital edition'}}
+        </button>
+      </div>
+    </div>
+  }
+</section>
+}@if(error()){<p class="alert alert-error" role="alert">{{error()}}</p>}@if(loading()){<div class="loading-state" role="status">Loading record…</div>}@else{<form class="editor surface-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
 <div class="field"><label for="title">Title <span class="required-mark">*</span></label><input id="title" formControlName="title" maxlength="240" required [attr.aria-invalid]="invalid('title')" aria-describedby="title-help"><p id="title-help" class="field-hint">Use the title printed on this edition.</p></div><div class="field"><label for="authors">Author names <span class="required-mark">*</span></label><input id="authors" formControlName="authors" required aria-describedby="authors-help"><p id="authors-help" class="field-hint">Separate multiple names with commas.</p></div><div class="field"><label for="categories">Categories <span class="required-mark">*</span></label><input id="categories" formControlName="categories" required aria-describedby="categories-help"><p id="categories-help" class="field-hint">Separate categories with commas.</p></div>@if(!editing){<div class="two-col"><div class="field"><label for="numberOfCopies">Number of copies <span class="required-mark">*</span></label><input id="numberOfCopies" type="number" formControlName="numberOfCopies" min="1" max="500" step="1" required (input)="clearFieldError('numberOfCopies')" [attr.aria-invalid]="!!fieldMessage('numberOfCopies')" [attr.aria-describedby]="fieldMessage('numberOfCopies') ? 'number-of-copies-error' : 'number-of-copies-help'"><p id="number-of-copies-help" class="field-hint">Create between 1 and 500 physical copies with this book record.</p>@if(fieldMessage('numberOfCopies')){<p id="number-of-copies-error" class="field-error" role="alert">{{fieldMessage('numberOfCopies')}}</p>}</div><div class="field"><label for="initialLocation">Shelf / location</label><input id="initialLocation" formControlName="location" maxlength="120" placeholder="e.g. A-12, Science Stacks" autocomplete="off"><p class="field-hint">Optional shelf or room location for the initial copies.</p></div></div>}<div class="two-col"><div class="field"><label for="isbn">ISBN</label><input id="isbn" formControlName="isbn" maxlength="17" autocomplete="off" [attr.aria-invalid]="!!fieldMessage('isbn')" [attr.aria-describedby]="fieldMessage('isbn') ? 'isbn-error' : 'isbn-help'" (input)="clearFieldError('isbn')"><p id="isbn-help" class="field-hint">ISBN-10 or ISBN-13; checksum validated on save.</p>@if(fieldMessage('isbn')){<p id="isbn-error" class="field-error" role="alert">{{fieldMessage('isbn')}}</p>}</div><div class="field"><label for="publicationYear">Publication year</label><input id="publicationYear" type="number" formControlName="publicationYear" min="1000" [max]="year" [attr.aria-invalid]="!!fieldMessage('publicationYear')" [attr.aria-describedby]="fieldMessage('publicationYear') ? 'publication-year-error' : null" (input)="clearFieldError('publicationYear')">@if(fieldMessage('publicationYear')){<p id="publication-year-error" class="field-error" role="alert">{{fieldMessage('publicationYear')}}</p>}</div></div><div class="two-col"><div class="field"><label for="publisher">Publisher</label><input id="publisher" formControlName="publisher" maxlength="200"></div><div class="field"><label for="coverImageUrl">Cover image URL</label><input id="coverImageUrl" type="url" formControlName="coverImageUrl" maxlength="2048" placeholder="https://…" [attr.aria-invalid]="!!fieldMessage('coverImageUrl')" [attr.aria-describedby]="fieldMessage('coverImageUrl') ? 'cover-url-error' : 'cover-url-help'" (input)="clearFieldError('coverImageUrl')"><p id="cover-url-help" class="field-hint">Optional. Use an absolute HTTP or HTTPS image URL.</p>@if(fieldMessage('coverImageUrl')){<p id="cover-url-error" class="field-error" role="alert">{{fieldMessage('coverImageUrl')}}</p>}</div></div><div class="field"><label for="description">Description</label><textarea id="description" rows="5" formControlName="description" maxlength="4000"></textarea></div><div class="field"><label for="circulationPolicy">Catalogue circulation policy</label><select id="circulationPolicy" formControlName="circulationPolicy"><option value="STANDARD">Standard circulation</option><option value="REFERENCE_ONLY">Reference only</option><option value="SERIAL_RESTRICTED">Serial material · restricted</option><option value="APPROVED_OVERNIGHT_EXCEPTION">Approved overnight exception</option></select><p class="field-hint">This is catalogue metadata; circulation rules are not yet enforced.</p></div><div class="actions"><button class="button button-primary" type="submit" [disabled]="form.invalid||pending()">{{pending()?'Saving…':(editing?'Save changes':'Create book')}}</button><a class="button button-secondary" routerLink="/books">Cancel</a></div></form>}
-`,styles:[`:host{display:block}.page-heading{margin-bottom:1.3rem}.page-heading h1{margin-bottom:.4rem}.page-heading p{margin-bottom:0}.editor{display:grid;max-width:52rem;gap:1rem;padding:clamp(1rem,3vw,2rem)}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}textarea{resize:vertical}.inventory-summary{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.inventory-summary-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.inventory-summary-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.inventory-summary-heading .eyebrow{margin:0 0 .2rem}.inventory-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem;margin:1rem 0}.inventory-counts div{padding:.7rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.inventory-counts dt{color:var(--color-charcoal-600);font-size:.8rem}.inventory-counts dd{margin:.2rem 0 0;color:var(--color-forest-950);font-weight:700;font-size:1.2rem}.actions{display:flex;gap:.65rem;margin-top:.35rem}.reconcile-panel{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--color-line-200)}.reconcile-panel h3{margin:0 0 .3rem;font-size:1.05rem}.reconcile-form{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(12rem,1.5fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.preview-box{display:flex;gap:.5rem;align-items:center;padding:.65rem .9rem;margin-bottom:1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}.preview-add{color:var(--color-forest-900);font-weight:600}.preview-remove{color:#991b1b;font-weight:600}.reconcile-actions{display:flex;gap:.65rem}@media(max-width:600px){.two-col{grid-template-columns:1fr}.reconcile-form{grid-template-columns:1fr}.actions>*{flex:1}}`]} )
+`,styles:[`:host{display:block}.page-heading{margin-bottom:1.3rem}.page-heading h1{margin-bottom:.4rem}.page-heading p{margin-bottom:0}.editor{display:grid;max-width:52rem;gap:1rem;padding:clamp(1rem,3vw,2rem)}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}textarea{resize:vertical}.inventory-summary{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.inventory-summary-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.inventory-summary-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.inventory-summary-heading .eyebrow{margin:0 0 .2rem}.inventory-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem;margin:1rem 0}.inventory-counts div{padding:.7rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.inventory-counts dt{color:var(--color-charcoal-600);font-size:.8rem}.inventory-counts dd{margin:.2rem 0 0;color:var(--color-forest-950);font-weight:700;font-size:1.2rem}.actions{display:flex;gap:.65rem;margin-top:.35rem}.reconcile-panel{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--color-line-200)}.reconcile-panel h3{margin:0 0 .3rem;font-size:1.05rem}.reconcile-form{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(12rem,1.5fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.preview-box{display:flex;gap:.5rem;align-items:center;padding:.65rem .9rem;margin-bottom:1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}.preview-add{color:var(--color-forest-900);font-weight:600}.preview-remove{color:#991b1b;font-weight:600}.reconcile-actions{display:flex;gap:.65rem}.digital-editor-card{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.digital-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.digital-editor-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.digital-editor-heading .eyebrow{margin:0 0 .2rem}.current-edition-box{margin:1rem 0;padding:.8rem 1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.edition-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.6rem;margin:0 0 .8rem}.edition-meta-grid dt{color:var(--color-charcoal-600);font-size:.78rem}.edition-meta-grid dd{margin:.1rem 0 0;font-weight:600;font-size:.9rem;color:var(--color-forest-950)}.edition-actions{display:flex;gap:.6rem}.digital-manage-panel{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--color-line-200)}.digital-manage-panel h3{margin:0 0 .3rem;font-size:1.05rem}.digital-form-fields{display:grid;grid-template-columns:minmax(12rem,1.5fr) minmax(10rem,1fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.digital-button-row{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin-top:1rem}.confirm-box{display:flex;align-items:center;gap:.65rem;padding:.4rem .8rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}@media(max-width:600px){.two-col{grid-template-columns:1fr}.reconcile-form{grid-template-columns:1fr}.digital-form-fields{grid-template-columns:1fr}.actions>*{flex:1}}`]} )
 export class BookEditorComponent {
- private readonly fb=inject(NonNullableFormBuilder);private readonly service=inject(CatalogueService);private readonly route=inject(ActivatedRoute);private readonly router=inject(Router);readonly year=new Date().getFullYear();readonly id=this.route.snapshot.paramMap.get('bookId');readonly editing=!!this.id;readonly loading=signal(!!this.id);readonly pending=signal(false);readonly error=signal('');readonly inventory=signal<InventorySummary|null>(null);readonly inventoryLoadFailed=signal(false);readonly serverFieldErrors=signal<Record<string,string>>({});
+ private readonly fb=inject(NonNullableFormBuilder);readonly service=inject(CatalogueService);private readonly route=inject(ActivatedRoute);private readonly router=inject(Router);readonly year=new Date().getFullYear();readonly id=this.route.snapshot.paramMap.get('bookId');readonly editing=!!this.id;readonly loading=signal(!!this.id);readonly pending=signal(false);readonly error=signal('');readonly inventory=signal<InventorySummary|null>(null);readonly inventoryLoadFailed=signal(false);readonly serverFieldErrors=signal<Record<string,string>>({});
  readonly reconcileTarget=signal<number|null>(null);readonly reconcileLocation=signal('');readonly reconciling=signal(false);readonly reconcileNotice=signal('');readonly reconcileError=signal('');
+ readonly digitalEdition=signal<DigitalEdition|null>(null);readonly loadingDigital=signal<boolean>(false);readonly digitalBusy=signal<boolean>(false);readonly digitalNotice=signal<string>('');readonly digitalError=signal<string>('');readonly selectedFile=signal<File|null>(null);readonly editionLabelInput=signal<string>('');readonly confirmingDelete=signal<boolean>(false);
  readonly targetDiff=computed(()=>{const t=this.reconcileTarget();const cur=this.inventory()?.totalCopies;if(t===null||cur===undefined)return null;return t-cur});
  readonly form=this.fb.group({title:['',[Validators.required,Validators.maxLength(240)]],authors:['',[Validators.required]],categories:['',[Validators.required]],numberOfCopies:['1',[Validators.required,Validators.min(1),Validators.max(500),validCopyQuantity]],isbn:['',[Validators.maxLength(17),validIsbn]],publisher:[''],publicationYear:['',[validPublicationYear]],coverImageUrl:['',[Validators.maxLength(2048),validCoverImageUrl]],description:[''],circulationPolicy:['STANDARD' as 'STANDARD'|'REFERENCE_ONLY'|'SERIAL_RESTRICTED'|'APPROVED_OVERNIGHT_EXCEPTION',[Validators.required]],location:['',[Validators.maxLength(120)]]});
- constructor(){if(this.id)this.service.get(this.id).subscribe({next:b=>{this.inventory.set(b);this.reconcileTarget.set(b.totalCopies);this.form.patchValue({title:b.title,authors:b.authors.join(', '),categories:b.categories.join(', '),isbn:b.isbn||'',publisher:b.publisher||'',publicationYear:b.publicationYear?.toString()||'',coverImageUrl:b.coverImageUrl||'',description:b.description||'',circulationPolicy:b.circulationPolicy});this.loading.set(false)},error:()=>{this.inventoryLoadFailed.set(true);this.loading.set(false);this.error.set('The book record or inventory summary could not be loaded.')}})}
+ constructor(){if(this.id){this.service.get(this.id).subscribe({next:b=>{this.inventory.set(b);this.reconcileTarget.set(b.totalCopies);this.form.patchValue({title:b.title,authors:b.authors.join(', '),categories:b.categories.join(', '),isbn:b.isbn||'',publisher:b.publisher||'',publicationYear:b.publicationYear?.toString()||'',coverImageUrl:b.coverImageUrl||'',description:b.description||'',circulationPolicy:b.circulationPolicy});this.loading.set(false)},error:()=>{this.inventoryLoadFailed.set(true);this.loading.set(false);this.error.set('The book record or inventory summary could not be loaded.')}});this.loadDigitalEdition();}}
+ formatBytes(bytes:number):string{if(!bytes||bytes<=0)return '0 B';const units=['B','KB','MB','GB'];const i=Math.floor(Math.log(bytes)/Math.log(1024));return `${(bytes/Math.pow(1024,i)).toFixed(1)} ${units[i]}`;}
+ loadDigitalEdition():void{if(!this.id)return;this.loadingDigital.set(true);this.service.getDigitalEdition(this.id).pipe(finalize(()=>this.loadingDigital.set(false))).subscribe({next:ed=>{this.digitalEdition.set(ed);this.editionLabelInput.set(ed.editionLabel||'');},error:()=>this.digitalEdition.set(null)});}
+ onFileSelected(event:Event):void{const input=event.target as HTMLInputElement;if(input.files&&input.files.length>0){const file=input.files[0];if(!file.name.toLowerCase().endsWith('.pdf')){this.digitalError.set('Only PDF files (.pdf) are supported.');this.selectedFile.set(null);return;}if(file.size>25*1024*1024){this.digitalError.set('File size exceeds the 25 MB limit.');this.selectedFile.set(null);return;}this.digitalError.set('');this.selectedFile.set(file);}else{this.selectedFile.set(null);}}
+ uploadOrReplace(isReplace:boolean):void{const file=this.selectedFile();if(!file||!this.id||this.digitalBusy())return;this.digitalBusy.set(true);this.digitalError.set('');this.digitalNotice.set('');const call=isReplace?this.service.replaceDigitalEdition(this.id,file,this.editionLabelInput().trim()||undefined):this.service.uploadDigitalEdition(this.id,file,this.editionLabelInput().trim()||undefined);call.pipe(finalize(()=>this.digitalBusy.set(false))).subscribe({next:ed=>{this.digitalEdition.set(ed);this.selectedFile.set(null);this.digitalNotice.set(isReplace?'Digital edition replaced successfully.':'Digital edition uploaded successfully.');},error:err=>{if(err instanceof HttpErrorResponse&&err.error?.message){this.digitalError.set(err.error.message);}else{this.digitalError.set('Failed to upload digital edition. Please ensure the file is a valid PDF under 25MB.');}}});}
+ deleteEdition():void{if(!this.id||this.digitalBusy())return;this.digitalBusy.set(true);this.digitalError.set('');this.digitalNotice.set('');this.service.deleteDigitalEdition(this.id).pipe(finalize(()=>{this.digitalBusy.set(false);this.confirmingDelete.set(false);})).subscribe({next:()=>{this.digitalEdition.set(null);this.selectedFile.set(null);this.editionLabelInput.set('');this.digitalNotice.set('Digital edition removed successfully. Physical copies and inventory remain unchanged.');},error:()=>this.digitalError.set('Failed to remove digital edition. Please try again.')});}
  invalid(name:'title'){const c=this.form.controls[name];return c.invalid&&c.touched}
  fieldMessage(field:'isbn'|'publicationYear'|'coverImageUrl'|'numberOfCopies'):string|null {
    const control=this.form.controls[field];

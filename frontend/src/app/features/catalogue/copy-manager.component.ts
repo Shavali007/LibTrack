@@ -15,7 +15,7 @@ function validWholeQuantity(control: AbstractControl): ValidationErrors | null {
   imports: [ReactiveFormsModule, FormsModule, RouterLink],
   template: `
     <header class="page-heading">
-      <a class="back-link" [routerLink]="['/books', bookId]">← Back to book</a>
+      <a class="back-link" [routerLink]="['/workspace/books', bookId]">← Back to book</a>
       <h1>Manage physical copies</h1>
       <p class="muted">Every physical copy has its own globally unique identifier and circulation status.</p>
     </header>
