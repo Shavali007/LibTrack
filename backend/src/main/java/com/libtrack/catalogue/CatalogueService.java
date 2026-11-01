@@ -22,6 +22,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.libtrack.reservation.ReservationService;
+
 @Service
 public class CatalogueService {
     private static final int MAX_PAGE_SIZE = 100;
@@ -31,12 +33,15 @@ public class CatalogueService {
     private final BookCopyRepository copies;
     private final CopyIdentifierGenerator copyIdentifierGenerator;
     private final DigitalEditionRepository digitalEditions;
+    private final ReservationService reservations;
 
     public CatalogueService(BookRepository books, AuthorRepository authors, CategoryRepository categories, BookCopyRepository copies,
-                           CopyIdentifierGenerator copyIdentifierGenerator, DigitalEditionRepository digitalEditions) {
+                           CopyIdentifierGenerator copyIdentifierGenerator, DigitalEditionRepository digitalEditions,
+                           ReservationService reservations) {
         this.books = books; this.authors = authors; this.categories = categories; this.copies = copies;
         this.copyIdentifierGenerator = copyIdentifierGenerator;
         this.digitalEditions = digitalEditions;
+        this.reservations = reservations;
     }
 
     @PreAuthorize("permitAll()")
@@ -127,18 +132,30 @@ public class CatalogueService {
     public BookCopyResponse addCopy(UUID bookId, BookCopyCreateRequest request) {
         Book book = books.findById(bookId).filter(Book::isActive).orElseThrow(BookNotFoundException::new);
         BookCopy copy = new BookCopy(book, normalizeIdentifier(request.copyIdentifier()), clean(request.location()));
-        try { return copyResponse(copies.saveAndFlush(copy)); }
-        catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
+        BookCopy saved;
+        try {
+            saved = copies.saveAndFlush(copy);
+        } catch (DataIntegrityViolationException exception) {
+            throw new CatalogueConflictException();
+        }
+        reservations.processQueueForCopy(saved);
+        return copyResponse(saved);
     }
 
     @PreAuthorize("hasRole('LIBRARIAN')")
     @Transactional
     public List<BookCopyResponse> addCopies(UUID bookId, BookCopyBulkCreateRequest request) {
         Book book = books.findById(bookId).filter(Book::isActive).orElseThrow(BookNotFoundException::new);
+        List<BookCopy> newCopies;
         try {
-            return createPhysicalCopies(book, request.numberOfCopies().intValueExact(), clean(request.location()))
-                    .stream().map(CatalogueService::copyResponse).toList();
-        } catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
+            newCopies = createPhysicalCopies(book, request.numberOfCopies().intValueExact(), clean(request.location()));
+        } catch (DataIntegrityViolationException exception) {
+            throw new CatalogueConflictException();
+        }
+        for (BookCopy c : newCopies) {
+            reservations.processQueueForCopy(c);
+        }
+        return newCopies.stream().map(CatalogueService::copyResponse).toList();
     }
 
     @PreAuthorize("hasRole('LIBRARIAN')")
@@ -146,10 +163,18 @@ public class CatalogueService {
     public BookCopyResponse updateCopy(UUID bookId, UUID copyId, BookCopyUpdateRequest request) {
         BookCopy copy = copies.findByIdAndBookId(copyId, bookId).orElseThrow(BookCopyNotFoundException::new);
         if (copy.getStatus() == CopyStatus.ON_LOAN) throw new InvalidCopyStateException();
+        CopyStatus newStatus = CopyStatus.valueOf(request.status().name());
         copy.update(request.copyIdentifier() == null ? copy.getCopyIdentifier() : normalizeIdentifier(request.copyIdentifier()),
-                request.location() == null ? copy.getLocation() : clean(request.location()), CopyStatus.valueOf(request.status().name()));
-        try { copies.flush(); return copyResponse(copy); }
-        catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
+                request.location() == null ? copy.getLocation() : clean(request.location()), newStatus);
+        try {
+            copies.flush();
+        } catch (DataIntegrityViolationException exception) {
+            throw new CatalogueConflictException();
+        }
+        if (newStatus == CopyStatus.AVAILABLE) {
+            reservations.processQueueForCopy(copy);
+        }
+        return copyResponse(copy);
     }
 
     @PreAuthorize("hasRole('LIBRARIAN')")
@@ -163,7 +188,10 @@ public class CatalogueService {
         if (target > currentTotal) {
             int toAdd = target - currentTotal;
             try {
-                createPhysicalCopies(book, toAdd, clean(request.location()));
+                List<BookCopy> added = createPhysicalCopies(book, toAdd, clean(request.location()));
+                for (BookCopy c : added) {
+                    reservations.processQueueForCopy(c);
+                }
             } catch (DataIntegrityViolationException exception) {
                 throw new CatalogueConflictException("Generated identifier conflicted with existing inventory. Please retry.");
             }

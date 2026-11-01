@@ -1,8 +1,19 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService, ProvisionableRole } from '../auth/auth.service';
+
+export function extractDisplayName(email: string): string {
+  if (!email) return '';
+  const clean = email.trim();
+  const at = clean.indexOf('@');
+  const user = at > 0 ? clean.slice(0, at) : clean;
+  const dot = user.indexOf('.');
+  const seg = (dot >= 0 ? user.slice(0, dot) : user).trim();
+  if (!seg) return '';
+  return seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase();
+}
 
 @Component({
   selector: 'app-account-provision',
@@ -38,6 +49,11 @@ import { AuthService, ProvisionableRole } from '../auth/auth.service';
             <input id="email" type="email" formControlName="email" autocomplete="off" required aria-required="true" placeholder="name@institution.edu">
           </div>
           <div class="field">
+            <label for="displayName">Display name</label>
+            <input id="displayName" type="text" formControlName="displayName" autocomplete="off" placeholder="Auto-generated from email">
+            <p class="field-hint">Auto-generated from email username. You can adjust it before saving.</p>
+          </div>
+          <div class="field">
             <label for="institutionalId">Institutional ID <span class="required-mark" aria-hidden="true">*</span></label>
             <input id="institutionalId" type="text" formControlName="institutionalId" autocomplete="off" required aria-required="true">
           </div>
@@ -63,30 +79,16 @@ import { AuthService, ProvisionableRole } from '../auth/auth.service';
           <p>Only Librarians can provision member accounts. Student and Faculty identities must be checked before you submit.</p>
           <ul><li>Librarian roles are not available here.</li><li>Email and institutional ID must be unique.</li><li>The password is hashed and never shown in the response.</li></ul>
         </div>
-        <a class="back-link" routerLink="/workspace">Return to workspace</a>
+        <a class="back-link" routerLink="/workspace/librarian/members">← Back to member directory</a>
       </aside>
     </section>
   `,
   styles: [`
-    :host { display: block; }
-    .page-heading { margin-bottom: 1.5rem; }
-    .page-heading .eyebrow { margin-bottom: .45rem; }
-    .page-heading h1 { margin-bottom: .45rem; }
-    .page-description { max-width: 44rem; margin: 0; color: var(--color-charcoal-600); }
-    .provision-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(14rem, .75fr); align-items: start; gap: 1.25rem; }
-    .provision-main { padding: clamp(1.25rem, 3vw, 2rem); }
-    .section-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
-    .section-heading .eyebrow { margin-bottom: .4rem; }
-    .section-heading h2 { margin-bottom: .5rem; font-size: 1.45rem; }
-    .provision-main > .muted { max-width: 44rem; margin-bottom: 1.35rem; font-size: .9rem; }
-    .provision-main .alert { margin-bottom: 1rem; }
-    form { display: grid; max-width: 36rem; gap: 1rem; }
-    input[type="checkbox"] { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; accent-color: var(--color-forest-900); }
-    .attestation { display: flex; align-items: start; gap: .65rem; margin: .2rem 0; line-height: 1.45; }
-    .attestation span { font-weight: 500; }
-    .guidance-card { padding: 1.25rem; border: 1px solid var(--color-line-200); border-top: 3px solid var(--color-sage-500); border-radius: var(--radius-panel); background: #f4f4ed; }
-    .guidance-card .eyebrow { margin-bottom: .55rem; }
-    .guidance-card h2 { margin-bottom: .65rem; font-size: 1.25rem; }
+    .field-hint { margin: .35rem 0 0; color: var(--color-charcoal-600); font-size: .8rem; }
+    .attestation { display: flex; align-items: flex-start; gap: .6rem; margin: .5rem 0 1.25rem; font-size: .88rem; cursor: pointer; }
+    .attestation input { margin-top: .2rem; }
+    .guidance-card { padding: 1.25rem; border: 1px solid var(--color-line-200); border-radius: var(--radius-panel); background: #fff; }
+    .guidance-card h2 { margin: .25rem 0 .5rem; font-size: 1.1rem; }
     .guidance-card p, .guidance-card li { color: var(--color-charcoal-700); font-size: .85rem; }
     .guidance-card ul { display: grid; gap: .45rem; margin: .8rem 0 0; padding-left: 1.2rem; }
     .back-link { display: inline-block; margin: 1rem .25rem; font-size: .85rem; font-weight: 650; }
@@ -94,7 +96,7 @@ import { AuthService, ProvisionableRole } from '../auth/auth.service';
     @media (max-width: 430px) { .section-heading { display: grid; } }
   `],
 })
-export class AccountProvisionComponent {
+export class AccountProvisionComponent implements OnInit {
   private readonly formBuilder = inject(NonNullableFormBuilder);
   private readonly auth = inject(AuthService);
   readonly pending = signal(false);
@@ -103,10 +105,19 @@ export class AccountProvisionComponent {
   readonly form = this.formBuilder.group({
     role: this.formBuilder.control<ProvisionableRole>('STUDENT'),
     email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
+    displayName: ['', [Validators.maxLength(100)]],
     institutionalId: ['', [Validators.required, Validators.maxLength(100)]],
     password: ['', [Validators.required, Validators.minLength(12), Validators.maxLength(72)]],
     identityVerified: [false, Validators.requiredTrue],
   });
+
+  ngOnInit(): void {
+    this.form.controls.email.valueChanges.subscribe((email) => {
+      if (!this.form.controls.displayName.dirty) {
+        this.form.controls.displayName.setValue(extractDisplayName(email), { emitEvent: false });
+      }
+    });
+  }
 
   submit(): void {
     if (this.form.invalid || this.pending()) { this.form.markAllAsTouched(); return; }
@@ -114,10 +125,11 @@ export class AccountProvisionComponent {
     this.notice.set(null);
     this.pending.set(true);
     const values = this.form.getRawValue();
-    this.auth.provisionAccount({ ...values, identityVerified: true }).pipe(finalize(() => this.pending.set(false))).subscribe({
+    const displayName = values.displayName.trim() || extractDisplayName(values.email);
+    this.auth.provisionAccount({ ...values, displayName, identityVerified: true }).pipe(finalize(() => this.pending.set(false))).subscribe({
       next: (created) => {
         this.notice.set(`Created ${created.role.toLowerCase()} account ${created.email}. The password is not shown again.`);
-        this.form.reset({ role: 'STUDENT', email: '', institutionalId: '', password: '', identityVerified: false });
+        this.form.reset({ role: 'STUDENT', email: '', displayName: '', institutionalId: '', password: '', identityVerified: false });
       },
       error: () => this.error.set('Account was not created. Check for an existing email or institutional ID and try again.'),
     });

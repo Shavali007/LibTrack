@@ -21,6 +21,13 @@ public interface LoanRepository extends JpaRepository<Loan, UUID>, JpaSpecificat
 
     boolean existsByCopy_IdAndStatus(UUID copyId, LoanStatus status);
 
+    boolean existsByBorrower_IdAndCopy_Book_IdAndStatus(UUID borrowerId, UUID bookId, LoanStatus status);
+
+    @Query("select count(l) > 0 from Loan l where l.borrower.id = :borrowerId and l.copy.book.id = :bookId")
+    boolean existsByBorrower_IdAndCopy_Book_Id(@Param("borrowerId") UUID borrowerId, @Param("bookId") UUID bookId);
+
+    List<Loan> findByCopy_Book_IdAndStatusOrderByDueDateAsc(UUID bookId, LoanStatus status);
+
     Page<Loan> findByBorrower_IdAndStatusOrderByDueDateAsc(UUID borrowerId, LoanStatus status, Pageable pageable);
 
     Page<Loan> findByBorrower_IdAndStatusNotOrderByIssueDateDesc(UUID borrowerId, LoanStatus status, Pageable pageable);
@@ -54,4 +61,7 @@ public interface LoanRepository extends JpaRepository<Loan, UUID>, JpaSpecificat
 
     @Query("select l.borrower.id as borrowerId, count(l) as activeCount from Loan l where l.status = com.libtrack.circulation.LoanStatus.ACTIVE and l.borrower.id in :borrowerIds group by l.borrower.id")
     List<BorrowerLoanCount> countActiveLoansByBorrowerIds(@Param("borrowerIds") Collection<UUID> borrowerIds);
+
+    @Query("select count(l) > 0 from Loan l where l.borrower.id = :borrowerId and l.copy.book.id = :bookId")
+    boolean hasBorrowHistoryForBook(@Param("borrowerId") UUID borrowerId, @Param("bookId") UUID bookId);
 }

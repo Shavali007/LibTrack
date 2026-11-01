@@ -21,6 +21,10 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
+
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfiguration {
@@ -35,6 +39,16 @@ public class SecurityConfiguration {
     }
 
     @Bean
+    SessionRegistry sessionRegistry() {
+        return new SessionRegistryImpl();
+    }
+
+    @Bean
+    static HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
+    }
+
+    @Bean
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
         return configuration.getAuthenticationManager();
@@ -44,6 +58,7 @@ public class SecurityConfiguration {
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     SecurityFilterChain applicationSecurity(HttpSecurity http,
                                             SecurityContextRepository securityContextRepository,
+                                            SessionRegistry sessionRegistry,
                                             Environment environment) throws Exception {
         return http
             .securityContext(context -> context.securityContextRepository(securityContextRepository))
@@ -60,24 +75,30 @@ public class SecurityConfiguration {
                 authorize.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
                 authorize.requestMatchers("/api/health", "/swagger-ui/**", "/v3/api-docs/**",
                         "/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/auth/register",
-                        "/api/v1/auth/verify-email").permitAll();
+                        "/api/v1/auth/verify-email",
+                        "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll();
                 if (environment.acceptsProfiles(Profiles.of("development"))) {
                     authorize.requestMatchers("/api/v1/dev/mail-capture", "/api/v1/dev/mail-capture/**").permitAll();
                 }
-                authorize.requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout", "/api/v1/librarian/**").authenticated();
-                authorize.requestMatchers(HttpMethod.GET, "/api/v1/books", "/api/v1/books/*", "/api/v1/books/*/digital-edition", "/api/v1/categories").permitAll();
+                authorize.requestMatchers("/api/v1/auth/me", "/api/v1/auth/profile", "/api/v1/auth/logout", "/api/v1/librarian/**").authenticated();
+                authorize.requestMatchers(HttpMethod.GET, "/api/v1/books", "/api/v1/books/*", "/api/v1/books/*/digital-edition", "/api/v1/books/*/reviews", "/api/v1/books/*/reviews/summary", "/api/v1/books/reviews/summaries", "/api/v1/categories").permitAll();
                 authorize.requestMatchers("/api/v1/books", "/api/v1/books/**", "/api/v1/categories",
                         "/api/v1/borrow-requests", "/api/v1/borrow-requests/**",
                         "/api/v1/loans", "/api/v1/loans/**",
                         "/api/v1/holidays", "/api/v1/holidays/**",
                         "/api/v1/feedback", "/api/v1/feedback/**",
                         "/api/v1/notifications", "/api/v1/notifications/**",
+                        "/api/v1/policies", "/api/v1/policies/**",
+                        "/api/v1/recommendations", "/api/v1/recommendations/**",
+                        "/api/v1/reservations", "/api/v1/reservations/**",
+                        "/api/v1/wishlist", "/api/v1/wishlist/**",
                         "/api/v1/fines", "/api/v1/fines/**").authenticated();
                 authorize.anyRequest().denyAll();
             })
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                .sessionFixation(fixation -> fixation.changeSessionId()))
+                .sessionFixation(fixation -> fixation.changeSessionId())
+                .maximumSessions(-1).sessionRegistry(sessionRegistry))
             .requestCache(cache -> cache.disable())
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())

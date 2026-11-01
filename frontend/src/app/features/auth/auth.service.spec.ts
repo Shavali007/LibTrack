@@ -81,7 +81,14 @@ describe('AuthService', () => {
   });
 
   it('sends self-registration with CSRF and does not authenticate pending accounts', () => {
-    const body = { email: 'shavali.23mic7248@vitapstudent.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!', role: 'STUDENT' as const };
+    const body = {
+      fullName: 'Shavali',
+      institutionalId: '23MIC7248',
+      email: 'shavali.23mic7248@vitapstudent.ac.in',
+      password: 'SecurePass1!',
+      confirmPassword: 'SecurePass1!',
+      role: 'STUDENT' as const
+    };
     service.register(body).subscribe(response => expect(response.status).toBe('PENDING_VERIFICATION'));
     http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'csrf-value' });
     const request = http.expectOne('/api/v1/auth/register');
@@ -90,4 +97,29 @@ describe('AuthService', () => {
     expect(request.request.headers.get('X-CSRF-TOKEN')).toBe('csrf-value');
     request.flush({ status: 'PENDING_VERIFICATION', message: 'Waiting for email verification.' });
     expect(service.profile()).toBeNull();
-  });});
+  });
+
+  it('submits forgot-password request with CSRF and returns success message', () => {
+    service.forgotPassword('student@vitapstudent.ac.in').subscribe((res) => {
+      expect(res.message).toBe('If an account with that email exists, password reset instructions have been sent.');
+    });
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'csrf-value' });
+    const req = http.expectOne('/api/v1/auth/forgot-password');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ email: 'student@vitapstudent.ac.in' });
+    expect(req.request.headers.get('X-CSRF-TOKEN')).toBe('csrf-value');
+    req.flush({ message: 'If an account with that email exists, password reset instructions have been sent.' });
+  });
+
+  it('submits reset-password request with CSRF and returns success message', () => {
+    service.resetPassword({ token: 'test-token-123', newPassword: 'NewPassword123!' }).subscribe((res) => {
+      expect(res.message).toBe('Password has been reset successfully.');
+    });
+    http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'csrf-value' });
+    const req = http.expectOne('/api/v1/auth/reset-password');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ token: 'test-token-123', newPassword: 'NewPassword123!' });
+    expect(req.request.headers.get('X-CSRF-TOKEN')).toBe('csrf-value');
+    req.flush({ message: 'Password has been reset successfully.' });
+  });
+});

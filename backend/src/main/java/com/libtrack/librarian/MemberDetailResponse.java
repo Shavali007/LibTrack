@@ -17,5 +17,14 @@ public record MemberDetailResponse(
     Instant identityVerifiedAt,
     List<LoanResponse> currentLoans,
     List<LoanResponse> borrowingHistory,
-    List<BorrowRequestResponse> borrowRequests
-) {}
+    List<BorrowRequestResponse> borrowRequests,
+    String displayName
+) {
+    public MemberDetailResponse(UUID id, String email, AccountRole role, boolean enabled,
+                                String institutionalId, Instant createdAt, Instant identityVerifiedAt,
+                                List<LoanResponse> currentLoans, List<LoanResponse> borrowingHistory,
+                                List<BorrowRequestResponse> borrowRequests) {
+        this(id, email, role, enabled, institutionalId, createdAt, identityVerifiedAt,
+             currentLoans, borrowingHistory, borrowRequests, null);
+    }
+}

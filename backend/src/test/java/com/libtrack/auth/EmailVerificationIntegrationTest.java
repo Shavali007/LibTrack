@@ -43,7 +43,7 @@ class EmailVerificationIntegrationTest {
  @Test void validTokenActivatesAccountOnceAndThenAllowsNormalLogin() throws Exception{
   String email=studentEmail();register(email);String token=token(capture.messages().getFirst());
   mvc.perform(post("/api/v1/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("email",email,"password","SecurePass1!"))))
-    .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCOUNT_NOT_ACTIVE"));
+    .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCOUNT_PENDING_APPROVAL"));
   verify(token).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("VERIFIED"));
   assertTrue(accounts.findByEmail(email).orElseThrow().isEnabled());
   mvc.perform(post("/api/v1/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("email",email,"password","SecurePass1!"))))
@@ -52,7 +52,7 @@ class EmailVerificationIntegrationTest {
  }
 @org.springframework.beans.factory.annotation.Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
  @Test void v7CompatibleProvisioningCheckAllowsTokenActivationAndConsumption() throws Exception{
-  jdbc.execute("alter table user_account add constraint ck_test_self_registration_audit check (provisioning_source <> 'SELF_REGISTRATION' or (role in ('STUDENT','FACULTY') and institutional_id is null and identity_verified_at is null and created_by_account_id is null))");
+  jdbc.execute("alter table user_account add constraint ck_test_self_registration_audit check (provisioning_source <> 'SELF_REGISTRATION' or (role in ('STUDENT','FACULTY') and created_by_account_id is null))");
   String email=studentEmail();register(email);String token=token(capture.messages().getFirst());
   verify(token).andExpect(status().isOk());
   assertTrue(accounts.findByEmail(email).orElseThrow().isEnabled());
@@ -104,6 +104,7 @@ class EmailVerificationIntegrationTest {
   mvc.perform(post("/api/v1/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
    .content(json.writeValueAsString(Map.of("email",email,"role","STUDENT","password","SecurePass1!","confirmPassword","SecurePass1!"))))
    .andExpect(status().isAccepted());
+  verification.issue(accounts.findByEmail(email).orElseThrow());
  }
  private org.springframework.test.web.servlet.ResultActions verify(String token)throws Exception{
   return mvc.perform(post("/api/v1/auth/verify-email").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",token))));

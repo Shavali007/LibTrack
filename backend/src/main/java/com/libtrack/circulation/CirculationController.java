@@ -28,5 +28,6 @@ public class CirculationController {
  @PostMapping("/loans/{loanId}/return") public LoanResponse returnLoan(@PathVariable UUID loanId,@Valid @RequestBody ReturnRequest body,Authentication auth){return borrowing.recordReturn(loanId,accountId(auth),body);}
  @GetMapping("/holidays") public List<LibraryHolidayResponse> holidays(){return borrowing.holidays();}
  @PostMapping("/holidays") public ResponseEntity<LibraryHolidayResponse> addHoliday(@Valid @RequestBody LibraryHolidayInput body,Authentication auth){return ResponseEntity.status(HttpStatus.CREATED).body(borrowing.addHoliday(accountId(auth),body));}
+ @PutMapping("/holidays/{holidayId}") public ResponseEntity<LibraryHolidayResponse> updateHoliday(@PathVariable UUID holidayId,@Valid @RequestBody LibraryHolidayInput body,Authentication auth){return ResponseEntity.ok(borrowing.updateHoliday(holidayId,accountId(auth),body));}
  @DeleteMapping("/holidays/{holidayId}") public ResponseEntity<Void> deleteHoliday(@PathVariable UUID holidayId){borrowing.deleteHoliday(holidayId);return ResponseEntity.noContent().build();}
 }

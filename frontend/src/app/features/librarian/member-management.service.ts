@@ -11,6 +11,7 @@ export interface MemberSummary {
   institutionalId: string | null;
   createdAt: string;
   currentLoans: number;
+  displayName?: string | null;
 }
 
 export interface MemberDetail {
@@ -24,6 +25,7 @@ export interface MemberDetail {
   currentLoans: LoanRecord[];
   borrowingHistory: LoanRecord[];
   borrowRequests: BorrowRequestRecord[];
+  displayName?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

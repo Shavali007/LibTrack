@@ -15,14 +15,13 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.AccountExpiredException;
 import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,12 +33,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
+    private final UserAccountRepository accounts;
     private final SecurityContextHolderStrategy contextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
 
     public AuthController(AuthenticationManager authenticationManager,
-                          SecurityContextRepository securityContextRepository) {
+                          SecurityContextRepository securityContextRepository,
+                          UserAccountRepository accounts) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
+        this.accounts = accounts;
     }
 
     @GetMapping("/csrf")
@@ -65,8 +67,18 @@ public class AuthController {
             return ResponseEntity.ok(UserProfileResponse.from((AccountUserDetails) authentication.getPrincipal()));
         } catch (DisabledException exception) {
             contextHolderStrategy.clearContext();
+            String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
+            UserAccount account = accounts.findByEmail(normalizedEmail).orElse(null);
+            if (account != null && account.getApprovalStatus() == ApprovalStatus.PENDING_APPROVAL) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new AuthenticationError("ACCOUNT_PENDING_APPROVAL", "Your account registration is awaiting librarian approval. You will be able to sign in once approved."));
+            }
+            if (account != null && account.getApprovalStatus() == ApprovalStatus.REJECTED) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new AuthenticationError("ACCOUNT_REJECTED", "Your account registration request has been rejected. Please contact library staff for assistance."));
+            }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new AuthenticationError("ACCOUNT_NOT_ACTIVE", "This account is not active. Recently registered accounts must complete institutional email verification; contact library staff if you need help."));
+                    .body(new AuthenticationError("ACCOUNT_NOT_ACTIVE", "This account is disabled. Please contact library staff for assistance."));
         } catch (BadCredentialsException | LockedException | AccountExpiredException | CredentialsExpiredException exception) {
             contextHolderStrategy.clearContext();
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -78,6 +90,26 @@ public class AuthController {
     public UserProfileResponse currentUser(Authentication authentication) {
         return UserProfileResponse.from((AccountUserDetails) authentication.getPrincipal());
     }
+
+    @PatchMapping("/profile")
+    public ResponseEntity<?> updateProfile(@Valid @RequestBody UpdateProfileRequest request,
+                                           Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof AccountUserDetails principal)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new AuthenticationError("UNAUTHORIZED", "Authentication required."));
+        }
+        String cleaned = request.displayName() != null ? request.displayName().strip() : "";
+        if (cleaned.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(new AuthenticationError("INVALID_DISPLAY_NAME", "Display name cannot be empty."));
+        }
+        UserAccount account = accounts.findById(principal.getId()).orElse(null);
+        if (account == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new AuthenticationError("ACCOUNT_NOT_FOUND", "Account not found."));
+        }
+        account.setDisplayName(cleaned);
+        accounts.saveAndFlush(account);
+        return ResponseEntity.ok(UserProfileResponse.from(new AccountUserDetails(account)));
+    }
 }
-
-

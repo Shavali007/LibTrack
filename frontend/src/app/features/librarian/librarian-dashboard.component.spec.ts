@@ -123,7 +123,7 @@ describe('LibrarianDashboardComponent', () => {
     expect(rejectBtn).not.toBeNull();
   });
 
-  it('renders Recent Library Activity and simplified Quick Actions without duplicate circulation desk', () => {
+  it('ends after Pending Borrow Requests and Library Overview, removing Recent Activity and Quick Actions', () => {
     const el = fixture.nativeElement as HTMLElement;
     const text = el.textContent as string;
 
@@ -131,17 +131,21 @@ describe('LibrarianDashboardComponent', () => {
     expect(el.querySelector('.desk-tabs')).toBeNull();
     expect(text).not.toContain('Issue Book');
 
-    // Recent Library Activity
-    expect(text).toContain('Recent Library Activity');
-    expect(text).toContain('Clean Code');
-    expect(text).toContain('Issued');
-    expect(text).toContain('23MIC7248');
+    // Recent Library Activity and Quick Actions must be completely removed from template
+    expect(text).not.toContain('Recent Library Activity');
+    expect(text).not.toContain('Quick Actions');
+    expect(text).not.toContain('Add New Book');
 
-    // Quick Actions: ONLY Add New Book
-    expect(text).toContain('Quick Actions');
-    expect(text).toContain('Add New Book');
-    expect(text).not.toContain('Add Book Copy');
-    expect(text).not.toContain('Register Member');
-    expect(text).not.toContain('View Reports');
+    // Unverified trend badges must not be present
+    expect(text).not.toContain('+12% this month');
+    expect(text).not.toContain('Physical stock');
+    expect(text).not.toContain('Verified users');
+    expect(text).not.toContain('Awaiting review');
+
+    // Bottom sections present
+    expect(text).toContain('Pending Borrow Requests');
+    expect(text).toContain('Library Overview');
+    expect(el.querySelector('.pending-section')).not.toBeNull();
+    expect(el.querySelector('.chart-panel')).not.toBeNull();
   });
 });

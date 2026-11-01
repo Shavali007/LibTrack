@@ -5,6 +5,8 @@ import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MemberDirectoryComponent } from './member-directory.component';
 import { MemberManagementService, MemberSummary, MemberDetail } from './member-management.service';
+import { MemberRequestsService } from './member-requests.service';
+import { provideRouter } from '@angular/router';
 
 describe('MemberDirectoryComponent', () => {
   let fixture: ComponentFixture<MemberDirectoryComponent>;
@@ -83,7 +85,9 @@ describe('MemberDirectoryComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideRouter([]),
         { provide: MemberManagementService, useValue: mockMemberService },
+        { provide: MemberRequestsService, useValue: { getCounts: () => of({ pending: 3, approved: 12, rejected: 2 }) } },
       ],
     }).compileComponents();
 
@@ -132,5 +136,10 @@ describe('MemberDirectoryComponent', () => {
     expect(text).toContain('Confirm Account Status Change');
     expect(text).toContain('DISABLE');
     expect(text).toContain('student.one@vitapstudent.ac.in');
+  });
+
+  it('displays the Member Requests button with pending count', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Member Requests (3)');
   });
 });

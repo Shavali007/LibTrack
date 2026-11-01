@@ -12,5 +12,11 @@ public record FeedbackRecord(
     String category,
     String subject,
     String message,
-    Instant createdAt
-) {}
+    Instant createdAt,
+    String memberDisplayName
+) {
+    public FeedbackRecord(UUID id, UUID accountId, String memberEmail, String institutionalId,
+                          String role, String category, String subject, String message, Instant createdAt) {
+        this(id, accountId, memberEmail, institutionalId, role, category, subject, message, createdAt, null);
+    }
+}

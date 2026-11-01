@@ -41,6 +41,12 @@ public class UserAccount {
     @Column(name = "institutional_id", length = 100)
     private String institutionalId;
 
+    @Column(name = "display_name", length = 100)
+    private String displayName;
+
+    @Column(name = "department", length = 100)
+    private String department;
+
     @Column(name = "identity_verified_at")
     private Instant identityVerifiedAt;
 
@@ -50,6 +56,22 @@ public class UserAccount {
     @Enumerated(EnumType.STRING)
     @Column(name = "provisioning_source", nullable = false, length = 24)
     private ProvisioningSource provisioningSource;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_status", nullable = false, length = 25)
+    private ApprovalStatus approvalStatus = ApprovalStatus.APPROVED;
+
+    @Column(name = "rejection_reason", length = 255)
+    private String rejectionReason;
+
+    @Column(name = "librarian_remarks", columnDefinition = "TEXT")
+    private String librarianRemarks;
+
+    @Column(name = "reviewed_by_account_id")
+    private UUID reviewedByAccountId;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -61,6 +83,11 @@ public class UserAccount {
 
     public static UserAccount provisionMember(String email, String passwordHash, AccountRole role,
                                               String institutionalId, UUID librarianId, Instant verifiedAt) {
+        return provisionMember(email, passwordHash, role, institutionalId, librarianId, verifiedAt, null);
+    }
+
+    public static UserAccount provisionMember(String email, String passwordHash, AccountRole role,
+                                              String institutionalId, UUID librarianId, Instant verifiedAt, String displayName) {
         UserAccount account = new UserAccount();
         account.email = email;
         account.passwordHash = passwordHash;
@@ -70,10 +97,19 @@ public class UserAccount {
         account.identityVerifiedAt = verifiedAt;
         account.provisioningSource = ProvisioningSource.LIBRARIAN;
         account.enabled = true;
+        account.displayName = displayName;
         return account;
     }
 
     public static UserAccount pendingSelfRegistration(String email, String passwordHash, AccountRole role) {
+        return pendingSelfRegistration(email, passwordHash, role, null, null);
+    }
+
+    public static UserAccount pendingSelfRegistration(String email, String passwordHash, AccountRole role, String displayName) {
+        return pendingSelfRegistration(email, passwordHash, role, displayName, null);
+    }
+
+    public static UserAccount pendingSelfRegistration(String email, String passwordHash, AccountRole role, String displayName, String institutionalId) {
         if (role != AccountRole.STUDENT && role != AccountRole.FACULTY) throw new IllegalArgumentException("Only Student and Faculty accounts may self-register.");
         UserAccount account = new UserAccount();
         account.email = email;
@@ -81,6 +117,9 @@ public class UserAccount {
         account.role = role;
         account.provisioningSource = ProvisioningSource.SELF_REGISTRATION;
         account.enabled = false;
+        account.displayName = displayName;
+        account.institutionalId = institutionalId;
+        account.approvalStatus = ApprovalStatus.PENDING_APPROVAL;
         return account;
     }
     public static UserAccount initialLibrarian(String email, String passwordHash) {
@@ -90,6 +129,7 @@ public class UserAccount {
         account.role = AccountRole.LIBRARIAN;
         account.provisioningSource = ProvisioningSource.BOOTSTRAP;
         account.enabled = true;
+        account.displayName = "Librarian";
         return account;
     }
 
@@ -116,7 +156,39 @@ public class UserAccount {
             throw new IllegalStateException("Only a pending Student or Faculty self-registration can be verified.");
         }
         enabled = true;
+        approvalStatus = ApprovalStatus.APPROVED;
     }
+    public void updatePassword(String newPasswordHash) {
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("Password hash must not be empty.");
+        }
+        this.passwordHash = newPasswordHash;
+    }
+    public void approve(UUID librarianId, String remarks, Instant timestamp) {
+        if (this.approvalStatus != ApprovalStatus.PENDING_APPROVAL) {
+            throw new IllegalStateException("Only pending requests can be approved.");
+        }
+        this.approvalStatus = ApprovalStatus.APPROVED;
+        this.enabled = true;
+        this.identityVerifiedAt = timestamp;
+        this.reviewedByAccountId = librarianId;
+        this.reviewedAt = timestamp;
+        this.librarianRemarks = remarks;
+        this.rejectionReason = null;
+    }
+
+    public void reject(UUID librarianId, String reason, String remarks, Instant timestamp) {
+        if (this.approvalStatus != ApprovalStatus.PENDING_APPROVAL) {
+            throw new IllegalStateException("Only pending requests can be rejected.");
+        }
+        this.approvalStatus = ApprovalStatus.REJECTED;
+        this.enabled = false;
+        this.reviewedByAccountId = librarianId;
+        this.reviewedAt = timestamp;
+        this.rejectionReason = reason;
+        this.librarianRemarks = remarks;
+    }
+
     public void deactivate() { enabled = false; }
     public void enable() { enabled = true; }
     public String getInstitutionalId() { return institutionalId; }
@@ -125,5 +197,14 @@ public class UserAccount {
     public Instant getUpdatedAt() { return updatedAt; }
     public UUID getCreatedByAccountId() { return createdByAccountId; }
     public ProvisioningSource getProvisioningSource() { return provisioningSource; }
+    public ApprovalStatus getApprovalStatus() { return approvalStatus; }
+    public String getRejectionReason() { return rejectionReason; }
+    public String getLibrarianRemarks() { return librarianRemarks; }
+    public UUID getReviewedByAccountId() { return reviewedByAccountId; }
+    public Instant getReviewedAt() { return reviewedAt; }
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+    public String getDepartment() { return department; }
+    public void setDepartment(String department) { this.department = department; }
 }
 

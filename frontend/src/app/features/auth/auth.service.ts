@@ -5,13 +5,22 @@ import { Observable, switchMap, tap } from 'rxjs';
 export type AccountRole = 'STUDENT' | 'FACULTY' | 'LIBRARIAN';
 export type ProvisionableRole = 'STUDENT' | 'FACULTY';
 export type RegistrationRole = 'STUDENT' | 'FACULTY';
-export interface RegistrationResponse { status: 'PENDING_VERIFICATION'; message: string; }
-export interface RegistrationRequest { email: string; password: string; confirmPassword: string; role: RegistrationRole; }
+export interface RegistrationResponse { status: string; message: string; }
+export interface RegistrationRequest {
+  username?: string;
+  fullName?: string;
+  institutionalId?: string;
+  email: string;
+  password: string;
+  confirmPassword?: string;
+  role: RegistrationRole;
+}
 
 export interface UserProfile {
   id: string;
   email: string;
   role: AccountRole;
+  displayName?: string;
 }
 
 export interface ProvisionAccountRequest {
@@ -20,6 +29,7 @@ export interface ProvisionAccountRequest {
   password: string;
   role: ProvisionableRole;
   identityVerified: true;
+  displayName?: string;
 }
 
 interface CsrfResponse {
@@ -58,6 +68,18 @@ export class AuthService {
       switchMap((headers) => this.http.post<RegistrationResponse>(`${this.api}/register`, request, { headers })),
     );
   }
+
+  forgotPassword(email: string): Observable<{ message: string }> {
+    return this.csrfHeaders().pipe(
+      switchMap((headers) => this.http.post<{ message: string }>(`${this.api}/forgot-password`, { email }, { headers })),
+    );
+  }
+
+  resetPassword(request: { token: string; newPassword: string }): Observable<{ message: string }> {
+    return this.csrfHeaders().pipe(
+      switchMap((headers) => this.http.post<{ message: string }>(`${this.api}/reset-password`, request, { headers })),
+    );
+  }
   logout(): Observable<void> {
     return this.csrfHeaders().pipe(
       switchMap((headers) => this.http.post<void>(`${this.api}/logout`, {}, { headers })),
@@ -68,6 +90,13 @@ export class AuthService {
   provisionAccount(request: ProvisionAccountRequest): Observable<UserProfile> {
     return this.csrfHeaders().pipe(
       switchMap((headers) => this.http.post<UserProfile>('/api/v1/librarian/accounts', request, { headers })),
+    );
+  }
+
+  updateProfile(displayName: string): Observable<UserProfile> {
+    return this.csrfHeaders().pipe(
+      switchMap((headers) => this.http.patch<UserProfile>(`${this.api}/profile`, { displayName }, { headers })),
+      tap((profile) => this.profile.set(profile)),
     );
   }
 

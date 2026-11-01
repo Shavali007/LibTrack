@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AbstractControl, NonNullableFormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -8,6 +8,12 @@ import { SignInDialogComponent } from '../auth/sign-in-dialog.component';
 import { BookDetail, BookWrite, CatalogueService, DigitalEdition, InventorySummary } from './catalogue.service';
 import { BorrowingService } from '../circulation/borrowing.service';
 import { ToastService } from '../../shared/layout/toast.component';
+import { RecommendationService, Recommendation } from '../recommendations/recommendation.service';
+import { RecommendModalComponent } from '../recommendations/recommend-modal.component';
+import { ReviewService, BookReview, ReviewSummary, ReviewEligibility } from '../reviews/review.service';
+import { WriteReviewModalComponent } from '../reviews/write-review-modal.component';
+import { ReservationService, ReservationItem } from '../reservations/reservation.service';
+import { WishlistService } from '../wishlist/wishlist.service';
 
 function validIsbn(control: AbstractControl): ValidationErrors | null {
   const value = String(control.value ?? '').trim();
@@ -53,81 +59,1902 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
 }
 
 
-@Component({selector:'app-book-detail',standalone:true,imports:[RouterLink,SignInDialogComponent],template:`
-@if(loading()){<div class="loading-state" role="status">Loading book record…</div>}
-@else if(loadError()){<div class="alert alert-error" role="alert">{{loadError()}} <button class="text-button" type="button" (click)="reload()">Retry</button></div>}
-@else if(book();as b){
-  @if(!isInsideWorkspace()){<header class="catalogue-header"><a class="brand" routerLink="/" aria-label="LibTrack home"><span aria-hidden="true">▤</span><strong>LibTrack</strong></a><nav aria-label="Catalogue navigation"><a routerLink="/books">Explore books</a>@if(auth.profile()){<a routerLink="/workspace">My workspace</a>}@else{<button class="button button-secondary" type="button" (click)="openSignIn()">Sign in</button>}</nav></header>}
-  <a class="back-link" [routerLink]="backLink()" [queryParams]="savedQueryParams()">← Back to catalogue</a>
-  <article class="detail-layout"><div class="cover-wrap">@if(b.coverImageUrl&&!broken()){<img class="book-cover-large" [src]="b.coverImageUrl" [alt]="'Cover of '+b.title" (error)="broken.set(true)">}@else{<div class="cover-fallback" aria-hidden="true"><span>LIBTRACK</span><strong>{{b.title}}</strong><small>{{b.authors.join(' · ')}}</small></div>}</div>
-    <section class="detail-copy"><p class="eyebrow">{{b.categories.join(' · ')||'CATALOGUE RECORD'}}</p><h1>{{b.title}}</h1><p class="authors">{{b.authors.join(', ')}}</p><p class="muted">{{b.publisher||'Publisher not listed'}}@if(b.publicationYear){ · {{b.publicationYear}}}</p>@if(b.isbn){<p><strong>ISBN</strong> {{b.isbn}}</p>}@if(b.description){<p class="description">{{b.description}}</p>}
-      <div class="availability-row"><span class="status-badge" [class.status-badge-success]="b.availableCopies>0" [class.status-badge-neutral]="b.availableCopies===0">{{b.availableCopies>0?'Available':'Unavailable'}}</span><strong>{{b.totalCopies}} total copies · {{b.availableCopies}} available · {{b.onLoanCopies}} on loan</strong></div>
-      <p class="field-hint inventory-total-note">Total includes withdrawn copy records.</p><p><strong>Loan policy:</strong> {{policyLabel(b.circulationPolicy)}}</p><p class="policy-note">Only standard circulation is eligible for take-home requests. Reference, serial, and overnight exception policies remain unavailable until their operating rules are defined.</p>
-
-      <section class="digital-card" aria-labelledby="digital-edition-title">
-        <div class="digital-header">
-          <div>
-            <p class="eyebrow">DIGITAL EDITION</p>
-            <h3 id="digital-edition-title">PDF Book Edition</h3>
-            @if(digitalEdition(); as ed){
-              <p class="digital-meta"><strong>{{ed.originalFilename}}</strong> ({{formatBytes(ed.fileSize)}})@if(ed.editionLabel){ · <em>{{ed.editionLabel}}</em>}</p>
-            }@else if(b.hasDigitalEdition){
-              <p class="digital-meta">Digital PDF edition available</p>
-            }@else{
-              <p class="digital-meta muted">No digital edition available for this record.</p>
+@Component({
+  selector: 'app-book-detail',
+  standalone: true,
+  imports: [RouterLink, SignInDialogComponent, RecommendModalComponent, WriteReviewModalComponent],
+  template: `
+    @if (loading()) {
+      <div class="loading-state" role="status">Loading book record…</div>
+    } @else if (loadError()) {
+      <div class="alert alert-error" role="alert">
+        {{ loadError() }} <button class="text-button" type="button" (click)="reload()">Retry</button>
+      </div>
+    } @else if (book(); as b) {
+      @if (!isInsideWorkspace()) {
+        <header class="catalogue-public-nav">
+          <a class="brand" routerLink="/" aria-label="LibTrack home">
+            <span class="brand-icon" aria-hidden="true">▤</span>
+            <strong>LibTrack</strong>
+          </a>
+          <nav aria-label="Catalogue navigation">
+            <a routerLink="/books">Explore books</a>
+            @if (auth.profile()) {
+              <a routerLink="/workspace">My workspace</a>
+            } @else {
+              <button class="button button-secondary" type="button" (click)="openSignIn()">Sign in</button>
             }
-          </div>
-          @if(b.hasDigitalEdition){
-            <span class="status-badge status-badge-success">Digital Available</span>
-          }@else{
-            <span class="status-badge status-badge-neutral">Physical Only</span>
+          </nav>
+        </header>
+      }
+
+      <!-- Breadcrumb matching Screenshot -->
+      <nav class="breadcrumb-bar" aria-label="Breadcrumb">
+        <a class="breadcrumb-back" [routerLink]="backLink()" [queryParams]="savedQueryParams()">Books &amp; Catalogue</a>
+        <span class="breadcrumb-separator">&gt;</span>
+        <span class="breadcrumb-current">Book Details</span>
+      </nav>
+
+      <!-- Main Book Card matching Screenshot -->
+      <article class="book-hero-card surface-card">
+        <div class="hero-cover-wrap">
+          @if (b.coverImageUrl && !broken()) {
+            <img class="hero-book-cover" [src]="b.coverImageUrl" [alt]="'Cover of ' + b.title" (error)="broken.set(true)">
+          } @else {
+            <div class="hero-cover-fallback" aria-hidden="true">
+              <span class="fallback-tag">LIBTRACK</span>
+              <strong class="fallback-title">{{ b.title }}</strong>
+              <small class="fallback-author">{{ b.authors.join(' · ') }}</small>
+            </div>
           }
         </div>
-        @if(b.hasDigitalEdition){
-          <div class="digital-actions">
-            @if(auth.profile()){
-              <a class="button button-primary" [routerLink]="readLink(b.id)" [queryParams]="savedQueryParams()">Read Online</a>
-              <a class="button button-secondary" [href]="downloadUrl(b.id)" download>Download PDF</a>
-            }@else{
-              <button class="button button-primary" type="button" (click)="requireAuthForReading()">Sign in to Read Online</button>
-              <button class="button button-secondary" type="button" (click)="requireAuthForDownload()">Sign in to Download</button>
+
+        <section class="hero-content detail-copy">
+          <div class="hero-main-info">
+            <div class="hero-title-row">
+              <h1 class="hero-book-title">{{ b.title }}</h1>
+            </div>
+
+            <p class="hero-author">{{ b.authors.join(', ') || 'Unknown Author' }}</p>
+
+            <div class="hero-categories-row">
+              @for (category of b.categories; track category) {
+                <span class="category-pill">{{ category }}</span>
+              }
+              @if (b.categories.length === 0) {
+                <span class="category-pill">General</span>
+              }
+            </div>
+
+            <div class="hero-rating-row">
+              <div class="rating-stars" [attr.aria-label]="(reviewSummary()?.averageRating ?? 0) + ' out of 5 stars'">
+                @for (filled of getStarFilledArray(reviewSummary()?.averageRating ?? 0); track $index) {
+                  <span class="star-icon" [class.filled]="filled">★</span>
+                }
+              </div>
+              @if (reviewSummary() && reviewSummary()!.totalReviews > 0) {
+                <span class="rating-score">{{ reviewSummary()!.averageRating?.toFixed(1) }}</span>
+                <span class="rating-count">({{ reviewSummary()!.totalReviews }} {{ reviewSummary()!.totalReviews === 1 ? 'review' : 'reviews' }})</span>
+              } @else {
+                <span class="rating-score">0</span>
+                <span class="rating-count">(0)</span>
+              }
+            </div>
+
+            <div class="hero-specs-grid">
+              <div class="spec-item">
+                <span class="spec-label">Available Copies</span>
+                <span class="spec-value highlight-green">{{ b.availableCopies }} Copies Available</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Published Year</span>
+                <span class="spec-value">{{ b.publicationYear || '—' }}</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Publisher</span>
+                <span class="spec-value">{{ b.publisher || 'Not Listed' }}</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Status</span>
+                <span class="spec-value">{{ b.active ? 'Active' : 'Inactive' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hero Action Column on Right -->
+          <div class="hero-actions-column">
+            <!-- 3 Mockup Actions -->
+            <div class="digital-actions digital-quick-actions">
+              @if (b.hasDigitalEdition) {
+                @if (auth.profile()) {
+                  <a class="button action-pill-btn" [routerLink]="readLink(b.id)" [queryParams]="savedQueryParams()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-btn-icon">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                    <span>Read Online</span>
+                  </a>
+                  <a class="button action-pill-btn" [href]="downloadUrl(b.id)" download>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-btn-icon">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download</span>
+                  </a>
+                } @else {
+                  <button class="button action-pill-btn" type="button" (click)="requireAuthForReading()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-btn-icon">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                    <span>Sign in to Read Online</span>
+                  </button>
+                  <button class="button action-pill-btn" type="button" (click)="requireAuthForDownload()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-btn-icon">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Sign in to Download</span>
+                  </button>
+                }
+              } @else {
+                <button class="button action-pill-btn" type="button" (click)="onReadOnline(b)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-btn-icon">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                  </svg>
+                  <span>Read Online</span>
+                </button>
+                <button class="button action-pill-btn" type="button" (click)="onDownload(b)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-btn-icon">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>Download</span>
+                </button>
+              }
+            </div>
+
+            <button type="button" class="button action-pill-btn" [class.in-wishlist]="inWishlist()" (click)="toggleWishlist(b)">
+              <svg viewBox="0 0 24 24" [attr.fill]="inWishlist() ? '#DC2626' : 'none'" [attr.stroke]="inWishlist() ? '#DC2626' : 'currentColor'" stroke-width="2" class="action-btn-icon">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              </svg>
+              <span>{{ inWishlist() ? 'In Wishlist' : 'Add to Wishlist' }}</span>
+            </button>
+
+            <!-- Actions container for reservation and role operations -->
+            <div class="actions">
+              @if (b.availableCopies > 0) {
+                @if (auth.profile()?.role === 'STUDENT' || auth.profile()?.role === 'FACULTY') {
+                  <button
+                    class="button button-primary btn-hero-action"
+                    type="button"
+                    (click)="requestBook()"
+                    [disabled]="pending() || !b.active || b.circulationPolicy !== 'STANDARD'"
+                  >
+                    {{ pending() ? 'Submitting…' : 'Request this book' }}
+                  </button>
+                } @else if (!auth.profile()) {
+                  <button
+                    class="button button-primary btn-hero-action"
+                    type="button"
+                    (click)="requireAuthentication()"
+                    [disabled]="!b.active || b.circulationPolicy !== 'STANDARD'"
+                  >
+                    Sign in to request this book
+                  </button>
+                }
+              } @else {
+                <!-- 0 Available Copies: Reservation Flow -->
+                @if (auth.profile()?.role === 'STUDENT') {
+                  @if (activeReservation()) {
+                    <a
+                      class="button button-secondary btn-hero-action btn-reserved-status"
+                      routerLink="/workspace/my/reservations"
+                      title="View active reservation"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-btn-icon">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      <span>Reserved (Queue #{{ activeReservation()?.queuePosition || 1 }})</span>
+                    </a>
+                  } @else {
+                    <button
+                      class="button button-primary btn-hero-action btn-reserve-action"
+                      type="button"
+                      (click)="reserveBook()"
+                      [disabled]="pending() || !b.active"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-btn-icon">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                      </svg>
+                      {{ pending() ? 'Reserving…' : 'Reserve Book' }}
+                    </button>
+                  }
+                } @else if (auth.profile()?.role === 'FACULTY') {
+                  <button
+                    class="button button-primary btn-hero-action"
+                    type="button"
+                    disabled
+                  >
+                    Unavailable (0 Copies)
+                  </button>
+                } @else if (!auth.profile()) {
+                  <button
+                    class="button button-primary btn-hero-action"
+                    type="button"
+                    (click)="requireAuthentication()"
+                  >
+                    Sign in to reserve book
+                  </button>
+                }
+              }
+            </div>
+
+            @if (auth.profile()?.role === 'FACULTY') {
+              <div class="actions mt-1">
+                <button
+                  class="button button-secondary btn-hero-action btn-recommend-action"
+                  type="button"
+                  (click)="openRecommendModal()"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="rec-icon">
+                    <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                    <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                  </svg>
+                  Recommend this book
+                </button>
+              </div>
+            } @else if (auth.profile()?.role === 'LIBRARIAN') {
+              <div class="actions librarian-actions-stack mt-1">
+                <a class="button button-primary btn-hero-action" [routerLink]="['/workspace/librarian/books', b.id, 'edit']">
+                  Edit Record
+                </a>
+                <a class="button button-secondary btn-hero-action" [routerLink]="['/workspace/librarian/books', b.id, 'copies']">
+                  Manage Copies
+                </a>
+                <button
+                  class="button button-danger btn-hero-action"
+                  type="button"
+                  (click)="deactivate()"
+                  [disabled]="!b.active || pending()"
+                >
+                  {{ b.active ? 'Deactivate Record' : 'Record Inactive' }}
+                </button>
+              </div>
+            }
+
+            @if (notice()) {
+              <p class="alert alert-success mt-2" role="status" aria-live="polite">{{ notice() }}</p>
+            }
+            @if (error()) {
+              <p class="alert alert-error mt-2" role="alert">{{ error() }}</p>
             }
           </div>
-        }
-      </section>
+        </section>
+      </article>
 
-      @if(auth.profile()?.role==='STUDENT'||auth.profile()?.role==='FACULTY'){<div class="actions"><button class="button button-primary" type="button" (click)="requestBook()" [disabled]="pending()||!b.active||b.circulationPolicy!=='STANDARD'||b.availableCopies<1">{{pending()?'Submitting…':'Request this book'}}</button></div>}
-      @else if(!auth.profile()){<div class="actions"><button class="button button-primary" type="button" (click)="requireAuthentication()" [disabled]="!b.active||b.circulationPolicy!=='STANDARD'||b.availableCopies<1">Sign in to request this book</button></div>}
-      @else{<p class="muted">Librarian accounts cannot submit member borrowing requests.</p>}
-      @if(notice()){<p class="alert" role="status" aria-live="polite">{{notice()}}</p>}
-      @if(error()){<p class="alert alert-error" role="alert">{{error()}}</p>}
-      @if(auth.profile()?.role==='LIBRARIAN'){<div class="actions"><a class="button button-primary" [routerLink]="['/workspace/librarian/books',b.id,'edit']">Edit record</a><a class="button button-secondary" [routerLink]="['/workspace/librarian/books',b.id,'copies']">Manage copies</a><button class="button button-danger" type="button" (click)="deactivate()" [disabled]="!b.active||pending()">{{b.active?'Deactivate record':'Record inactive'}}</button></div>}
-    </section>
-  </article>
-}
-@if(showSignIn()){<app-sign-in-dialog initialRole="STUDENT" [contextMessage]="signInContext()" (dismissed)="showSignIn.set(false)" (authenticated)="onSignedIn($event)" />}
-`,styles:[`
-:host{display:block}.catalogue-header{position:sticky;top:0;z-index:5;display:flex;min-height:3.7rem;align-items:center;justify-content:space-between;margin-bottom:1.5rem;padding-bottom:.7rem;border-bottom:1px solid var(--color-line-200)}.brand{display:flex;align-items:center;gap:.5rem;color:var(--color-forest-950);text-decoration:none}.brand>span{display:grid;width:2rem;height:2rem;place-items:center;border-radius:5px;color:white;background:var(--color-forest-900)}.brand strong{font:600 1.25rem var(--font-serif)}.catalogue-header nav{display:flex;align-items:center;gap:1rem}.catalogue-header nav>a{font-size:.85rem;text-decoration:none}.back-link{display:inline-block;margin-bottom:1.2rem}.detail-layout{display:grid;grid-template-columns:minmax(12rem,19rem) minmax(0,1fr);gap:clamp(1.5rem,5vw,4rem);padding:clamp(1rem,3vw,2rem);border:1px solid var(--color-line-200);border-radius:var(--radius-panel);background:var(--color-paper)}.cover-wrap{display:grid;min-height:18rem;place-items:center;padding:1rem;background:#f0efe7}.book-cover-large{width:auto;max-width:100%;height:17rem;aspect-ratio:2/3;object-fit:cover;box-shadow:var(--shadow-panel)}.cover-fallback{display:flex;width:12rem;height:17rem;flex-direction:column;justify-content:space-between;padding:1.2rem;border-left:6px solid var(--color-sage-500);color:var(--color-forest-950);background:linear-gradient(145deg,var(--color-sage-100),var(--color-ivory-100));box-shadow:var(--shadow-panel)}.cover-fallback strong{font:600 1.5rem/1.2 var(--font-serif)}.cover-fallback span,.cover-fallback small{font-size:.7rem;letter-spacing:.1em}.detail-copy h1{margin-bottom:.5rem}.authors{font-size:1.05rem}.description{max-width:52rem;white-space:pre-line}.availability-row{display:flex;align-items:center;gap:.8rem;margin:1.2rem 0;padding:1rem;border-block:1px solid var(--color-line-200)}.digital-card{margin:1.2rem 0;padding:1rem 1.2rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.digital-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.6rem}.digital-header h3{margin:0 0 .2rem;font-size:1.05rem}.digital-meta{margin:0;font-size:.82rem;color:var(--color-charcoal-700)}.digital-actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:.85rem}.policy-note{color:var(--color-charcoal-600);font-size:.82rem}.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.5rem}.text-button{padding:.2rem;border:0;color:var(--color-forest-900);background:transparent;text-decoration:underline;cursor:pointer}@media(max-width:680px){.detail-layout{grid-template-columns:1fr}.cover-wrap{min-height:14rem}.book-cover-large,.cover-fallback{height:13rem}.cover-fallback{width:9rem}.actions>*{flex:1 1 auto}}
-`]} )
+      <!-- Three Tabs matching Screenshot -->
+      <div class="detail-tabs-bar" role="tablist">
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab() === 'details'"
+          (click)="setTab('details')"
+          role="tab"
+          [attr.aria-selected]="activeTab() === 'details'"
+        >
+          Details
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab() === 'digital'"
+          (click)="setTab('digital')"
+          role="tab"
+          [attr.aria-selected]="activeTab() === 'digital'"
+        >
+          Digital Edition
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab() === 'reviews'"
+          (click)="setTab('reviews')"
+          role="tab"
+          [attr.aria-selected]="activeTab() === 'reviews'"
+        >
+          Reviews ({{ reviewSummary()?.totalReviews ?? 0 }})
+        </button>
+      </div>
+
+      <!-- Tab Content 1: Details -->
+      @if (activeTab() === 'details') {
+        <div class="tab-content-grid">
+          <!-- Left: Description and Details -->
+          <div class="content-left surface-card">
+            <h2 class="section-heading">Description</h2>
+            <div class="book-description">
+              {{ b.description || 'No detailed synopsis provided for this catalogue record. Explore copies and circulation availability on this page.' }}
+            </div>
+
+            @if (b.hasDigitalEdition) {
+              <div class="digital-meta-box">
+                <div class="digital-box-header">
+                  <h3 class="box-title">PDF Book Edition</h3>
+                  <span class="status-badge status-badge-success">Digital Available</span>
+                </div>
+                @if (digitalEdition(); as ed) {
+                  <p class="box-meta">
+                    File: <strong>{{ ed.originalFilename }}</strong> ({{ formatBytes(ed.fileSize) }})
+                    @if (ed.editionLabel) {
+                      &middot; <em>{{ ed.editionLabel }}</em>
+                    }
+                  </p>
+                }
+              </div>
+            }
+
+            <div class="policy-callout">
+              <h3 class="box-title">Loan Policy</h3>
+              <p class="box-text">
+                <strong>{{ policyLabel(b.circulationPolicy) }}</strong> &mdash;
+                Only standard circulation is eligible for take-home requests. Reference, serial, and overnight exception policies remain unavailable until their operating rules are defined.
+              </p>
+            </div>
+
+            @if (recommendations().length > 0) {
+              <div class="faculty-recommendations-section">
+                <div class="faculty-rec-header">
+                  <span class="faculty-cap-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                      <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                    </svg>
+                  </span>
+                  <div>
+                    <h3 class="box-title">Faculty Recommendations ({{ recommendations().length }})</h3>
+                    <p class="rec-sec-subtitle">Recommended by university professors for coursework and reference.</p>
+                  </div>
+                </div>
+
+                <div class="recommendations-list">
+                  @for (rec of recommendations(); track rec.id) {
+                    <div class="rec-item-card">
+                      <div class="quote-bubble">
+                        <span class="quote-mark" aria-hidden="true">“</span>
+                        <p class="quote-text">{{ rec.message || 'A highly recommended book for academic coursework and independent research.' }}</p>
+                      </div>
+
+                      <div class="rec-meta-row">
+                        <div class="faculty-member-info">
+                          <div class="faculty-avatar">{{ getInitials(rec.facultyName) }}</div>
+                          <div class="faculty-details">
+                            <strong class="faculty-name">{{ rec.facultyName }}</strong>
+                            <span class="faculty-dept">{{ rec.facultyDepartment || 'Faculty Member' }}</span>
+                          </div>
+                        </div>
+
+                        <div class="rec-right-actions">
+                          <span class="rec-date">{{ formatDate(rec.createdAt) }}</span>
+                          @if (auth.profile()?.role === 'STUDENT') {
+                            <button
+                              type="button"
+                              class="btn-helpful"
+                              [class.is-helpful]="rec.markedHelpful"
+                              (click)="toggleHelpful(rec)"
+                              [attr.aria-pressed]="rec.markedHelpful"
+                            >
+                              <svg viewBox="0 0 24 24" [attr.fill]="rec.markedHelpful ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" class="helpful-icon">
+                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                              </svg>
+                              <span>Helpful ({{ rec.helpfulCount }})</span>
+                            </button>
+                          } @else {
+                            <span class="helpful-badge">
+                              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" class="badge-icon">
+                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                              </svg>
+                              {{ rec.helpfulCount }}
+                            </span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Right: Book Details Card -->
+          <div class="content-right surface-card book-details-sidebar">
+            <h2 class="section-heading">Book Details</h2>
+
+            <div class="details-list">
+              <div class="detail-row">
+                <span class="detail-label">Language</span>
+                <span class="detail-value">English</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Format</span>
+                <span class="detail-value">{{ b.hasDigitalEdition ? 'Physical & Digital (PDF)' : 'Physical Edition' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Publisher</span>
+                <span class="detail-value">{{ b.publisher || 'Not Listed' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Publication Year</span>
+                <span class="detail-value">{{ b.publicationYear || '—' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">ISBN</span>
+                <span class="detail-value">{{ b.isbn || '—' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Circulation Policy</span>
+                <span class="detail-value">{{ policyLabel(b.circulationPolicy) }}</span>
+              </div>
+              <div class="detail-row copies-summary-row">
+                <span class="detail-label">Inventory Breakdown</span>
+                <span class="detail-value highlight-bold">
+                  {{ b.totalCopies }} total copies &middot; {{ b.availableCopies }} available &middot; {{ b.onLoanCopies }} on loan
+                </span>
+              </div>
+            </div>
+            <p class="field-hint inventory-total-note">Total includes withdrawn copy records.</p>
+          </div>
+        </div>
+      }
+
+      <!-- Tab Content 2: Digital Edition -->
+      @if (activeTab() === 'digital') {
+        <div class="digital-tab-content surface-card">
+          @if (b.hasDigitalEdition && digitalEdition(); as ed) {
+            <div class="digital-edition-hero">
+              <div class="digital-icon-wrap" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+              </div>
+              <div class="digital-hero-info">
+                <h2 class="digital-title">{{ ed.editionLabel || 'Digital PDF Edition' }}</h2>
+                <p class="digital-filename">{{ ed.originalFilename }} ({{ formatBytes(ed.fileSize) }})</p>
+                <div class="digital-hero-buttons">
+                  <button type="button" class="button button-primary" (click)="onReadOnline(b)">
+                    Read Online
+                  </button>
+                  <button type="button" class="button button-secondary" (click)="onDownload(b)">
+                    Download PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          } @else {
+            <div class="no-digital-box">
+              <p class="no-digital-title">No Digital Edition Available</p>
+              <p class="no-digital-desc">A digital edition has not been attached to this book record yet.</p>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Tab Content 3: Reviews (Matches Screenshot) -->
+      @if (activeTab() === 'reviews') {
+        <div class="reviews-section-wrap">
+          <div class="reviews-bar-header">
+            <h2 class="reviews-main-title">Reviews</h2>
+            <div class="reviews-bar-actions">
+              @if (auth.profile()) {
+                @if (reviewEligibility()?.hasReviewed || reviewEligibility()?.alreadyReviewed) {
+                  <div class="reviewed-pill">
+                    <span>You have already reviewed this book</span>
+                  </div>
+                } @else if (reviewEligibility()?.eligible) {
+                  <button type="button" class="btn-write-review" (click)="openWriteReviewModal()">
+                    <span class="btn-star">★</span>
+                    <span>Write a Review</span>
+                  </button>
+                } @else {
+                  <div class="ineligible-notice">
+                    <span>{{ reviewEligibility()?.reason || 'You can review this book after borrowing it or accessing its digital edition.' }}</span>
+                  </div>
+                }
+              } @else {
+                <button type="button" class="btn-write-review" (click)="openSignIn()">
+                  <span class="btn-star">★</span>
+                  <span>Write a Review</span>
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (loadingReviews()) {
+            <div class="loading-state">Loading reviews…</div>
+          } @else if (reviews().length === 0) {
+            <div class="empty-reviews-box surface-card">
+              <p class="empty-reviews-heading">No reviews yet</p>
+              <p class="empty-reviews-sub">Be the first to share your thoughts on this book!</p>
+              @if (reviewEligibility()?.eligible && !(reviewEligibility()?.hasReviewed || reviewEligibility()?.alreadyReviewed)) {
+                <button type="button" class="button button-primary mt-3" (click)="openWriteReviewModal()">
+                  ★ Write a Review
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="reviews-cards-list">
+              @for (review of reviews(); track review.id) {
+                <div class="review-item-card surface-card">
+                  <div
+                    class="review-avatar"
+                    [style.background-color]="getAvatarColor(review.reviewerDisplayName).bg"
+                    [style.color]="getAvatarColor(review.reviewerDisplayName).text"
+                  >
+                    {{ getInitial(review.reviewerDisplayName) }}
+                  </div>
+                  <div class="review-body">
+                    <div class="review-meta-line">
+                      <strong class="reviewer-display-name">{{ review.reviewerDisplayName }}</strong>
+                      <div class="review-stars-display" [attr.aria-label]="review.rating + ' stars'">
+                        @for (filled of getStarFilledArray(review.rating); track $index) {
+                          <span class="star-glyph" [class.filled]="filled">★</span>
+                        }
+                      </div>
+                      <span class="review-timestamp">{{ reviewService.formatRelativeTime(review.createdAt) }}</span>
+                    </div>
+                    @if (review.comment) {
+                      <p class="review-text-content">{{ review.comment }}</p>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            @if (hasMoreReviews()) {
+              <div class="load-more-container">
+                <button type="button" class="button button-secondary" (click)="loadMoreReviews()" [disabled]="loadingMore()">
+                  {{ loadingMore() ? 'Loading…' : 'Load more reviews' }}
+                </button>
+              </div>
+            }
+          }
+        </div>
+      }
+    }
+
+    @if (showSignIn()) {
+      <app-sign-in-dialog
+        initialRole="STUDENT"
+        [contextMessage]="signInContext()"
+        (dismissed)="showSignIn.set(false)"
+        (authenticated)="onSignedIn($event)"
+      />
+    }
+
+    @if (showRecommendModal() && book(); as b) {
+      <app-recommend-modal
+        [book]="{ id: b.id, title: b.title, authors: b.authors, coverImageUrl: b.coverImageUrl, categories: b.categories }"
+        (dismissed)="showRecommendModal.set(false)"
+        (recommended)="onRecommended($event)"
+      />
+    }
+
+    @if (showWriteReviewModal() && book(); as b) {
+      <app-write-review-modal
+        [book]="{ id: b.id, title: b.title, authors: b.authors, coverImageUrl: b.coverImageUrl }"
+        (dismissed)="showWriteReviewModal.set(false)"
+        (submitted)="onReviewSubmitted($event)"
+      />
+    }
+  `,
+  styles: [`
+    :host {
+      display: block;
+    }
+
+    /* Public navigation */
+    .catalogue-public-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      min-height: 3.5rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      padding: 0.75rem 1.5rem;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--color-line-200);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--color-forest-900);
+      text-decoration: none;
+    }
+    .brand-icon {
+      display: grid;
+      width: 2rem;
+      height: 2rem;
+      place-items: center;
+      border-radius: 6px;
+      color: #fff;
+      background: var(--color-forest-900);
+    }
+    .brand strong {
+      font-family: var(--font-serif);
+      font-size: 1.25rem;
+    }
+    .catalogue-public-nav nav {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .catalogue-public-nav nav a {
+      font-size: 0.88rem;
+      font-weight: 550;
+      color: var(--color-charcoal-700);
+      text-decoration: none;
+    }
+
+    /* Breadcrumb matching Screenshot 3 */
+    .breadcrumb-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.85rem;
+      color: var(--color-charcoal-500);
+    }
+    .breadcrumb-back {
+      color: #003D30;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .breadcrumb-back:hover {
+      text-decoration: underline;
+    }
+    .breadcrumb-separator {
+      color: var(--color-charcoal-400);
+    }
+    .breadcrumb-current {
+      color: var(--color-charcoal-800);
+      font-weight: 500;
+    }
+
+    /* Hero Book Card */
+    .book-hero-card {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      gap: 2rem;
+      padding: 1.75rem;
+      background: #ffffff;
+      border: 1px solid var(--color-line-200);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      margin-bottom: 1.75rem;
+    }
+    .hero-cover-wrap {
+      display: flex;
+      justify-content: center;
+    }
+    .hero-book-cover {
+      width: 100%;
+      height: 250px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--color-line-200);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .hero-cover-fallback {
+      width: 100%;
+      height: 250px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #002B22 0%, #003D30 100%);
+      color: #ffffff;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .fallback-tag {
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      opacity: 0.85;
+    }
+    .fallback-title {
+      font-family: var(--font-serif);
+      font-size: 1.2rem;
+      line-height: 1.3;
+    }
+    .fallback-author {
+      font-size: 0.75rem;
+      opacity: 0.85;
+    }
+
+    /* Hero Content */
+    .hero-content {
+      display: grid;
+      grid-template-columns: 1fr 240px;
+      gap: 2rem;
+    }
+    .hero-book-title {
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: var(--color-charcoal-900);
+      margin: 0 0 0.65rem;
+      line-height: 1.25;
+    }
+    .hero-badges-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.85rem;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 16px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      background: #EAF2EF;
+      color: #003D30;
+      border: 1px solid #C2D6CF;
+    }
+    .status-dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: #003D30;
+    }
+    .meta-pill {
+      padding: 0.25rem 0.65rem;
+      border-radius: 16px;
+      font-size: 0.74rem;
+      background: #F3F4F6;
+      color: var(--color-charcoal-700);
+      border: 1px solid var(--color-line-200);
+      font-feature-settings: "tnum";
+    }
+    .digital-pill {
+      background: #EAF2EF;
+      color: #003D30;
+      border-color: #C2D6CF;
+    }
+    .hero-author {
+      font-size: 0.95rem;
+      color: var(--color-charcoal-600);
+      margin: 0 0 1.25rem;
+    }
+
+    /* Specs Grid */
+    .hero-specs-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      background: #FAF9F6;
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--color-line-200);
+    }
+    .spec-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .spec-label {
+      font-size: 0.74rem;
+      color: var(--color-charcoal-500);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .spec-value {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--color-charcoal-900);
+    }
+    .highlight-green {
+      color: #003D30;
+    }
+    .badge-category {
+      display: inline-block;
+      width: fit-content;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #EEF2FB;
+      color: #2563EB;
+    }
+
+    /* Hero Actions Column */
+    .hero-actions-column {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+    .btn-hero-action {
+      width: 100%;
+      text-align: center;
+      justify-content: center;
+      padding: 0.65rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 7px;
+    }
+    .btn-reserve-action {
+      background: #003D30;
+      color: #FFFFFF;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn-reserve-action:hover {
+      background: #0a4f40;
+    }
+    .btn-reserved-status {
+      background: #EAF2EF;
+      color: #003D30;
+      border: 1px solid #10B981;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+    .btn-reserved-status:hover {
+      background: #d8ebe3;
+    }
+    .librarian-actions-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .digital-quick-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--color-line-100);
+    }
+    .button-outline-primary {
+      background: transparent;
+      color: #003D30;
+      border: 1px solid #003D30;
+    }
+    .button-outline-primary:hover {
+      background: #EAF2EF;
+    }
+    .button-ghost {
+      background: transparent;
+      color: var(--color-charcoal-700);
+      border: 1px solid var(--color-line-200);
+    }
+    .button-ghost:hover {
+      background: #F3F4F6;
+    }
+
+    /* Detail Tabs Bar */
+    .detail-tabs-bar {
+      display: flex;
+      gap: 0.35rem;
+      border-bottom: 2px solid var(--color-line-200);
+      margin-bottom: 1.5rem;
+    }
+    .tab-button {
+      padding: 0.75rem 1.4rem;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      background: transparent;
+      border: 0;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      color: var(--color-charcoal-600);
+      cursor: pointer;
+      text-decoration: none;
+      border-radius: 8px 8px 0 0;
+      transition: all 0.15s ease;
+    }
+    .tab-button:hover {
+      color: #003D30;
+      background: rgba(0, 61, 48, 0.04);
+    }
+    .tab-button.active {
+      color: #003D30;
+      background: #EAF2EF;
+      border-bottom-color: #003D30;
+      font-weight: 700;
+    }
+
+    /* Hero categories, rating & action buttons */
+    .hero-categories-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .category-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      background: #EEF2FB;
+      color: #2563EB;
+    }
+    .hero-rating-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.85rem;
+    }
+    .rating-stars {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      color: #D1D5DB;
+      font-size: 1.15rem;
+      line-height: 1;
+    }
+    .rating-stars .star-icon.filled {
+      color: #F59E0B;
+    }
+    .rating-score {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--color-charcoal-900);
+    }
+    .rating-count {
+      font-size: 0.875rem;
+      color: var(--color-charcoal-500);
+    }
+    .rating-empty {
+      font-size: 0.875rem;
+      color: var(--color-charcoal-500);
+    }
+    .action-pill-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: #ffffff;
+      color: #003D30;
+      border: 1px solid #003D30;
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      box-sizing: border-box;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .action-pill-btn:hover {
+      background: #EAF2EF;
+    }
+    .action-pill-btn.in-wishlist {
+      color: #DC2626;
+      border-color: #DC2626;
+      background: #FEF2F2;
+    }
+    .action-btn-icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Reviews Section Styles */
+    .reviews-section-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .reviews-bar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.25rem;
+    }
+    .reviews-main-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--color-charcoal-900);
+      margin: 0;
+    }
+    .btn-write-review {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #003D30;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-write-review:hover {
+      background: #002B22;
+    }
+    .btn-star {
+      font-size: 1rem;
+    }
+    .reviewed-pill {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #003D30;
+      background: #EAF2EF;
+      border: 1px solid #C2D6CF;
+      padding: 0.4rem 0.85rem;
+      border-radius: 20px;
+    }
+    .ineligible-notice {
+      font-size: 0.8125rem;
+      color: var(--color-charcoal-500);
+      background: #F3F4F6;
+      border: 1px solid var(--color-line-200);
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+    }
+    .empty-reviews-box {
+      padding: 3rem 2rem;
+      text-align: center;
+      border-radius: 12px;
+      border: 1px solid var(--color-line-200);
+      background: #ffffff;
+    }
+    .empty-reviews-heading {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--color-charcoal-800);
+      margin: 0 0 0.35rem;
+    }
+    .empty-reviews-sub {
+      font-size: 0.875rem;
+      color: var(--color-charcoal-500);
+      margin: 0;
+    }
+    .reviews-cards-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .review-item-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1.25rem 1.5rem;
+      background: #ffffff;
+      border: 1px solid var(--color-line-200);
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+    .review-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.125rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .review-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .review-meta-line {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.35rem;
+    }
+    .reviewer-display-name {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--color-charcoal-900);
+    }
+    .review-stars-display {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      color: #D1D5DB;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .star-glyph.filled {
+      color: #F59E0B;
+    }
+    .review-timestamp {
+      font-size: 0.8125rem;
+      color: var(--color-charcoal-500);
+      margin-left: 0.25rem;
+    }
+    .review-text-content {
+      font-size: 0.875rem;
+      line-height: 1.55;
+      color: var(--color-charcoal-700);
+      margin: 0;
+      white-space: pre-line;
+    }
+    .load-more-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 1rem;
+    }
+    .digital-tab-content {
+      padding: 2rem;
+      border-radius: 12px;
+      border: 1px solid var(--color-line-200);
+      background: #ffffff;
+    }
+    .digital-edition-hero {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .digital-icon-wrap {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      background: #EAF2EF;
+      color: #003D30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .digital-icon-wrap svg {
+      width: 28px;
+      height: 28px;
+    }
+    .digital-hero-info {
+      flex: 1;
+    }
+    .digital-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-charcoal-900);
+      margin: 0 0 0.25rem;
+    }
+    .digital-filename {
+      font-size: 0.875rem;
+      color: var(--color-charcoal-500);
+      margin: 0 0 1rem;
+    }
+    .digital-hero-buttons {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .no-digital-box {
+      text-align: center;
+      padding: 2rem;
+    }
+    .no-digital-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--color-charcoal-800);
+      margin: 0 0 0.35rem;
+    }
+    .no-digital-desc {
+      font-size: 0.875rem;
+      color: var(--color-charcoal-500);
+      margin: 0;
+    }
+
+    /* Tab Content Grid */
+    .tab-content-grid {
+      display: grid;
+      grid-template-columns: 1.8fr 1.2fr;
+      gap: 1.5rem;
+    }
+    .content-left, .content-right {
+      padding: 1.5rem;
+      border: 1px solid var(--color-line-200);
+      border-radius: 10px;
+      background: #ffffff;
+    }
+    .section-heading {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--color-charcoal-900);
+      margin: 0 0 1rem;
+    }
+    .book-description {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--color-charcoal-700);
+      margin-bottom: 1.5rem;
+      white-space: pre-line;
+    }
+    .digital-meta-box, .policy-callout {
+      padding: 1rem 1.15rem;
+      border-radius: 8px;
+      border: 1px solid var(--color-line-200);
+      background: #FAF9F6;
+      margin-top: 1rem;
+    }
+    .box-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--color-charcoal-900);
+      margin: 0 0 0.35rem;
+    }
+    .box-meta, .box-text {
+      font-size: 0.82rem;
+      color: var(--color-charcoal-700);
+      margin: 0;
+      line-height: 1.45;
+    }
+
+    /* Details List Sidebar */
+    .details-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid var(--color-line-100);
+      font-size: 0.85rem;
+    }
+    .detail-label {
+      color: var(--color-charcoal-500);
+    }
+    .detail-value {
+      font-weight: 600;
+      color: var(--color-charcoal-800);
+      text-align: right;
+    }
+    .copies-summary-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+    }
+    .highlight-bold {
+      color: #003D30;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+    .inventory-total-note {
+      font-size: 0.74rem;
+      color: var(--color-charcoal-400);
+      margin-top: 0.75rem;
+    }
+
+    .loading-state {
+      padding: 3rem;
+      text-align: center;
+      color: var(--color-charcoal-500);
+    }
+    .mt-2 {
+      margin-top: 0.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .book-hero-card {
+        grid-template-columns: 1fr;
+      }
+      .hero-content {
+        grid-template-columns: 1fr;
+      }
+      .tab-content-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Faculty Recommendation Section Styles */
+    .btn-recommend-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #ffffff;
+      color: #003D30;
+      border: 1px solid #003D30;
+      cursor: pointer;
+    }
+    .btn-recommend-action:hover {
+      background: #EAF2EF;
+    }
+    .rec-icon {
+      width: 16px;
+      height: 16px;
+    }
+    .faculty-recommendations-section {
+      margin-top: 1.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--color-line-200);
+    }
+    .faculty-rec-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .faculty-cap-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #EAF2EF;
+      color: #003D30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .faculty-cap-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+    .rec-sec-subtitle {
+      font-size: 0.75rem;
+      color: var(--color-charcoal-500);
+      margin: 0.15rem 0 0;
+    }
+    .recommendations-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .rec-item-card {
+      background: #ffffff;
+      border: 1px solid var(--color-line-200);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .quote-bubble {
+      background: #F4F8F6;
+      border: 1px solid #D6E6DF;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .quote-mark {
+      color: #003D30;
+      font-family: Georgia, serif;
+      font-size: 1.3rem;
+      line-height: 1;
+      margin-right: 0.25rem;
+      vertical-align: -0.15rem;
+    }
+    .quote-text {
+      margin: 0;
+      font-size: 0.8125rem;
+      line-height: 1.45;
+      color: var(--color-charcoal-900);
+      display: inline;
+    }
+    .rec-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .faculty-member-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .faculty-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #003D30;
+      color: #ffffff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .faculty-details {
+      display: flex;
+      flex-direction: column;
+    }
+    .faculty-name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--color-charcoal-900);
+    }
+    .faculty-dept {
+      font-size: 0.71875rem;
+      color: var(--color-charcoal-500);
+    }
+    .rec-right-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .rec-date {
+      font-size: 0.75rem;
+      color: var(--color-charcoal-500);
+    }
+    .btn-helpful {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: transparent;
+      border: 1px solid var(--color-line-200);
+      border-radius: 6px;
+      padding: 0.3rem 0.55rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--color-charcoal-600);
+      cursor: pointer;
+    }
+    .btn-helpful.is-helpful {
+      background: #EAF2EF;
+      border-color: #C2D6CF;
+      color: #003D30;
+      font-weight: 600;
+    }
+    .helpful-icon {
+      width: 14px;
+      height: 14px;
+    }
+    .helpful-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.75rem;
+      color: #003D30;
+      font-weight: 600;
+    }
+    .badge-icon {
+      width: 13px;
+      height: 13px;
+    }
+  `]
+})
 export class BookDetailComponent {
-  readonly auth=inject(AuthService);private readonly toast=inject(ToastService);private readonly service=inject(CatalogueService);private readonly route=inject(ActivatedRoute);private readonly router=inject(Router);readonly book=signal<BookDetail|null>(null);readonly digitalEdition=signal<DigitalEdition|null>(null);readonly loading=signal(true);readonly loadError=signal('');readonly error=signal('');readonly pending=signal(false);readonly broken=signal(false);readonly notice=signal('');readonly showSignIn=signal(false);private readonly borrowing=inject(BorrowingService);private id='';
-  constructor(){this.id=this.route.snapshot.paramMap.get('bookId')||'';this.reload()}
-  reload(){this.loading.set(true);this.loadError.set('');this.service.get(this.id).pipe(finalize(()=>this.loading.set(false))).subscribe({next:b=>{this.book.set(b);if(b.hasDigitalEdition){this.service.getDigitalEdition(this.id).subscribe({next:ed=>this.digitalEdition.set(ed),error:()=>this.digitalEdition.set(null)});}else{this.digitalEdition.set(null);}},error:e=>this.loadError.set(e.status===404?'This book record is unavailable.':'The book record could not be loaded.')})}
-  policyLabel(p:string){const labels:Record<string,string>={STANDARD:'Standard circulation',REFERENCE_ONLY:'Reference only',SERIAL_RESTRICTED:'Serial material · restricted',APPROVED_OVERNIGHT_EXCEPTION:'Approved overnight exception'};return labels[p]??p}
-  downloadUrl(id:string){return this.service.digitalEditionDownloadUrl(id);}
-  formatBytes(bytes:number):string{if(!bytes||bytes<=0)return '0 B';const units=['B','KB','MB','GB'];const i=Math.floor(Math.log(bytes)/Math.log(1024));return `${(bytes/Math.pow(1024,i)).toFixed(1)} ${units[i]}`;}
-  openSignIn(){this.showSignIn.set(true)}
-  signInContext(){const title=this.book()?.title;return title?`You selected “${title}”. No request has been sent. After sign-in, review eligibility and submit the request yourself.`:''}
-  requireAuthentication(){this.notice.set('Authentication Required: Please sign in to reserve books. No borrowing request was sent.');this.toast.show('Sign in is required before you can request this book. No request was sent.','warning');this.showSignIn.set(true)}
-  requireAuthForReading(){this.notice.set('Authentication Required: Please sign in to read the digital edition.');this.toast.show('Please sign in to read this book online.','warning');this.showSignIn.set(true)}
-  requireAuthForDownload(){this.notice.set('Authentication Required: Please sign in to download the digital edition.');this.toast.show('Please sign in to download this PDF.','warning');this.showSignIn.set(true)}
-  onSignedIn(profile:UserProfile){this.showSignIn.set(false);this.notice.set(profile.role==='STUDENT'||profile.role==='FACULTY'?'Signed in. You can now request or access digital editions.':'You are signed in as a Librarian.')}
-  requestBook(){const role=this.auth.profile()?.role;if(!role){this.requireAuthentication();return}if(role==='LIBRARIAN'){this.error.set('Librarian accounts cannot submit member borrowing requests.');return}const b=this.book();if(!b||!b.active||b.circulationPolicy!=='STANDARD'||b.availableCopies<1||this.pending())return;this.pending.set(true);this.error.set('');this.notice.set('');this.borrowing.submit(b.id).pipe(finalize(()=>this.pending.set(false))).subscribe({next:()=>{this.notice.set('Request submitted. Track its review in My requests.');this.toast.show('Request submitted. Track its review in My requests.','success')},error:e=>{const message=e.status===409?'This book is no longer eligible or available. Refresh the record.':'Your request could not be submitted. Please try again.';this.error.set(message);this.toast.show(message,'error')}})}
-  deactivate(){if(!this.id||this.pending())return;this.pending.set(true);this.service.deactivate(this.id).pipe(finalize(()=>this.pending.set(false))).subscribe({next:()=>void this.router.navigateByUrl(this.isInsideWorkspace() ? '/workspace/books' : '/books'),error:()=>this.error.set('The book could not be deactivated.')})}
-  isInsideWorkspace(): boolean { return this.router.url.startsWith('/workspace'); }
-  backLink(): string { return this.isInsideWorkspace() ? '/workspace/books' : '/books'; }
-  savedQueryParams(): Record<string, string> { return this.route.snapshot.queryParams; }
-  readLink(id: string): string[] { return this.isInsideWorkspace() ? ['/workspace/books', id, 'read'] : ['/books', id, 'read']; }
+  readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
+  private readonly service = inject(CatalogueService);
+  private readonly recService = inject(RecommendationService);
+  readonly reviewService = inject(ReviewService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly borrowing = inject(BorrowingService);
+  private readonly reservationService = inject(ReservationService);
+  readonly wishlistService = inject(WishlistService);
+
+  readonly book = signal<BookDetail | null>(null);
+  readonly digitalEdition = signal<DigitalEdition | null>(null);
+  readonly recommendations = signal<Recommendation[]>([]);
+  readonly reviews = signal<BookReview[]>([]);
+  readonly reviewSummary = signal<ReviewSummary | null>(null);
+  readonly reviewEligibility = signal<ReviewEligibility | null>(null);
+  readonly activeReservation = signal<ReservationItem | null>(null);
+
+  readonly activeTab = signal<'details' | 'digital' | 'reviews'>('details');
+  readonly inWishlist = computed(() => this.wishlistService.isInWishlist(this.id));
+  readonly showRecommendModal = signal<boolean>(false);
+  readonly showWriteReviewModal = signal<boolean>(false);
+  readonly showSignIn = signal<boolean>(false);
+
+  readonly loading = signal<boolean>(true);
+  readonly loadError = signal<string>('');
+  readonly error = signal<string>('');
+  readonly notice = signal<string>('');
+  readonly pending = signal<boolean>(false);
+  readonly broken = signal<boolean>(false);
+  readonly loadingReviews = signal<boolean>(false);
+  readonly loadingMore = signal<boolean>(false);
+  readonly reviewPage = signal<number>(0);
+  readonly hasMoreReviews = signal<boolean>(false);
+
+  private id = '';
+
+  constructor() {
+    this.id = this.route.snapshot.paramMap.get('bookId') || '';
+    const tabParam = this.route.snapshot.queryParamMap?.get('tab') || this.route.snapshot.fragment;
+    if (tabParam === 'reviews') {
+      this.activeTab.set('reviews');
+    } else if (tabParam === 'digital') {
+      this.activeTab.set('digital');
+    } else {
+      this.activeTab.set('details');
+    }
+    this.reload();
+
+    effect(() => {
+      const profile = this.auth.profile();
+      if (profile && this.id) {
+        this.checkReviewEligibility();
+      }
+    });
+  }
+
+  setTab(tab: 'details' | 'digital' | 'reviews'): void {
+    this.activeTab.set(tab);
+    if (tab === 'reviews') {
+      if (!this.reviewEligibility()) {
+        this.checkReviewEligibility();
+      }
+      this.loadReviewSummary();
+      this.loadReviews(0);
+    }
+  }
+
+  reload(): void {
+    this.loading.set(true);
+    this.loadError.set('');
+    this.service.get(this.id).pipe(finalize(() => this.loading.set(false))).subscribe({
+      next: (b) => {
+        this.book.set(b);
+        if (b.hasDigitalEdition) {
+          this.service.getDigitalEdition(this.id).subscribe({
+            next: (ed) => this.digitalEdition.set(ed),
+            error: () => this.digitalEdition.set(null)
+          });
+        } else {
+          this.digitalEdition.set(null);
+        }
+      },
+      error: (e) => this.loadError.set(e.status === 404 ? 'This book record is unavailable.' : 'The book record could not be loaded.')
+    });
+
+    this.recService.getRecommendationsForBook(this.id).subscribe({
+      next: (recs) => this.recommendations.set(recs),
+      error: () => {}
+    });
+
+    this.loadReviewSummary();
+    this.loadReviews(0);
+    this.checkReviewEligibility();
+    if (this.auth.profile() && this.id) {
+      this.wishlistService.checkStatus([this.id]).subscribe({ error: () => {} });
+    }
+
+    if (this.auth.profile()?.role === 'STUDENT') {
+      this.reservationService.getActiveForBook(this.id).subscribe({
+        next: (res) => this.activeReservation.set(res),
+        error: () => this.activeReservation.set(null)
+      });
+    } else {
+      this.activeReservation.set(null);
+    }
+  }
+
+  loadReviewSummary(): void {
+    if (!this.id) return;
+    this.reviewService.getSummary(this.id).subscribe({
+      next: (summary) => this.reviewSummary.set(summary),
+      error: () => this.reviewSummary.set(null)
+    });
+  }
+
+  loadReviews(page = 0): void {
+    if (!this.id) return;
+    if (page === 0) {
+      this.loadingReviews.set(true);
+    } else {
+      this.loadingMore.set(true);
+    }
+    this.reviewService.getReviews(this.id, page, 10).pipe(
+      finalize(() => {
+        this.loadingReviews.set(false);
+        this.loadingMore.set(false);
+      })
+    ).subscribe({
+      next: (res) => {
+        if (page === 0) {
+          this.reviews.set(res.content);
+        } else {
+          this.reviews.set([...this.reviews(), ...res.content]);
+        }
+        this.reviewPage.set(page);
+        this.hasMoreReviews.set(res.number + 1 < res.totalPages);
+      },
+      error: () => {
+        if (page === 0) this.reviews.set([]);
+      }
+    });
+  }
+
+  loadMoreReviews(): void {
+    if (this.hasMoreReviews() && !this.loadingMore()) {
+      this.loadReviews(this.reviewPage() + 1);
+    }
+  }
+
+  checkReviewEligibility(): void {
+    if (!this.id) {
+      this.reviewEligibility.set(null);
+      return;
+    }
+    this.reviewService.checkEligibility(this.id).subscribe({
+      next: (eligibility) => this.reviewEligibility.set(eligibility),
+      error: () => this.reviewEligibility.set(null)
+    });
+  }
+
+  getStarFilledArray(rating: number): boolean[] {
+    const rounded = Math.round(rating);
+    return [1, 2, 3, 4, 5].map(star => star <= rounded);
+  }
+
+  getAvatarColor(name: string): { bg: string; text: string } {
+    return this.reviewService.getAvatarColor(name);
+  }
+
+  getInitial(name: string): string {
+    if (!name) return 'U';
+    const trimmed = name.trim();
+    return trimmed.charAt(0).toUpperCase();
+  }
+
+  openWriteReviewModal(): void {
+    if (!this.auth.profile()) {
+      this.openSignIn();
+      return;
+    }
+    this.showWriteReviewModal.set(true);
+  }
+
+  onReviewSubmitted(review: BookReview): void {
+    this.showWriteReviewModal.set(false);
+    this.toast.show('Thank you! Your review has been submitted.', 'success');
+    this.loadReviewSummary();
+    this.loadReviews(0);
+    this.checkReviewEligibility();
+    this.activeTab.set('reviews');
+  }
+
+  toggleWishlist(b: BookDetail): void {
+    if (!this.auth.profile()) {
+      this.toast.show('Please sign in to save books to your wishlist.', 'info');
+      this.openSignIn();
+      return;
+    }
+    this.wishlistService.toggleWishlist(b.id).subscribe({
+      next: (added) => {
+        if (added) {
+          this.toast.show(`“${b.title}” added to your wishlist.`, 'success');
+        } else {
+          this.toast.show(`“${b.title}” removed from your wishlist.`, 'info');
+        }
+      },
+      error: (err) => {
+        this.toast.show(err.error?.message || 'Could not update wishlist.', 'error');
+      }
+    });
+  }
+
+  onReadOnline(b: BookDetail): void {
+    if (!this.auth.profile()) {
+      this.requireAuthForReading();
+      return;
+    }
+    if (!b.hasDigitalEdition) {
+      this.toast.show('No digital edition is currently available for this book.', 'warning');
+      return;
+    }
+    const link = this.readLink(b.id);
+    this.router.navigate(link, { queryParams: this.savedQueryParams() });
+  }
+
+  onDownload(b: BookDetail): void {
+    if (!this.auth.profile()) {
+      this.requireAuthForDownload();
+      return;
+    }
+    if (!b.hasDigitalEdition) {
+      this.toast.show('No downloadable digital edition is currently available for this book.', 'warning');
+      return;
+    }
+    window.location.href = this.downloadUrl(b.id);
+  }
+
+  policyLabel(p: string): string {
+    const labels: Record<string, string> = {
+      STANDARD: 'Standard circulation',
+      REFERENCE_ONLY: 'Reference only',
+      SERIAL_RESTRICTED: 'Serial material · restricted',
+      APPROVED_OVERNIGHT_EXCEPTION: 'Approved overnight exception'
+    };
+    return labels[p] ?? p;
+  }
+
+  downloadUrl(id: string): string {
+    return this.service.digitalEditionDownloadUrl(id);
+  }
+
+  formatBytes(bytes: number): string {
+    if (!bytes || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+  }
+
+  openSignIn(): void {
+    this.showSignIn.set(true);
+  }
+
+  signInContext(): string {
+    const title = this.book()?.title;
+    return title ? `You selected “${title}”. No request has been sent. After sign-in, review eligibility and submit the request yourself.` : '';
+  }
+
+  requireAuthentication(): void {
+    this.notice.set('Authentication Required: Please sign in to reserve books. No borrowing request was sent.');
+    this.toast.show('Sign in is required before you can request this book. No request was sent.', 'warning');
+    this.showSignIn.set(true);
+  }
+
+  requireAuthForReading(): void {
+    this.notice.set('Authentication Required: Please sign in to read the digital edition.');
+    this.toast.show('Please sign in to read this book online.', 'warning');
+    this.showSignIn.set(true);
+  }
+
+  requireAuthForDownload(): void {
+    this.notice.set('Authentication Required: Please sign in to download the digital edition.');
+    this.toast.show('Please sign in to download this PDF.', 'warning');
+    this.showSignIn.set(true);
+  }
+
+  onSignedIn(profile: UserProfile): void {
+    this.showSignIn.set(false);
+    this.notice.set(profile.role === 'STUDENT' || profile.role === 'FACULTY' ? 'Signed in. You can now request or access digital editions.' : 'You are signed in as a Librarian.');
+    this.checkReviewEligibility();
+  }
+
+  openRecommendModal(): void {
+    this.showRecommendModal.set(true);
+  }
+
+  onRecommended(rec: Recommendation): void {
+    this.showRecommendModal.set(false);
+    this.toast.show('Thank you for recommending this book to students!', 'success');
+    this.reload();
+  }
+
+  toggleHelpful(rec: Recommendation): void {
+    if (this.auth.profile()?.role !== 'STUDENT') return;
+    if (rec.markedHelpful) {
+      this.recService.removeHelpful(rec.id).subscribe({
+        next: (res) => {
+          rec.helpfulCount = res.helpfulCount;
+          rec.markedHelpful = res.markedHelpful;
+        }
+      });
+    } else {
+      this.recService.markHelpful(rec.id).subscribe({
+        next: (res) => {
+          rec.helpfulCount = res.helpfulCount;
+          rec.markedHelpful = res.markedHelpful;
+        }
+      });
+    }
+  }
+
+  getInitials(name: string): string {
+    if (!name) return 'F';
+    const clean = name.replace(/^(Dr\.|Prof\.|Mr\.|Mrs\.|Ms\.)\s*/i, '');
+    const parts = clean.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+
+  formatDate(dateStr: string): string {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  }
+
+  requestBook(): void {
+    const role = this.auth.profile()?.role;
+    if (!role) {
+      this.requireAuthentication();
+      return;
+    }
+    if (role === 'LIBRARIAN') {
+      this.error.set('Librarian accounts cannot submit member borrowing requests.');
+      return;
+    }
+    const b = this.book();
+    if (!b || !b.active || b.circulationPolicy !== 'STANDARD' || b.availableCopies < 1 || this.pending()) return;
+    this.pending.set(true);
+    this.error.set('');
+    this.notice.set('');
+    this.borrowing.submit(b.id).pipe(finalize(() => this.pending.set(false))).subscribe({
+      next: () => {
+        this.notice.set('Request submitted. Track its review in My requests.');
+        this.toast.show('Request submitted. Track its review in My requests.', 'success');
+      },
+      error: (e) => {
+        const message = e.error?.message || (e.status === 409 ? 'This book is no longer eligible or available under library policies.' : 'Your request could not be submitted. Please try again.');
+        this.error.set(message);
+        this.toast.show(message, 'error');
+      }
+    });
+  }
+
+  reserveBook(): void {
+    const role = this.auth.profile()?.role;
+    if (!role) {
+      this.requireAuthentication();
+      return;
+    }
+    if (role !== 'STUDENT') {
+      this.error.set('Only students can reserve books when copies are unavailable.');
+      return;
+    }
+    const b = this.book();
+    if (!b || !b.active || b.availableCopies > 0 || this.pending()) return;
+    this.pending.set(true);
+    this.error.set('');
+    this.notice.set('');
+    this.reservationService.createReservation(b.id).pipe(finalize(() => this.pending.set(false))).subscribe({
+      next: (res) => {
+        this.activeReservation.set(res);
+        const msg = `Your reservation for "${b.title}" has been placed successfully. You are #${res.queuePosition} in queue.`;
+        this.notice.set(msg);
+        this.toast.show(msg, 'success');
+      },
+      error: (e) => {
+        const message = e.error?.message || 'Could not place reservation. Please try again.';
+        this.error.set(message);
+        this.toast.show(message, 'error');
+      }
+    });
+  }
+
+  deactivate(): void {
+    if (!this.id || this.pending()) return;
+    this.pending.set(true);
+    this.service.deactivate(this.id).pipe(finalize(() => this.pending.set(false))).subscribe({
+      next: () => void this.router.navigateByUrl(this.isInsideWorkspace() ? '/workspace/books' : '/books'),
+      error: () => this.error.set('The book could not be deactivated.')
+    });
+  }
+
+  isInsideWorkspace(): boolean {
+    return this.router.url.startsWith('/workspace');
+  }
+
+  backLink(): string {
+    return this.isInsideWorkspace() ? '/workspace/books' : '/books';
+  }
+
+  savedQueryParams(): Record<string, string> {
+    return this.route.snapshot.queryParams;
+  }
+
+  readLink(id: string): string[] {
+    return this.isInsideWorkspace() ? ['/workspace/books', id, 'read'] : ['/books', id, 'read'];
+  }
 }
 @Component({selector:'app-book-editor',standalone:true,imports:[ReactiveFormsModule,RouterLink],template:`
 <header class="page-heading"><p class="eyebrow">LIBRARIAN · CATALOGUE</p><h1>{{editing?'Edit book':'Add a book'}}</h1><p class="muted">Maintain the verified catalogue record. Availability is calculated from managed copies.</p></header>@if(editing){<section class="inventory-summary surface-card" aria-labelledby="inventory-summary-title"><div class="inventory-summary-heading"><div><p class="eyebrow">PHYSICAL INVENTORY</p><h2 id="inventory-summary-title">Current copies</h2></div><a class="button button-secondary" [routerLink]="['/workspace/librarian/books',id,'copies']">Manage physical copies</a></div>@if(inventory();as counts){<dl class="inventory-counts"><div><dt>Total copies</dt><dd>{{counts.totalCopies}}</dd></div><div><dt>Available</dt><dd>{{counts.availableCopies}}</dd></div><div><dt>On loan</dt><dd>{{counts.onLoanCopies}}</dd></div><div><dt>Lost</dt><dd>{{counts.lostCopies}}</dd></div><div><dt>Damaged</dt><dd>{{counts.damagedCopies}}</dd></div><div><dt>Withdrawn</dt><dd>{{counts.withdrawnCopies}}</dd></div></dl><p class="field-hint">Total includes withdrawn records; all figures come from physical-copy records.</p>

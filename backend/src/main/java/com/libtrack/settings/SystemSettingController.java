@@ -36,6 +36,17 @@ public class SystemSettingController {
         return ResponseEntity.ok(settingService.getAllSettings());
     }
 
+    @GetMapping("/library-info")
+    public ResponseEntity<LibraryInfoRecord> getLibraryInfo() {
+        return ResponseEntity.ok(settingService.getLibraryInfo());
+    }
+
+    @PutMapping("/library-info")
+    public ResponseEntity<LibraryInfoRecord> updateLibraryInfo(@Valid @RequestBody LibraryInfoRecord request,
+                                                               Authentication auth) {
+        return ResponseEntity.ok(settingService.updateLibraryInfo(request, accountId(auth)));
+    }
+
     @PutMapping("/{key}")
     public ResponseEntity<SettingRecord> updateSetting(@PathVariable String key,
                                                        @Valid @RequestBody UpdateSettingRequest request,

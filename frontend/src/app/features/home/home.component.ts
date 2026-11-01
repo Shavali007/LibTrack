@@ -15,7 +15,7 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
       <header class="page-heading">
         <div>
           <p class="eyebrow">STUDENT WORKSPACE · {{ today }}</p>
-          <h1>Welcome back</h1>
+          <h1>Welcome, {{ auth.profile()?.displayName || 'back' }}!</h1>
           <p class="muted">{{ auth.profile()?.email }}</p>
         </div>
         <span class="status-badge status-badge-success">Student account</span>
@@ -154,7 +154,7 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
       <header class="page-heading">
         <div>
           <p class="eyebrow">FACULTY WORKSPACE</p>
-          <h1>Welcome to LibTrack</h1>
+          <h1>Welcome, {{ auth.profile()?.displayName || 'Faculty Member' }}!</h1>
           <p class="muted">{{ auth.profile()?.email }}</p>
         </div>
         <span class="status-badge status-badge-success">Faculty account</span>
@@ -310,7 +310,7 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
     .page-heading p { margin-bottom: 0; }
     .welcome-banner { display: flex; min-height: 9rem; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.75rem; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid var(--color-line-200); border-radius: var(--radius-panel); background: #f0efe6; }
     .welcome-banner .eyebrow { margin-bottom: 0.45rem; }
-    .welcome-banner h2 { margin-bottom: 0.5rem; font-size: clamp(1.45rem, 3vw, 1.9rem); }
+    .welcome-banner h2 { margin-bottom: 0.5rem; font-family: var(--font-serif); font-size: var(--type-page-title-size); font-weight: var(--type-page-title-weight); line-height: var(--type-page-title-line-height); }
     .welcome-banner p:last-child { max-width: 40rem; margin: 0; color: var(--color-charcoal-700); }
     .banner-book { display: grid; width: 5.5rem; height: 5.5rem; flex: 0 0 auto; place-items: center; border-radius: 50%; color: var(--color-forest-900); background: var(--color-sage-100); font-size: 2rem; }
     
@@ -318,8 +318,8 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
       margin-bottom: 2rem;
     }
     .count-pill {
-      background: var(--color-sage-100, #e8ede9);
-      color: var(--color-forest-900, #1b382b);
+      background: #EAF2EF;
+      color: #003D30;
       padding: 0.2rem 0.65rem;
       border-radius: 999px;
       font-size: 0.75rem;
@@ -362,7 +362,7 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
       width: 2.75rem;
       height: 3.8rem;
       border-radius: 4px;
-      background: var(--color-forest-900, #1b382b);
+      background: #003D30;
       color: #fff;
       display: grid;
       place-items: center;
@@ -380,7 +380,7 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      color: var(--color-forest-900, #1b382b);
+      color: #003D30;
     }
     .book-meta p {
       margin: 0;
@@ -396,9 +396,9 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
       white-space: nowrap;
     }
     .countdown-normal {
-      background: #e8f5e9;
-      color: #2e7d32;
-      border: 1px solid #c8e6c9;
+      background: #EAF2EF;
+      color: #003D30;
+      border: 1px solid #C2D6CF;
     }
     .countdown-warning {
       background: #fff8e1;
@@ -436,7 +436,7 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
       color: var(--color-charcoal-900, #222);
     }
     .renewed-tag {
-      color: var(--color-forest-800, #15803d);
+      color: #003D30;
       font-size: 0.78rem;
     }
     .available-tag {
@@ -458,7 +458,7 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
 
     .dashboard-section { margin-top: 1.5rem; }
     .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
-    .dashboard-section > h2, .section-heading h2 { margin-bottom: 0.75rem; }
+    .dashboard-section > h2, .section-heading h2 { margin-bottom: 0.75rem; font-family: var(--font-sans); font-size: var(--type-section-heading-size); font-weight: var(--type-section-heading-weight); }
     .activity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
     .activity-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.85rem; min-height: 7rem; padding: 1rem; color: inherit; text-decoration: none; }
     .activity-card:hover { border-color: var(--color-sage-500); box-shadow: var(--shadow-panel); }
@@ -467,10 +467,10 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
     .activity-card p { margin: 0; color: var(--color-charcoal-600); font-size: 0.78rem; }
     .activity-card > span:nth-child(2) { min-width: 0; }
     .empty-state { padding: 2rem 1.5rem; text-align: center; }
-    .empty-state h3 { margin: 0 0 0.35rem; font-size: 1.15rem; color: var(--color-forest-900, #1b382b); }
+    .empty-state h3 { margin: 0 0 0.35rem; font-size: 1.15rem; color: #003D30; }
     .loading-state { padding: 2rem; text-align: center; color: var(--color-charcoal-500, #666); }
     .alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.88rem; }
-    .alert-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-success { background: #EAF2EF; color: #003D30; border: 1px solid #C2D6CF; }
     .alert-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
     .button {
       padding: 0.5rem 0.9rem;
@@ -485,8 +485,8 @@ import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
       text-decoration: none;
     }
     .button-sm { padding: 0.35rem 0.75rem; font-size: 0.78rem; }
-    .button-primary { background: var(--color-forest-900, #1b382b); color: #fff; }
-    .button-primary:hover:not(:disabled) { background: #234837; }
+    .button-primary { background: #003D30; color: #fff; }
+    .button-primary:hover:not(:disabled) { background: #002B22; }
     .button-secondary { background: #fff; border-color: var(--color-sand-300, #d5d0c7); color: var(--color-charcoal-800, #333); }
     .button-secondary:hover:not(:disabled) { background: var(--color-sand-50, #fcfbfa); }
     .button:disabled { opacity: 0.6; cursor: not-allowed; }

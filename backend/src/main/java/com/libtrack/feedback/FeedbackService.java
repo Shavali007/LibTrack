@@ -75,7 +75,8 @@ public class FeedbackService {
                 f.getCategory(),
                 f.getSubject(),
                 f.getMessage(),
-                f.getCreatedAt()
+                f.getCreatedAt(),
+                acc.getDisplayName()
         );
     }
 }

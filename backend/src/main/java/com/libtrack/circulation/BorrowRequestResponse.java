@@ -16,11 +16,19 @@ public record BorrowRequestResponse(
     Instant submittedAt,
     Instant decidedAt,
     String decisionReason,
-    List<BorrowRequestEventResponse> history
+    List<BorrowRequestEventResponse> history,
+    String borrowerDisplayName
 ) {
     public BorrowRequestResponse(UUID id, UUID bookId, String bookTitle, String coverImageUrl, String borrowerEmail,
                                  BorrowRequestStatus status, Instant submittedAt, Instant decidedAt, String decisionReason,
                                  List<BorrowRequestEventResponse> history) {
-        this(id, bookId, bookTitle, coverImageUrl, borrowerEmail, null, null, status, submittedAt, decidedAt, decisionReason, history);
+        this(id, bookId, bookTitle, coverImageUrl, borrowerEmail, null, null, status, submittedAt, decidedAt, decisionReason, history, null);
+    }
+
+    public BorrowRequestResponse(UUID id, UUID bookId, String bookTitle, String coverImageUrl, String borrowerEmail,
+                                 String borrowerInstitutionalId, String borrowerRole, BorrowRequestStatus status,
+                                 Instant submittedAt, Instant decidedAt, String decisionReason,
+                                 List<BorrowRequestEventResponse> history) {
+        this(id, bookId, bookTitle, coverImageUrl, borrowerEmail, borrowerInstitutionalId, borrowerRole, status, submittedAt, decidedAt, decisionReason, history, null);
     }
 }

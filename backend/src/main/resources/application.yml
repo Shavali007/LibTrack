@@ -40,3 +40,6 @@ libtrack:
     digital-books-dir: ${LIBTRACK_STORAGE_DIR:./storage/digital-books}
   digital-edition:
     max-file-size: ${LIBTRACK_MAX_FILE_SIZE:25MB}
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}

@@ -192,9 +192,11 @@ public class FineService {
         Book book = copy.getBook();
         UserAccount borrower = fine.getBorrower();
 
-        String borrowerName = borrower.getInstitutionalId() != null
-                ? borrower.getInstitutionalId()
-                : borrower.getEmail().split("@")[0];
+        String borrowerName = borrower.getDisplayName() != null && !borrower.getDisplayName().isBlank()
+                ? borrower.getDisplayName()
+                : (borrower.getInstitutionalId() != null
+                    ? borrower.getInstitutionalId()
+                    : borrower.getEmail().split("@")[0]);
 
         List<FinePayment> payments = finePaymentRepository.findByFineIdWithDetails(fine.getId());
         List<FinePaymentResponse> paymentResponses = payments.stream()

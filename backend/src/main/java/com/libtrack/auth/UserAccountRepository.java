@@ -15,11 +15,18 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID>,
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select account from UserAccount account where account.email = :email")
     Optional<UserAccount> findByEmailForUpdate(@Param("email") String email);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select account from UserAccount account where account.id = :id")
+    Optional<UserAccount> findByIdForUpdate(@Param("id") UUID id);
     Optional<UserAccount> findByIdAndEnabledTrue(UUID id);
     boolean existsByEmail(String email);
     boolean existsByInstitutionalId(String institutionalId);
     boolean existsByRole(AccountRole role);
+    Optional<UserAccount> findFirstByRoleAndEnabledTrue(AccountRole role);
 
     @Query("select count(u) from UserAccount u where u.enabled = true and (u.role = com.libtrack.auth.AccountRole.STUDENT or u.role = com.libtrack.auth.AccountRole.FACULTY)")
     long countActiveMembers();
+
+    @Query("select count(u) from UserAccount u where u.approvalStatus = :status and (u.role = com.libtrack.auth.AccountRole.STUDENT or u.role = com.libtrack.auth.AccountRole.FACULTY)")
+    long countByApprovalStatusForMembers(@Param("status") ApprovalStatus status);
 }

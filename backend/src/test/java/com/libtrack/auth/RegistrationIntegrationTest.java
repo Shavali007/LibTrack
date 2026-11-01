@@ -26,14 +26,15 @@ class RegistrationIntegrationTest {
     @Autowired PasswordEncoder encoder;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    @Test void studentAndFacultyRegistrationStoresHashedPendingAccountsWithoutInstitutionalIds() throws Exception {
+    @Test void studentAndFacultyRegistrationStoresHashedPendingAccountsWithExtractedStudentId() throws Exception {
         String studentEmail = studentEmail();
         register(studentEmail, "STUDENT", "SecurePass1!").andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("PENDING_VERIFICATION"));
+                .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
         UserAccount student = accounts.findByEmail(studentEmail.toLowerCase(Locale.ROOT)).orElseThrow();
         assertEquals(AccountRole.STUDENT, student.getRole());
         assertFalse(student.isEnabled());
-        assertNull(student.getInstitutionalId());
+        assertNotNull(student.getInstitutionalId());
+        assertEquals(InstitutionalEmailPolicy.extractStudentId(studentEmail), student.getInstitutionalId());
         assertNull(student.getIdentityVerifiedAt());
         assertEquals(ProvisioningSource.SELF_REGISTRATION, student.getProvisioningSource());
         assertTrue(encoder.matches("SecurePass1!", student.getPasswordHash()));
@@ -77,7 +78,9 @@ class RegistrationIntegrationTest {
     @Test void registrationNormalizesEmailRejectsDuplicatesAndNeverAllowsLibrarianRole() throws Exception {
         String email = studentEmail();
         register(email, "STUDENT", "SecurePass1!").andExpect(status().isAccepted());
-        register(email.toUpperCase(Locale.ROOT), "STUDENT", "SecurePass1!").andExpect(status().isConflict());
+        register(email.toUpperCase(Locale.ROOT), "STUDENT", "SecurePass1!").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"))
+                .andExpect(jsonPath("$.existingStatus").value("PENDING_APPROVAL"));
         mvc.perform(post("/api/v1/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content(body("admin@vitap.ac.in", "LIBRARIAN", "SecurePass1!", "SecurePass1!")))
                 .andExpect(status().isBadRequest());
@@ -91,7 +94,7 @@ class RegistrationIntegrationTest {
         register(email, "STUDENT", "SecurePass1!").andExpect(status().isAccepted());
         mvc.perform(post("/api/v1/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("email", email, "password", "SecurePass1!"))))
-                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCOUNT_NOT_ACTIVE"));
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCOUNT_PENDING_APPROVAL"));
         mvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized());
     }
 
@@ -115,6 +118,67 @@ class RegistrationIntegrationTest {
                 .content(mapper.writeValueAsString(Map.of("email", email, "password", "LongExistingPass 1!"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("FACULTY"));
         assertTrue(account.isEnabled());
+    }
+
+    @Test void studentEmailExtractsUppercaseIdAndRejectsDuplicateId() throws Exception {
+        String studentEmail1 = "shavali.23mic7248@vitapstudent.ac.in";
+        mvc.perform(post("/api/v1/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "username", "Shavali",
+                        "email", studentEmail1,
+                        "password", "SecurePass1!",
+                        "confirmPassword", "SecurePass1!",
+                        "role", "STUDENT"
+                )))).andExpect(status().isAccepted());
+
+        UserAccount acc1 = accounts.findByEmail(studentEmail1).orElseThrow();
+        assertEquals("23MIC7248", acc1.getInstitutionalId());
+        assertEquals("Shavali", acc1.getDisplayName());
+
+        String studentEmail2 = "other.23mic7248@vitapstudent.ac.in";
+        mvc.perform(post("/api/v1/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "username", "Other Student",
+                        "email", studentEmail2,
+                        "password", "SecurePass1!",
+                        "confirmPassword", "SecurePass1!",
+                        "role", "STUDENT"
+                )))).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
+    }
+
+    @Test void duplicateEmailReturnsAppropriateStatusForApprovedAndRejected() throws Exception {
+        String approvedEmail = "approved.24bce1234@vitapstudent.ac.in";
+        UserAccount approved = UserAccount.pendingSelfRegistration(approvedEmail, encoder.encode("SecurePass1!"), AccountRole.STUDENT, "Approved User", "24BCE1234");
+        approved.activateAfterEmailVerification();
+        accounts.saveAndFlush(approved);
+
+        register(approvedEmail, "STUDENT", "SecurePass1!")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"))
+                .andExpect(jsonPath("$.existingStatus").value("APPROVED"));
+
+        String rejectedEmail = "rejected.24bce5678@vitapstudent.ac.in";
+        UserAccount rejected = UserAccount.pendingSelfRegistration(rejectedEmail, encoder.encode("SecurePass1!"), AccountRole.STUDENT, "Rejected User", "24BCE5678");
+        rejected.reject(UUID.randomUUID(), "Invalid details", null, java.time.Instant.now());
+        accounts.saveAndFlush(rejected);
+
+        register(rejectedEmail, "STUDENT", "SecurePass1!")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"))
+                .andExpect(jsonPath("$.existingStatus").value("REJECTED"));
+    }
+
+    @Test void roleSpecificValidationMessagesReturnedOnInvalidEmail() throws Exception {
+        mvc.perform(post("/api/v1/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content(body("invalid@vitapstudent.ac.in", "STUDENT", "SecurePass1!", "SecurePass1!")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.email").value("Enter a valid VIT-AP student email address."));
+
+        mvc.perform(post("/api/v1/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content(body("a@vitap.ac.in", "FACULTY", "SecurePass1!", "SecurePass1!")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.email").value("Enter a valid VIT-AP faculty email address."));
     }
 
     private org.springframework.test.web.servlet.ResultActions register(String email, String role, String password) throws Exception {

@@ -15,7 +15,10 @@
             "browser": "src/main.ts",
             "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
-            "styles": ["src/styles.scss"]
+            "styles": ["src/styles.scss"],
+            "assets": [
+              { "glob": "**/*", "input": "src/assets", "output": "assets" }
+            ]
           },
           "configurations": {
             "production": { "optimization": { "scripts": true, "styles": true, "fonts": false }, "outputHashing": "all", "sourceMap": false },

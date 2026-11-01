@@ -1,6 +1,8 @@
 package com.libtrack.digital;
 
 import com.libtrack.auth.AccountUserDetails;
+import com.libtrack.review.BookReviewService;
+import com.libtrack.review.DigitalAccessType;
 import java.util.UUID;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -27,9 +29,13 @@ import org.springframework.web.multipart.MultipartFile;
 public class DigitalEditionController {
 
     private final DigitalEditionService digitalEditionService;
+    private final BookReviewService bookReviewService;
 
-    public DigitalEditionController(DigitalEditionService digitalEditionService) {
+    public DigitalEditionController(
+            DigitalEditionService digitalEditionService,
+            BookReviewService bookReviewService) {
         this.digitalEditionService = digitalEditionService;
+        this.bookReviewService = bookReviewService;
     }
 
     @GetMapping("/books/{bookId}/digital-edition")
@@ -77,6 +83,11 @@ public class DigitalEditionController {
         DigitalEditionService.DigitalFileDownload download = digitalEditionService.loadContent(bookId, librarian);
         String safeFilename = download.filename().replaceAll("[\\r\\n\"]", "_");
 
+        UUID userId = extractUserId(authentication);
+        if (userId != null) {
+            bookReviewService.recordDigitalAccess(bookId, userId, DigitalAccessType.READ_ONLINE);
+        }
+
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .contentLength(download.fileSize())
@@ -94,6 +105,11 @@ public class DigitalEditionController {
         boolean librarian = authentication != null && authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_LIBRARIAN"));
         DigitalEditionService.DigitalFileDownload download = digitalEditionService.loadContent(bookId, librarian);
         String safeFilename = download.filename().replaceAll("[\\r\\n\"]", "_");
+
+        UUID userId = extractUserId(authentication);
+        if (userId != null) {
+            bookReviewService.recordDigitalAccess(bookId, userId, DigitalAccessType.DOWNLOAD);
+        }
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)

@@ -13,7 +13,13 @@ public record ProvisionAccountRequest(
         @NotBlank @Size(max = 100) String institutionalId,
         @NotBlank String password,
         @NotNull ProvisionableRole role,
-        @NotNull @AssertTrue Boolean identityVerified) {
+        @NotNull @AssertTrue Boolean identityVerified,
+        @Size(max = 100) String displayName) {
+
+    public ProvisionAccountRequest(String email, String institutionalId, String password,
+                                   ProvisionableRole role, Boolean identityVerified) {
+        this(email, institutionalId, password, role, identityVerified, null);
+    }
 
     @AssertTrue(message = "Password must be at least 12 characters and no more than 72 UTF-8 bytes")
     public boolean isPasswordPolicySatisfied() {
@@ -25,6 +31,7 @@ public record ProvisionAccountRequest(
     @Override
     public String toString() {
         return "ProvisionAccountRequest[email=" + email + ", institutionalId=" + institutionalId
-                + ", password=[REDACTED], role=" + role + ", identityVerified=" + identityVerified + "]";
+                + ", displayName=" + displayName + ", password=[REDACTED], role=" + role
+                + ", identityVerified=" + identityVerified + "]";
     }
 }

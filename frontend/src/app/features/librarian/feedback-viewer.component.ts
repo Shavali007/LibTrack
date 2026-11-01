@@ -80,7 +80,7 @@ import { FeedbackRecord, LibrarianOperationsService } from './librarian-operatio
           <article class="surface-card feedback-card">
             <header class="feedback-header">
               <div class="member-meta">
-                <strong>{{ item.institutionalId || item.memberEmail.split('@')[0] }}</strong>
+                <strong>{{ item.memberDisplayName || item.institutionalId || item.memberEmail.split('@')[0] }}</strong>
                 <span class="role-badge" [class.role-student]="item.role === 'STUDENT'" [class.role-faculty]="item.role === 'FACULTY'">
                   {{ item.role === 'STUDENT' ? 'Student' : 'Faculty' }}
                 </span>
@@ -106,11 +106,19 @@ import { FeedbackRecord, LibrarianOperationsService } from './librarian-operatio
       align-items: flex-start;
       margin-bottom: 1.25rem;
     }
-    .page-heading h1 { margin: 0.2rem 0; font-size: 1.85rem; }
+    .page-heading h1 {
+      font-family: var(--type-page-title-family);
+      font-size: var(--type-page-title-size);
+      font-weight: var(--type-page-title-weight);
+      color: var(--type-page-title-color);
+      margin: 0 0 0.25rem;
+      line-height: var(--type-page-title-line);
+      letter-spacing: var(--letter-spacing-tight);
+    }
     .category-tabs {
       display: flex;
       gap: 0.5rem;
-      border-bottom: 2px solid var(--color-line-200);
+      border-bottom: 1px solid var(--color-line-200);
       margin-bottom: 1.5rem;
       overflow-x: auto;
     }
@@ -118,18 +126,22 @@ import { FeedbackRecord, LibrarianOperationsService } from './librarian-operatio
       background: transparent;
       border: 0;
       border-bottom: 2px solid transparent;
-      margin-bottom: -2px;
-      padding: 0.6rem 0.9rem;
-      font-size: 0.88rem;
-      font-weight: 600;
+      margin-bottom: -1px;
+      padding: 0.65rem 1.15rem;
+      font-size: var(--type-description-size);
+      font-weight: var(--font-weight-semibold);
       color: var(--color-charcoal-600);
       cursor: pointer;
       white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+    .tab-btn:hover {
+      color: var(--color-emerald);
     }
     .tab-btn.active {
-      color: #1b4332;
-      border-bottom-color: #1b4332;
-      font-weight: 700;
+      color: var(--color-emerald);
+      border-bottom-color: var(--color-emerald);
+      font-weight: 650;
     }
     .feedback-grid {
       display: grid;
@@ -171,8 +183,8 @@ import { FeedbackRecord, LibrarianOperationsService } from './librarian-operatio
       gap: 0.75rem;
     }
     .category-pill {
-      background: #e8f3ee;
-      color: #1b4332;
+      background: #EAF2EF;
+      color: #003D30;
       padding: 0.2rem 0.55rem;
       border-radius: 6px;
       font-size: 0.75rem;

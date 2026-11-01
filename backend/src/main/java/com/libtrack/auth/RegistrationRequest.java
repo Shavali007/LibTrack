@@ -2,16 +2,37 @@ package com.libtrack.auth;
 
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record RegistrationRequest(
+        @Size(max = 100) String username,
+        @Size(max = 100) String fullName,
+        @Size(max = 100) String institutionalId,
         @NotBlank @Size(max = 254) String email,
         @NotBlank @Size(max = 72) String password,
         @NotBlank @Size(max = 72) String confirmPassword,
         @NotNull RegistrationRole role) {
+
+    public RegistrationRequest(
+            String fullName,
+            String institutionalId,
+            String email,
+            String password,
+            String confirmPassword,
+            RegistrationRole role) {
+        this(fullName, fullName, institutionalId, email, password, confirmPassword, role);
+    }
+
+    public String effectiveUsername() {
+        if (username != null && !username.isBlank()) return username.strip();
+        if (fullName != null && !fullName.isBlank()) return fullName.strip();
+        return null;
+    }
 
     private static final Pattern UPPERCASE = Pattern.compile(".*[A-Z].*", Pattern.DOTALL);
     private static final Pattern LOWERCASE = Pattern.compile(".*[a-z].*", Pattern.DOTALL);
@@ -32,6 +53,6 @@ public record RegistrationRequest(
     public boolean isPasswordConfirmationMatched() { return password != null && password.equals(confirmPassword); }
 
     @Override public String toString() {
-        return "RegistrationRequest[email=" + email + ", password=[REDACTED], confirmPassword=[REDACTED], role=" + role + "]";
+        return "RegistrationRequest[username=" + effectiveUsername() + ", email=" + email + ", password=[REDACTED], confirmPassword=[REDACTED], role=" + role + "]";
     }
 }

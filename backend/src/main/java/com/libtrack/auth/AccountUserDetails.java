@@ -14,17 +14,20 @@ public final class AccountUserDetails implements UserDetails {
     private final String passwordHash;
     private final AccountRole role;
     private final boolean enabled;
+    private final String displayName;
 
     public AccountUserDetails(UserAccount account) {
         id = account.getId();
         email = account.getEmail();
         passwordHash = account.getPasswordHash();
         role = account.getRole();
-        enabled = account.isEnabled();
+        enabled = account.isEnabled() && account.getApprovalStatus() == ApprovalStatus.APPROVED;
+        displayName = account.getDisplayName();
     }
 
     public UUID getId() { return id; }
     public AccountRole getRole() { return role; }
+    public String getDisplayName() { return displayName; }
     @Override public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }

@@ -67,9 +67,11 @@ public class FinesController {
 
         for (Loan l : overdueEntities) {
             UserAccount borrower = l.getBorrower();
-            String borrowerName = borrower.getInstitutionalId() != null
-                    ? borrower.getInstitutionalId()
-                    : borrower.getEmail().split("@")[0];
+            String borrowerName = borrower.getDisplayName() != null && !borrower.getDisplayName().isBlank()
+                    ? borrower.getDisplayName()
+                    : (borrower.getInstitutionalId() != null
+                        ? borrower.getInstitutionalId()
+                        : borrower.getEmail().split("@")[0]);
             long daysOverdue = ChronoUnit.DAYS.between(l.getDueDate(), today);
 
             overdueLoans.add(new OverdueLoanItem(

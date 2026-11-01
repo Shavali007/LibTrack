@@ -4,8 +4,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { of } from 'rxjs';
 import { AuthService, UserProfile } from '../auth/auth.service';
 import { BookListComponent } from './book-list.component';
+import { RecommendationService } from '../recommendations/recommendation.service';
 
 describe('BookListComponent', () => {
   let fixture: ComponentFixture<BookListComponent>;
@@ -16,7 +18,13 @@ describe('BookListComponent', () => {
     profile = signal<UserProfile | null>({ id: 'user', email: 'lib@example.edu', role: 'LIBRARIAN' });
     await TestBed.configureTestingModule({
       imports: [BookListComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), { provide: AuthService, useValue: { profile } }],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: AuthService, useValue: { profile } },
+        { provide: RecommendationService, useValue: { getRecommendedBookIds: () => of([]), createRecommendation: () => of({}) } },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(BookListComponent);
     fixture.detectChanges();

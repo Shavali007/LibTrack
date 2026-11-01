@@ -36,6 +36,9 @@ import com.libtrack.circulation.LoanRepository;
 import com.libtrack.circulation.LoanResponse;
 import com.libtrack.circulation.LoanStatus;
 
+import com.libtrack.circulation.AcademicSemesterService;
+import com.libtrack.circulation.UserSemesterRenewalRepository;
+
 @Service
 public class LibrarianMemberService {
     private static final int MAX_PAGE_SIZE = 100;
@@ -45,6 +48,8 @@ public class LibrarianMemberService {
     private final BorrowRequestRepository requests;
     private final LoanEventRepository loanEvents;
     private final BorrowRequestEventRepository requestEvents;
+    private final AcademicSemesterService semesterService;
+    private final UserSemesterRenewalRepository userSemesterRenewals;
     private final Clock clock;
 
     public LibrarianMemberService(UserAccountRepository accounts,
@@ -52,12 +57,16 @@ public class LibrarianMemberService {
                                   BorrowRequestRepository requests,
                                   LoanEventRepository loanEvents,
                                   BorrowRequestEventRepository requestEvents,
+                                  AcademicSemesterService semesterService,
+                                  UserSemesterRenewalRepository userSemesterRenewals,
                                   Clock clock) {
         this.accounts = accounts;
         this.loans = loans;
         this.requests = requests;
         this.loanEvents = loanEvents;
         this.requestEvents = requestEvents;
+        this.semesterService = semesterService;
+        this.userSemesterRenewals = userSemesterRenewals;
         this.clock = clock;
     }
 
@@ -92,7 +101,8 @@ public class LibrarianMemberService {
                 account.isEnabled(),
                 account.getInstitutionalId(),
                 account.getCreatedAt(),
-                loanCounts.getOrDefault(account.getId(), 0L)
+                loanCounts.getOrDefault(account.getId(), 0L),
+                account.getDisplayName()
             )
         ).toList();
 
@@ -126,7 +136,8 @@ public class LibrarianMemberService {
             account.getIdentityVerifiedAt(),
             currentLoans,
             pastLoans,
-            borrowRequests
+            borrowRequests,
+            account.getDisplayName()
         );
     }
 
@@ -149,10 +160,12 @@ public class LibrarianMemberService {
     private LoanResponse toLoanResponse(Loan loan, LocalDate today) {
         Book book = loan.getCopy().getBook();
         boolean overdue = loan.getStatus() == LoanStatus.ACTIVE && loan.getDueDate().isBefore(today);
+        String semesterCode = semesterService.getCurrentSemester().getSemesterCode();
         boolean renewalEligible = loan.getStatus() == LoanStatus.ACTIVE
                 && loan.getRenewalCount() < 1
                 && loan.getCopy().getStatus() == CopyStatus.ON_LOAN
-                && loan.getCopy().getBook().getCirculationPolicy() == CirculationPolicy.STANDARD;
+                && loan.getCopy().getBook().getCirculationPolicy() == CirculationPolicy.STANDARD
+                && !userSemesterRenewals.existsByUser_IdAndSemesterCode(loan.getBorrower().getId(), semesterCode);
 
         List<LoanEventResponse> history = loanEvents.history(loan.getId()).stream()
             .map(e -> new LoanEventResponse(
@@ -182,7 +195,8 @@ public class LibrarianMemberService {
             overdue,
             renewalEligible,
             loan.getReturnNote(),
-            history
+            history,
+            loan.getBorrower().getDisplayName()
         );
     }
 
@@ -207,7 +221,8 @@ public class LibrarianMemberService {
             request.getSubmittedAt(),
             request.getDecidedAt(),
             request.getDecisionReason(),
-            history
+            history,
+            request.getBorrower().getDisplayName()
         );
     }
 }

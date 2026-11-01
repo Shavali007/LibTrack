@@ -5,8 +5,20 @@ import { Component } from '@angular/core';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { of } from 'rxjs';
 import { AuthService, UserProfile } from '../auth/auth.service';
 import { BookDetailComponent, BookEditorComponent } from './book-detail-editor.component';
+import { RecommendationService } from '../recommendations/recommendation.service';
+import { ReviewService } from '../reviews/review.service';
+
+const mockReviewService = {
+  getSummary: () => of({ averageRating: null, totalReviews: 0 }),
+  getReviews: () => of({ content: [], totalElements: 0, totalPages: 0, size: 10, number: 0 }),
+  checkEligibility: () => of({ eligible: false, reason: 'Test', hasReviewed: false, hasBorrowed: false, hasDigitalAccess: false }),
+  submitReview: () => of({}),
+  formatRelativeTime: () => 'just now',
+  getAvatarColor: () => ({ bg: '#E3F2E9', text: '#15803D' })
+};
 
 const book = {
   id: 'book-1', title: 'Available title', isbn: '9780306406157', authors: ['A. Author'], categories: ['Computing'],
@@ -28,6 +40,8 @@ describe('BookDetailComponent public reservation guard', () => {
         provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'book-1' } } } },
         { provide: AuthService, useValue: { profile, login: () => { throw new Error('Login should not be called in this test'); } } },
+        { provide: RecommendationService, useValue: { getRecommendationsForBook: () => of([]), markHelpful: () => of({}), removeHelpful: () => of({}) } },
+        { provide: ReviewService, useValue: mockReviewService },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(BookDetailComponent);
@@ -288,6 +302,8 @@ describe('BookDetailComponent digital edition behavior', () => {
         provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'book-1' } } } },
         { provide: AuthService, useValue: { profile, login: () => {} } },
+        { provide: RecommendationService, useValue: { getRecommendationsForBook: () => of([]), markHelpful: () => of({}), removeHelpful: () => of({}) } },
+        { provide: ReviewService, useValue: mockReviewService },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(BookDetailComponent);

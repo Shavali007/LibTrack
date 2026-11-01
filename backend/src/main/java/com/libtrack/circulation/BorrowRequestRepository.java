@@ -1,4 +1,5 @@
 package com.libtrack.circulation;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,4 +20,6 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest,UUI
  List<BorrowRequest> findRecentDecisions(Pageable pageable);
  long countByStatus(BorrowRequestStatus status);
  List<BorrowRequest> findByBorrower_IdOrderBySubmittedAtDesc(UUID borrowerId);
+ boolean existsByBorrower_IdAndBook_IdAndStatus(UUID borrowerId, UUID bookId, BorrowRequestStatus status);
+ boolean existsByBorrower_IdAndBook_IdAndStatusIn(UUID borrowerId, UUID bookId, Collection<BorrowRequestStatus> statuses);
 }

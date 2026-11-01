@@ -11,5 +11,11 @@ public record MemberSummaryResponse(
     boolean enabled,
     String institutionalId,
     Instant createdAt,
-    long currentLoans
-) {}
+    long currentLoans,
+    String displayName
+) {
+    public MemberSummaryResponse(UUID id, String email, AccountRole role, boolean enabled,
+                                 String institutionalId, Instant createdAt, long currentLoans) {
+        this(id, email, role, enabled, institutionalId, createdAt, currentLoans, null);
+    }
+}

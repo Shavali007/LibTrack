@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
+import { AuthService } from '../auth/auth.service';
 import { CreateNotificationRequest, LibrarianOperationsService, NotificationRecord } from './librarian-operations.service';
 
 @Component({
@@ -11,17 +12,19 @@ import { CreateNotificationRequest, LibrarianOperationsService, NotificationReco
   template: `
     <header class="page-heading">
       <div>
-        <p class="eyebrow">LIBRARIAN WORKSPACE · COMMUNICATIONS</p>
-        <h1>Notifications & Broadcasts</h1>
-        <p class="muted">Operational announcements, overdue notices, system alerts, and role-based bulletins.</p>
+        <p class="eyebrow">{{ isLibrarian() ? 'LIBRARIAN WORKSPACE · COMMUNICATIONS' : 'CAMPUS LIBRARY · NOTIFICATIONS' }}</p>
+        <h1>{{ isLibrarian() ? 'Notifications & Broadcasts' : 'Notifications' }}</h1>
+        <p class="muted">{{ isLibrarian() ? 'Operational announcements, overdue notices, system alerts, and role-based bulletins.' : 'Reservation updates, hold notifications, and library notices.' }}</p>
       </div>
       <div class="header-actions">
         <button class="button button-secondary" type="button" (click)="markAllRead()" [disabled]="pending() || !hasUnread()">
           ✓ Mark All Read
         </button>
-        <button class="button button-primary" type="button" (click)="openBroadcastModal()">
-          + Send Broadcast
-        </button>
+        @if (isLibrarian()) {
+          <button class="button button-primary" type="button" (click)="openBroadcastModal()">
+            + Send Broadcast
+          </button>
+        }
       </div>
     </header>
 
@@ -162,7 +165,7 @@ import { CreateNotificationRequest, LibrarianOperationsService, NotificationReco
       align-items: flex-start;
       margin-bottom: 1.5rem;
     }
-    .page-heading h1 { margin: 0.2rem 0; font-size: 1.85rem; }
+    .page-heading h1 { margin: 0.2rem 0; font-family: var(--font-serif); font-size: var(--type-page-title-size); font-weight: var(--type-page-title-weight); line-height: var(--type-page-title-line-height); }
     .header-actions {
       display: flex;
       gap: 0.75rem;
@@ -194,8 +197,8 @@ import { CreateNotificationRequest, LibrarianOperationsService, NotificationReco
       background: var(--color-line-300);
     }
     .dot-unread {
-      background: #1b4332;
-      box-shadow: 0 0 0 3px rgba(27, 67, 50, 0.2);
+      background: #003D30;
+      box-shadow: 0 0 0 3px rgba(0, 61, 48, 0.2);
     }
     .item-meta {
       display: flex;
@@ -205,8 +208,8 @@ import { CreateNotificationRequest, LibrarianOperationsService, NotificationReco
       flex-wrap: wrap;
     }
     .category-badge {
-      background: #e8f3ee;
-      color: #1b4332;
+      background: #EAF2EF;
+      color: #003D30;
       padding: 0.15rem 0.5rem;
       border-radius: 4px;
       font-size: 0.72rem;
@@ -262,7 +265,7 @@ import { CreateNotificationRequest, LibrarianOperationsService, NotificationReco
       padding: 1.25rem 1.5rem;
       border-bottom: 1px solid var(--color-line-200);
     }
-    .modal-header h2 { margin: 0.2rem 0 0; font-size: 1.35rem; }
+    .modal-header h2 { margin: 0.2rem 0 0; font-family: var(--font-sans); font-size: var(--type-modal-title-size); font-weight: var(--type-modal-title-weight); }
     .close-btn {
       background: transparent;
       border: 0;
@@ -291,6 +294,11 @@ import { CreateNotificationRequest, LibrarianOperationsService, NotificationReco
 })
 export class NotificationCenterComponent implements OnInit {
   private readonly opsService = inject(LibrarianOperationsService);
+  private readonly auth = inject(AuthService);
+
+  isLibrarian(): boolean {
+    return this.auth.profile()?.role === 'LIBRARIAN';
+  }
 
   readonly notifications = signal<NotificationRecord[]>([]);
   readonly loading = signal(true);

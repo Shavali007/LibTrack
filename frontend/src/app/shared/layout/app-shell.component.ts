@@ -1,10 +1,10 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { finalize } from 'rxjs';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, finalize } from 'rxjs';
 import { AuthService } from '../../features/auth/auth.service';
-import { BorrowingService } from '../../features/circulation/borrowing.service';
 import { LibrarianOperationsService } from '../../features/librarian/librarian-operations.service';
+import { MemberRequestsService } from '../../features/librarian/member-requests.service';
 
 @Component({
   selector: 'app-shell',
@@ -13,144 +13,337 @@ import { LibrarianOperationsService } from '../../features/librarian/librarian-o
   template: `
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="app-frame">
-      <!-- Sidebar matching mockup -->
+      <!-- Fixed Dark Emerald Left Sidebar matching Reference (width: ~293px) -->
       <aside class="sidebar" aria-label="Application navigation">
-        <a class="brand-lockup" routerLink="/" aria-label="LibTrack public home">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="brand-svg">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-            </svg>
-          </span>
-          <span class="brand-copy">
-            <strong>LibTrack</strong>
-            <small>VIT-AP Library</small>
-          </span>
-        </a>
+        <!-- Logo / Brand Lockup Card matching IMAGE 1 -->
+        <div class="brand-card">
+          <a class="brand-lockup" routerLink="/workspace" aria-label="LibTrack home">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" class="brand-svg">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              </svg>
+            </span>
+            <span class="brand-copy">
+              <strong class="brand-title">LibTrack</strong>
+              <small class="brand-sub">VIT-AP Library</small>
+            </span>
+          </a>
+        </div>
 
+        <!-- Navigation Links -->
         <nav class="primary-nav" aria-label="Main navigation">
           @if (auth.profile()?.role === 'LIBRARIAN') {
-            <!-- Librarian Navigation matching reference image -->
+            <!-- 1. Dashboard -->
             <a class="nav-link" routerLink="/workspace" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">⌂</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+              </span>
               <span>Dashboard</span>
             </a>
+
+            <!-- 2. Books & Catalogue -->
             <a class="nav-link" routerLink="/workspace/books" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">▤</span>
-              <span>Books & Copies</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+              </span>
+              <span>Books & Catalogue</span>
             </a>
-            <a class="nav-link" routerLink="/workspace/librarian/members" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">👥</span>
-              <span>Members</span>
-            </a>
+
+            <!-- 3. Borrow Requests -->
             <a class="nav-link" routerLink="/workspace/librarian/requests" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">≡</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+              </span>
               <span>Borrow Requests</span>
             </a>
+
+            <!-- 4. Members (Expandable Group matching Mockup) -->
+            <div class="nav-group" [class.is-expanded]="membersExpanded()">
+              <button
+                type="button"
+                class="nav-link nav-group-btn"
+                [class.group-active]="isMembersRouteActive()"
+                (click)="toggleMembersGroup()"
+                aria-label="Toggle Members navigation"
+              >
+                <span class="nav-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                </span>
+                <span class="nav-group-label">Members</span>
+                <span class="nav-chevron" [class.rotated]="membersExpanded()" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </span>
+              </button>
+
+              @if (membersExpanded()) {
+                <div class="nav-sub-items">
+                  <a
+                    class="nav-sub-link"
+                    routerLink="/workspace/librarian/members"
+                    routerLinkActive="active"
+                    [routerLinkActiveOptions]="{ exact: true }"
+                  >
+                    <span class="sub-bullet">•</span>
+                    <span>All Members</span>
+                  </a>
+                  <a
+                    class="nav-sub-link"
+                    routerLink="/workspace/librarian/member-requests"
+                    routerLinkActive="active"
+                  >
+                    <span class="sub-bullet">•</span>
+                    <span>Member Requests</span>
+                    @if (pendingRequestsCount() > 0) {
+                      <span class="sub-badge">({{ pendingRequestsCount() }})</span>
+                    }
+                  </a>
+                </div>
+              }
+            </div>
+
+            <!-- 5. Circulation Desk -->
             <a class="nav-link" routerLink="/workspace/librarian/circulation" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">↔</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+              </span>
               <span>Circulation Desk</span>
             </a>
+
+            <!-- 6. Fines -->
             <a class="nav-link" routerLink="/workspace/librarian/fines" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">₹</span>
+              <span class="nav-icon font-symbol" aria-hidden="true">₹</span>
               <span>Fines</span>
             </a>
+
+            <!-- 7. Reports -->
             <a class="nav-link" routerLink="/workspace/librarian/reports" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">◫</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+              </span>
               <span>Reports</span>
             </a>
+
+            <!-- 8. Feedback -->
             <a class="nav-link" routerLink="/workspace/librarian/feedback" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">💬</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </span>
               <span>Feedback</span>
             </a>
+
+            <!-- 9. Notifications -->
             <a class="nav-link" routerLink="/workspace/librarian/notifications" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">🔔</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+              </span>
               <span>Notifications</span>
               @if (unreadCount() > 0) {
-                <span class="nav-badge">{{ unreadCount() }}</span>
+                <span class="notification-dot" aria-hidden="true"></span>
               }
             </a>
+
+            <!-- 10. Recommendations -->
+            <a class="nav-link" routerLink="/workspace/recommendations" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                  <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                </svg>
+              </span>
+              <span>Recommendations</span>
+            </a>
+
+            <!-- 11. Library Policies -->
+            <a class="nav-link" routerLink="/workspace/library-policies" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+              </span>
+              <span>Library Policies</span>
+            </a>
+
+            <!-- 11. Settings -->
             <a class="nav-link" routerLink="/workspace/librarian/settings" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">⚙</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </span>
               <span>Settings</span>
             </a>
           } @else {
             <!-- Student / Faculty Navigation -->
-            <span class="nav-section-label">WORKSPACE</span>
             <a class="nav-link" routerLink="/workspace" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">⌂</span>
-              <span>Overview</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+              </span>
+              <span>Dashboard</span>
             </a>
             <a class="nav-link" routerLink="/workspace/books" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">⌕</span>
-              <span>Search books</span>
-            </a>
-            <a class="nav-link" routerLink="/workspace/my/borrowings" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">↗</span>
-              <span>My borrowings</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+              </span>
+              <span>Books & Catalogue</span>
             </a>
             <a class="nav-link" routerLink="/workspace/my/requests" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">≡</span>
-              <span>My requests</span>
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              </span>
+              <span>Borrow Requests</span>
             </a>
-            <a class="nav-link" routerLink="/workspace/my/fines" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">₹</span>
-              <span>My fines</span>
+            <a class="nav-link" routerLink="/workspace/my/borrowings" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="17 1 21 5 17 9"></polyline>
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                </svg>
+              </span>
+              <span>My Books</span>
             </a>
-            <a class="nav-link" routerLink="/workspace/my/feedback" routerLinkActive="active" ariaCurrentWhenActive="page">
-              <span class="nav-icon" aria-hidden="true">💬</span>
-              <span>Feedback</span>
+            <a class="nav-link" routerLink="/workspace/wishlist" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </span>
+              <span>My Wishlist</span>
+            </a>
+            @if (auth.profile()?.role === 'STUDENT') {
+              <a class="nav-link" routerLink="/workspace/my/reservations" routerLinkActive="active" ariaCurrentWhenActive="page">
+                <span class="nav-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </span>
+                <span>Reservations</span>
+              </a>
+            }
+            <a class="nav-link" routerLink="/workspace/recommendations" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                  <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                </svg>
+              </span>
+              <span>Recommendations</span>
+            </a>
+            <a class="nav-link" routerLink="/workspace/library-policies" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+              </span>
+              <span>Library Policies</span>
+            </a>
+            <a class="nav-link" [routerLink]="auth.profile()?.role === 'LIBRARIAN' ? '/workspace/librarian/notifications' : '/workspace/notifications'" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+              </span>
+              <span>Notifications</span>
+              @if (unreadCount() > 0) {
+                <span class="sidebar-badge-count">{{ unreadCount() }}</span>
+              }
             </a>
           }
         </nav>
 
-        @if (auth.profile()?.role === 'LIBRARIAN') {
-          <!-- Promotional Promo Card from mockup -->
-          <div class="sidebar-promo-card">
-            <div class="promo-content">
-              <h3>Manage Resources.</h3>
-              <h3>Empower Readers.</h3>
-            </div>
-            <div class="promo-art" aria-hidden="true">🌿</div>
+        <!-- Bottom Academic Promo Card matching IMAGE 1 -->
+        <div class="sidebar-bottom-card" aria-hidden="true">
+          <div class="bottom-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </svg>
           </div>
-        } @else {
-          <div class="sidebar-footer">
-            <span class="status-dot" aria-hidden="true"></span>
-            <span>Library workspace</span>
+          <div class="bottom-copy">
+            <p>Read</p>
+            <p>Learn</p>
+            <p>Grow Together</p>
           </div>
-        }
+        </div>
       </aside>
 
-      <!-- Workspace Area -->
+      <!-- Main Workspace -->
       <div class="workspace">
+        <!-- Clean White Top Header matching IMAGE 1 (height: ~74px) -->
         <header class="topbar">
-          <a class="mobile-brand" routerLink="/">LibTrack</a>
-
-          <!-- Global Search in Topbar matching mockup -->
-          <div class="topbar-search">
-            <span class="topbar-search-icon" aria-hidden="true">⌕</span>
+          <!-- Search input with icon and Ctrl+K badge (~670px wide) -->
+          <div class="topbar-search-wrap">
+            <div class="search-lens-box" aria-hidden="true">
+              <svg class="search-lens-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
             <input
+              #searchInput
               type="search"
               [(ngModel)]="searchQuery"
               (keyup.enter)="onSearchSubmit()"
-              placeholder="Search books by title, author, subject or ISBN…"
+              placeholder="Search books by title, author, subject or ISBN..."
               aria-label="Search books"
+              class="topbar-search-input"
             />
-            <div class="category-dropdown-wrap">
-              <select [(ngModel)]="searchCategory" (change)="onSearchSubmit()" aria-label="Search category">
-                <option value="">All</option>
-                <option value="Computing">Computing</option>
-                <option value="Engineering">Engineering</option>
-                <option value="Mathematics">Mathematics</option>
-              </select>
-            </div>
+            <kbd class="shortcut-pill" (click)="focusSearch(searchInput)">Ctrl K</kbd>
           </div>
 
-          <!-- Account Controls on Right -->
-          <div class="account-area">
-            <!-- Notifications Bell -->
+          <!-- Right Area: Notifications & User Profile -->
+          <div class="topbar-right">
+            <!-- Notification Bell -->
             <a
-              routerLink="/workspace/librarian/notifications"
+              [routerLink]="auth.profile()?.role === 'LIBRARIAN' ? '/workspace/librarian/notifications' : '/workspace/notifications'"
               class="topbar-bell-btn"
               [title]="unreadCount() + ' notifications'"
               aria-label="Notifications"
@@ -160,433 +353,713 @@ import { LibrarianOperationsService } from '../../features/librarian/librarian-o
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
               </svg>
               @if (unreadCount() > 0) {
-                <span class="bell-dot" aria-hidden="true"></span>
+                <span class="bell-badge">{{ unreadCount() }}</span>
               }
             </a>
 
-            <!-- Avatar & User Menu -->
-            <div class="user-pill">
-              <span class="avatar" aria-hidden="true">{{ initials }}</span>
-              <div class="account-copy">
-                <strong>{{ roleLabel }}</strong>
-              </div>
+            <!-- User Menu with Avatar and Details -->
+            <div class="user-profile-menu">
               <button
-                class="button button-quiet signout-button"
                 type="button"
-                (click)="signOut()"
-                [disabled]="pending()"
-                aria-label="Sign out of LibTrack"
+                class="user-profile-trigger"
+                (click)="toggleUserMenu()"
+                [attr.aria-expanded]="userMenuOpen()"
+                aria-label="User profile options"
               >
-                {{ pending() ? 'Signing out…' : 'Sign out' }}
+                <span class="user-avatar" aria-hidden="true">{{ initials }}</span>
+                <div class="user-text">
+                  <span class="user-name">{{ userDisplayName }}</span>
+                  @if (roleSubheading) {
+                    <span class="user-role">{{ roleSubheading }}</span>
+                  }
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chevron-svg" aria-hidden="true">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
               </button>
+
+              @if (userMenuOpen()) {
+                <div class="user-dropdown-card surface-card" (click)="$event.stopPropagation()">
+                  <div class="dropdown-header">
+                    <strong>{{ auth.profile()?.displayName || auth.profile()?.email }}</strong>
+                    @if (auth.profile()?.displayName) {
+                      <span class="muted" style="display:block;font-size:0.8rem;margin:0.15rem 0 0.35rem">{{ auth.profile()?.email }}</span>
+                    }
+                    <span class="status-badge status-badge-success">{{ auth.profile()?.role }}</span>
+                  </div>
+                  <div class="dropdown-actions">
+                    <button
+                      class="button button-quiet button-sm dropdown-item"
+                      type="button"
+                      (click)="signOut()"
+                      [disabled]="pending()"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-inline">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                      </svg>
+                      {{ pending() ? 'Signing out…' : 'Sign out' }}
+                    </button>
+                  </div>
+                </div>
+              }
             </div>
           </div>
         </header>
 
-        @if (error()) {
-          <div class="shell-alert">
-            <p class="alert alert-error" role="alert">{{ error() }}</p>
-          </div>
-        }
-
+        <!-- Main Content Viewport (horizontal padding: ~46px) -->
         <main class="main-content" id="main-content" tabindex="-1">
           <router-outlet />
         </main>
-
-        <footer class="workspace-footer">
-          <span>LibTrack · VIT-AP Library</span>
-          <span>Academic library services</span>
-        </footer>
       </div>
     </div>
   `,
   styles: [`
-    :host { display: block; min-height: 100vh; }
-    .app-frame { min-height: 100vh; }
+    :host { display: block; min-height: 100vh; background: #FAF9F6; }
+    .app-frame {
+      display: flex;
+      min-height: 100vh;
+      background: #FAF9F6;
+    }
 
-    /* Sidebar */
+    /* Fixed Dark Emerald Sidebar (Width: ~293px) */
     .sidebar {
       position: fixed;
       inset: 0 auto 0 0;
-      z-index: 20;
+      z-index: 40;
       display: flex;
-      width: var(--layout-sidebar);
+      width: 293px;
       flex-direction: column;
-      padding: 1.25rem 0.85rem 1rem;
-      border-right: 1px solid var(--color-line-200);
-      background: var(--color-paper);
+      padding: 1.15rem 0.95rem 1.15rem;
+      background: linear-gradient(180deg, #003D30 0%, #00372B 50%, #002F26 100%);
+      color: #F5F8F5;
       overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+      box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
+      position: fixed;
+    }
+    .sidebar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle at 100% 70%, rgba(255, 255, 255, 0.04) 0%, transparent 55%);
+      pointer-events: none;
+    }
+
+    /* Brand Header in Sidebar matching IMAGE 1 */
+    .brand-card {
+      background: #FFFFFF;
+      border-radius: 12px;
+      padding: 0.95rem 1.15rem;
+      margin: 0.15rem 0.25rem 1.5rem;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
     }
     .brand-lockup {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.25rem 0.5rem 1.4rem;
-      color: var(--color-forest-950);
+      gap: 0.85rem;
       text-decoration: none;
     }
     .brand-mark {
       display: grid;
-      width: 2.4rem;
-      height: 2.4rem;
       place-items: center;
-      border-radius: 6px;
-      color: white;
-      background: #1b4332;
+      color: #003D30;
+      flex-shrink: 0;
     }
     .brand-svg {
-      width: 1.35rem;
-      height: 1.35rem;
+      width: 2rem;
+      height: 2rem;
     }
     .brand-copy {
-      display: grid;
-      gap: 0.1rem;
-      line-height: 1.1;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
     }
-    .brand-copy strong {
-      font: 700 1.25rem/1 var(--font-serif);
-      color: #1b4332;
+    .brand-title {
+      font-family: var(--font-serif);
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #003D30;
+      letter-spacing: -0.01em;
     }
-    .brand-copy small {
-      color: var(--color-sage-700);
-      font-size: 0.62rem;
-      font-weight: 750;
-      letter-spacing: 0.08em;
+    .brand-sub {
+      color: #5A6B63;
+      font-size: 0.8rem;
+      font-weight: 500;
     }
 
+    /* Primary Nav List */
     .primary-nav {
-      display: grid;
-      align-content: start;
-      gap: 0.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      flex: 1;
     }
-    .nav-section-label {
-      padding: 0.6rem 0.7rem 0.3rem;
-      color: var(--color-charcoal-600);
-      font-size: 0.65rem;
-      font-weight: 750;
-      letter-spacing: 0.12em;
-    }
+
     .nav-link {
       position: relative;
       display: flex;
-      min-height: 2.45rem;
+      min-height: 2.85rem;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.45rem 0.75rem;
-      border-radius: 6px;
-      color: var(--color-charcoal-700);
-      font-size: 0.88rem;
-      font-weight: 560;
+      gap: 0.85rem;
+      padding: 0.6rem 1.15rem;
+      border-radius: 10px;
+      color: #FFFFFF;
+      font-size: 15.5px;
+      font-weight: 500;
       text-decoration: none;
       transition: all 0.15s ease;
     }
+
     .nav-link:hover {
-      color: var(--color-forest-950);
-      background: #f4f5ef;
+      color: #FFFFFF;
+      background: #104C3E;
     }
+
     .nav-link.active {
-      background: #1b4332;
-      color: #ffffff;
-      font-weight: 650;
-    }
-    .nav-link.active .nav-icon {
-      color: #ffffff;
-    }
-    .nav-icon {
-      width: 1.15rem;
-      color: var(--color-sage-700);
-      font-size: 1.1rem;
-      text-align: center;
-      display: grid;
-      place-items: center;
-    }
-    .nav-badge {
-      margin-left: auto;
-      display: inline-grid;
-      place-items: center;
-      min-width: 1.25rem;
-      height: 1.25rem;
-      padding: 0 0.35rem;
-      border-radius: 999px;
-      background: #dc2626;
-      color: white;
-      font-size: 0.72rem;
-      font-weight: 700;
+      background: #105B48;
+      border: 1px solid #16765C;
+      color: #FFFFFF;
+      font-weight: 600;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     }
 
-    /* Sidebar Promo Card */
-    .sidebar-promo-card {
-      margin-top: auto;
-      padding: 1.1rem 1rem;
-      border-radius: var(--radius-panel);
-      background: linear-gradient(145deg, #1f2924 0%, #151d19 100%);
-      color: #ffffff;
+    .nav-group {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .promo-content h3 {
-      font: 500 0.82rem/1.3 var(--font-serif);
-      color: #e5ded5;
-      margin: 0;
-    }
-    .promo-art {
-      font-size: 1.4rem;
-      opacity: 0.8;
+      flex-direction: column;
+      gap: 0.2rem;
     }
 
-    .sidebar-footer {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-      margin-top: auto;
-      padding: 0.75rem 0.65rem 0.25rem;
-      border-top: 1px solid var(--color-line-200);
-      color: var(--color-charcoal-600);
-      font-size: 0.75rem;
-    }
-    .status-dot {
-      width: 0.45rem;
-      height: 0.45rem;
-      border-radius: 50%;
-      background: var(--color-forest-700);
-    }
-
-    /* Workspace & Topbar */
-    .workspace {
-      min-height: 100vh;
-      margin-left: var(--layout-sidebar);
-    }
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      display: flex;
-      min-height: 4.25rem;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1.5rem;
-      padding: 0.5rem var(--layout-gutter);
-      border-bottom: 1px solid var(--color-line-200);
-      background: var(--color-paper);
-    }
-    .mobile-brand {
-      display: none;
-      color: var(--color-forest-950);
-      font: 600 1.15rem var(--font-serif);
-      text-decoration: none;
-    }
-
-    /* Topbar Search */
-    .topbar-search {
-      position: relative;
-      flex: 1;
-      max-width: 36rem;
-      display: flex;
-      align-items: center;
-      background: var(--color-ivory-50);
-      border: 1px solid var(--color-line-200);
-      border-radius: var(--radius-control);
-      transition: border-color 0.15s ease;
-    }
-    .topbar-search:focus-within {
-      border-color: #1b4332;
-      box-shadow: 0 0 0 2px rgba(27, 67, 50, 0.1);
-    }
-    .topbar-search-icon {
-      position: absolute;
-      left: 0.75rem;
-      color: var(--color-sage-500);
-      font-size: 1.1rem;
-      pointer-events: none;
-    }
-    .topbar-search input {
+    .nav-group-btn {
       width: 100%;
       border: 0;
       background: transparent;
-      padding: 0.6rem 0.75rem 0.6rem 2.25rem;
-      font-size: 0.85rem;
-      outline: none;
-    }
-    .category-dropdown-wrap {
-      border-left: 1px solid var(--color-line-200);
-      padding: 0 0.5rem;
-    }
-    .category-dropdown-wrap select {
-      border: 0;
-      background: transparent;
-      font-size: 0.8rem;
-      color: var(--color-charcoal-700);
-      outline: none;
       cursor: pointer;
-      padding: 0.35rem 0.25rem;
+      text-align: left;
     }
 
-    /* Account Area */
-    .account-area {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
+    .nav-group-btn.group-active {
+      background: #104C3E;
+      color: #FFFFFF;
     }
-    .topbar-bell-btn {
-      position: relative;
+
+    .nav-group-label {
+      flex: 1;
+    }
+
+    .nav-chevron {
       display: grid;
       place-items: center;
-      width: 2.25rem;
-      height: 2.25rem;
-      border-radius: 50%;
-      color: var(--color-charcoal-700);
+      width: 1rem;
+      height: 1rem;
+      color: rgba(255, 255, 255, 0.7);
+      transition: transform 0.2s ease;
+    }
+
+    .nav-chevron.rotated {
+      transform: rotate(180deg);
+    }
+
+    .nav-chevron svg {
+      width: 1rem;
+      height: 1rem;
+    }
+
+    .nav-sub-items {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding-left: 1.5rem;
+      margin-top: 0.15rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .nav-sub-link {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.5rem 0.95rem;
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 14px;
+      font-weight: 500;
       text-decoration: none;
-      transition: background 0.15s ease;
+      transition: all 0.15s ease;
     }
-    .topbar-bell-btn:hover {
-      background: var(--color-ivory-50);
-      color: var(--color-forest-950);
+
+    .nav-sub-link:hover {
+      color: #FFFFFF;
+      background: #104C3E;
     }
-    .bell-svg {
+
+    .nav-sub-link.active {
+      background: #105B48;
+      color: #FFFFFF;
+      font-weight: 600;
+      box-shadow: inset 0 0 0 1px #16765C;
+    }
+
+    .sub-bullet {
+      font-size: 1.1rem;
+      line-height: 1;
+      opacity: 0.85;
+    }
+
+    .sub-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #6ee7b7;
+      margin-left: 0.35rem;
+    }
+
+    .nav-icon {
+      width: 1.25rem;
+      height: 1.25rem;
+      display: grid;
+      place-items: center;
+      color: #FFFFFF;
+      flex-shrink: 0;
+    }
+    .nav-icon svg {
       width: 1.25rem;
       height: 1.25rem;
     }
-    .bell-dot {
-      position: absolute;
-      top: 0.35rem;
-      right: 0.35rem;
-      width: 0.5rem;
-      height: 0.5rem;
-      background: #dc2626;
-      border-radius: 50%;
-      border: 1.5px solid white;
+    .font-symbol {
+      font-size: 1.35rem;
+      font-weight: 700;
+      line-height: 1;
     }
-    .user-pill {
+
+    .notification-dot {
+      margin-left: auto;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #E53935;
+      box-shadow: 0 0 0 2px #003D30;
+    }
+
+    .sidebar-badge-count {
+      margin-left: auto;
+      background: #E5A93C;
+      color: #1A1A1A;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.1rem 0.48rem;
+      border-radius: 9999px;
+      line-height: 1.2;
+    }
+
+    /* Sidebar bottom promo card matching IMAGE 1 */
+    .sidebar-bottom-card {
+      margin-top: auto;
+      margin-bottom: 0.25rem;
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.85rem;
+      padding: 1rem 1.15rem;
+      border-radius: 12px;
+      background: rgba(0, 47, 38, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #FFFFFF;
     }
-    .avatar {
+    .bottom-icon svg {
+      width: 1.85rem;
+      height: 1.85rem;
+      color: #FFFFFF;
+      flex-shrink: 0;
+    }
+    .bottom-copy p {
+      margin: 0;
+      font-size: 0.82rem;
+      line-height: 1.35;
+      color: #D1E3DC;
+    }
+    .bottom-copy p:last-child {
+      color: #FFFFFF;
+      font-weight: 600;
+    }
+
+    /* Workspace */
+    .workspace {
+      flex: 1;
+      margin-left: 293px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #FAF9F6;
+    }
+
+    /* Clean White Topbar matching IMAGE 1 (Height: ~74px) */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      height: 74px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      padding: 0 46px;
+      background: #FFFFFF;
+      border-bottom: 1px solid #E5E8E2;
+    }
+
+    /* Global Search Box in Topbar (~670px wide) - Robust Flex Layout */
+    .topbar-search-wrap {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      max-width: 670px;
+      height: 44px;
+      padding: 0 0.85rem;
+      gap: 0.75rem;
+      border: 1px solid #E5E8E2;
+      border-radius: 8px;
+      background: #FAF9F6;
+      transition: all 0.15s ease;
+      box-sizing: border-box;
+    }
+    .topbar-search-wrap:focus-within {
+      background: #FFFFFF;
+      border-color: #003D30;
+      box-shadow: 0 0 0 3px rgba(0, 61, 48, 0.1);
+    }
+    .search-lens-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.25rem;
+      height: 1.25rem;
+      flex-shrink: 0;
+      color: #718096;
+      pointer-events: none;
+    }
+    .search-lens-svg {
+      width: 1.15rem;
+      height: 1.15rem;
+    }
+    .topbar-search-wrap input.topbar-search-input {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      min-height: unset;
+      border: none !important;
+      background: transparent !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      outline: none !important;
+      box-shadow: none !important;
+      font-size: 14.5px;
+      color: #2D3748;
+    }
+    .topbar-search-wrap input.topbar-search-input::placeholder {
+      color: #718096;
+    }
+    .shortcut-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      border: 1px solid #CBD5E0;
+      background: #FFFFFF;
+      color: #718096;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
+      margin-left: auto;
+    }
+
+    /* Topbar Right Area */
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .topbar-bell-btn {
+      position: relative;
       display: grid;
-      width: 2.25rem;
-      height: 2.25rem;
+      width: 2.4rem;
+      height: 2.4rem;
       place-items: center;
       border-radius: 50%;
-      color: white;
-      background: #1e3a8a;
-      font-size: 0.82rem;
+      color: #4A5568;
+      text-decoration: none;
+      transition: background-color 0.15s ease;
+    }
+    .topbar-bell-btn:hover {
+      background: #F1F3EE;
+      color: #1A202C;
+    }
+    .bell-svg {
+      width: 1.35rem;
+      height: 1.35rem;
+    }
+    .bell-badge {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: #E53935;
+      color: #FFFFFF;
+      font-size: 10px;
       font-weight: 700;
-    }
-    .account-copy strong {
-      font-size: 0.85rem;
-      color: var(--color-charcoal-900);
-      text-transform: capitalize;
-    }
-    .signout-button {
-      min-height: 2.2rem;
-      font-size: 0.78rem;
+      display: grid;
+      place-items: center;
+      line-height: 1;
     }
 
-    .main-content {
-      width: min(100%, var(--layout-content));
-      min-height: calc(100vh - 8rem);
-      margin: 0 auto;
-      padding: clamp(1.25rem, 3vw, 2.25rem) var(--layout-gutter);
+    /* User Profile Trigger & Dropdown */
+    .user-profile-menu {
+      position: relative;
     }
-    .main-content:focus { outline: none; }
-    .shell-alert {
-      width: min(100%, var(--layout-content));
-      margin: 1rem auto 0;
-      padding: 0 var(--layout-gutter);
-    }
-    .shell-alert p { margin: 0; }
-    .workspace-footer {
+    .user-profile-trigger {
       display: flex;
-      justify-content: space-between;
-      gap: 1rem;
-      padding: 1rem var(--layout-gutter);
-      border-top: 1px solid var(--color-line-200);
-      color: var(--color-charcoal-600);
-      font-size: 0.75rem;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .user-profile-trigger:hover {
+      background: #F7FAFC;
+    }
+    .user-avatar {
+      display: grid;
+      width: 2.5rem;
+      height: 2.5rem;
+      place-items: center;
+      border-radius: 50%;
+      background: #0F2942;
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+    }
+    .user-text {
+      display: flex;
+      flex-direction: column;
+      text-align: left;
+      line-height: 1.25;
+    }
+    .user-name {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #1A202C;
+    }
+    .user-role {
+      font-size: 12px;
+      font-weight: 400;
+      color: #718096;
+    }
+    .chevron-svg {
+      width: 1rem;
+      height: 1rem;
+      color: #718096;
     }
 
-    @media (max-width: 860px) {
+    .user-dropdown-card {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 50;
+      min-width: 15rem;
+      padding: 0.85rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12);
+      border-radius: 8px;
+    }
+    .dropdown-header {
+      padding-bottom: 0.65rem;
+      margin-bottom: 0.65rem;
+      border-bottom: 1px solid var(--color-line-200);
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .dropdown-header strong {
+      font-size: 0.8rem;
+      color: var(--color-charcoal-900);
+      word-break: break-all;
+    }
+    .dropdown-item {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 0.45rem;
+      color: var(--color-danger-700);
+    }
+    .icon-inline {
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+
+    /* Main Content Area (Horizontal padding: ~44px, Vertical padding: 24px top / 28px bottom) */
+    .main-content {
+      padding: 24px 44px 28px;
+      width: 100%;
+      background: #FAF9F6;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
       .sidebar {
-        position: static;
-        width: auto;
-        padding: 0.5rem 1rem;
-        border-right: 0;
-        border-bottom: 1px solid var(--color-line-200);
+        width: 60px;
+        padding: 0.85rem 0.4rem;
       }
-      .brand-lockup, .sidebar-promo-card, .sidebar-footer { display: none; }
-      .primary-nav {
-        display: flex;
-        gap: 0.3rem;
-        overflow-x: auto;
+      .brand-copy, .nav-link span:not(.nav-icon), .sidebar-bottom-card, .user-text {
+        display: none;
       }
-      .nav-link {
-        min-height: 2.25rem;
-        white-space: nowrap;
+      .workspace {
+        margin-left: 60px;
       }
-      .workspace { margin-left: 0; }
-      .mobile-brand { display: inline; }
-      .topbar-search { display: none; }
+      .topbar {
+        padding: 0 1rem;
+      }
+      .main-content {
+        padding: 1.25rem 1rem 2rem;
+      }
     }
   `]
 })
 export class AppShellComponent implements OnInit {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly borrowingService = inject(BorrowingService);
-  private readonly opsService = inject(LibrarianOperationsService);
+  private readonly ops = inject(LibrarianOperationsService);
+  private readonly memberRequestsService = inject(MemberRequestsService);
 
-  readonly pending = signal(false);
-  readonly error = signal<string | null>(null);
   readonly unreadCount = signal(0);
-
+  readonly pending = signal(false);
+  readonly userMenuOpen = signal(false);
+  readonly pendingRequestsCount = signal(0);
+  readonly membersExpanded = signal(true);
   searchQuery = '';
-  searchCategory = '';
 
-  ngOnInit(): void {
-    if (this.auth.profile()?.role === 'LIBRARIAN') {
-      this.opsService.getUnreadCount().subscribe({
-        next: (res) => this.unreadCount.set(res.unreadCount),
-        error: () => {
-          this.borrowingService.queue('PENDING').subscribe({
-            next: (page) => this.unreadCount.set(page.totalElements),
-            error: () => {}
-          });
-        }
-      });
+  toggleMembersGroup(): void {
+    this.membersExpanded.update((v) => !v);
+  }
+
+  isMembersRouteActive(): boolean {
+    return this.router.url.includes('/workspace/librarian/member');
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  handleGlobalShortcuts(event: KeyboardEvent): void {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      const input = document.querySelector('.topbar-search-input') as HTMLInputElement;
+      if (input) input.focus();
+    }
+    if (event.key === 'Escape' && this.userMenuOpen()) {
+      this.userMenuOpen.set(false);
     }
   }
 
-  get roleLabel(): string {
-    const role = this.auth.profile()?.role;
-    if (role === 'LIBRARIAN') return 'Librarian';
-    if (role === 'FACULTY') return 'Faculty';
-    return 'Student';
+  @HostListener('document:click', ['$event'])
+  handleOutsideClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.user-profile-menu') && this.userMenuOpen()) {
+      this.userMenuOpen.set(false);
+    }
+  }
+
+  ngOnInit(): void {
+    this.loadUnreadNotifications();
+    if (this.auth.profile()?.role === 'LIBRARIAN') {
+      this.loadPendingRequestsCount();
+    }
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd)
+    ).subscribe(() => {
+      this.loadUnreadNotifications();
+      if (this.auth.profile()?.role === 'LIBRARIAN') {
+        this.loadPendingRequestsCount();
+      }
+    });
+  }
+
+  loadPendingRequestsCount(): void {
+    this.memberRequestsService.getCounts().subscribe({
+      next: (counts) => this.pendingRequestsCount.set(counts.pending),
+      error: () => {}
+    });
   }
 
   get initials(): string {
-    return this.auth.profile()?.email?.slice(0, 1).toUpperCase() || 'L';
+    const role = this.auth.profile()?.role;
+    if (role === 'STUDENT') return 'S';
+    if (role === 'FACULTY') return 'F';
+    const profile = this.auth.profile();
+    if (profile?.displayName) {
+      return profile.displayName.charAt(0).toUpperCase();
+    }
+    const email = profile?.email || '';
+    if (!email) return 'U';
+    if (role === 'LIBRARIAN') return 'S';
+    return email.slice(0, 1).toUpperCase();
+  }
+
+  get userDisplayName(): string {
+    const role = this.auth.profile()?.role;
+    if (role === 'STUDENT') return 'Student';
+    if (role === 'FACULTY') return 'Faculty';
+    return this.auth.profile()?.displayName || this.roleHeading;
+  }
+
+  get roleHeading(): string {
+    const role = this.auth.profile()?.role;
+    if (role === 'LIBRARIAN') return 'Librarian';
+    if (role === 'FACULTY') return 'Faculty Member';
+    return 'Student';
+  }
+
+  get roleSubheading(): string {
+    const role = this.auth.profile()?.role;
+    if (role === 'STUDENT' || role === 'FACULTY') return '';
+    const profile = this.auth.profile();
+    if (role === 'LIBRARIAN') return 'Library Administrator';
+    if (profile?.displayName) return this.roleHeading;
+    return profile?.email || '';
+  }
+
+  loadUnreadNotifications(): void {
+    this.ops.getUnreadCount().subscribe({
+      next: (res: { unreadCount: number }) => this.unreadCount.set(res.unreadCount),
+      error: () => this.unreadCount.set(0)
+    });
+  }
+
+  focusSearch(input: HTMLInputElement): void {
+    input.focus();
   }
 
   onSearchSubmit(): void {
-    const query = this.searchQuery.trim();
-    const queryParams: Record<string, string> = {};
-    if (query) queryParams['q'] = query;
-    if (this.searchCategory) queryParams['category'] = this.searchCategory;
-    void this.router.navigate(['/workspace/books'], { queryParams });
+    const q = this.searchQuery.trim();
+    void this.router.navigate(['/workspace/books'], {
+      queryParams: { q: q || null },
+      queryParamsHandling: 'merge'
+    });
+  }
+
+  toggleUserMenu(): void {
+    this.userMenuOpen.update((open) => !open);
   }
 
   signOut(): void {
-    if (this.pending()) return;
     this.pending.set(true);
-    this.error.set(null);
-    this.auth.logout()
-      .pipe(finalize(() => this.pending.set(false)))
-      .subscribe({
-        next: () => void this.router.navigateByUrl('/login'),
-        error: () => this.error.set('Sign-out could not be confirmed. Please try again.')
-      });
+    this.auth.logout().pipe(finalize(() => this.pending.set(false))).subscribe({
+      next: () => void this.router.navigate(['/'])
+    });
   }
 }

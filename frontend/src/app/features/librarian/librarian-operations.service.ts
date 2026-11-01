@@ -57,6 +57,7 @@ export interface FeedbackRecord {
   subject: string;
   message: string;
   createdAt: string;
+  memberDisplayName?: string | null;
 }
 
 export interface FeedbackSubmitRequest {
@@ -130,6 +131,71 @@ export interface FineSummary {
   paidFines: number;
   totalCollected: number;
   totalOutstanding: number;
+}
+
+export interface LibraryInfoRecord {
+  libraryName: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  openTime: string;
+  closeTime: string;
+}
+
+export interface HolidayRecord {
+  id: string;
+  holidayDate: string;
+  name: string;
+  createdByEmail: string;
+  createdAt: string;
+}
+
+export interface BorrowingPolicyDto {
+  studentMaxBooks: number;
+  facultyMaxBooks: number;
+  studentLoanDays: number;
+  facultyLoanDays: number;
+  studentMaxRenewals: number;
+  facultyMaxRenewals: number;
+  studentRenewalExtensionDays: number;
+  facultyRenewalExtensionDays: number;
+  studentMaxReservations?: number;
+  facultyMaxReservations?: number;
+  reservationHoldPeriod?: string;
+}
+
+export interface RenewalPolicyDto {
+  maxRenewals: string;
+  extensionPeriod: string;
+  eligibility: string;
+  approval: string;
+  overdueLoans: string;
+}
+
+export interface FinePolicyDto {
+  overdueFinePerDay: string;
+  maxFinePerBook: string;
+  gracePeriod: string;
+  payment: string;
+  lostDamagedBooks: string;
+}
+
+export interface MembershipPolicyDto {
+  eligibleMembers: string;
+  registration: string;
+  accountApproval: string;
+  pendingAccounts: string;
+  rejectedAccounts: string;
+  disabledAccounts: string;
+  duplicateAccounts: string;
+}
+
+export interface LibraryPoliciesRecord {
+  borrowing: BorrowingPolicyDto;
+  renewal: RenewalPolicyDto;
+  fines: FinePolicyDto;
+  membership: MembershipPolicyDto;
+  usageGuidelines: string[];
 }
 
 export interface FinesPolicyResponse {
@@ -210,6 +276,44 @@ export class LibrarianOperationsService {
     return this.csrfHeaders().pipe(
       switchMap(headers => this.http.put<SettingRecord>(`/api/v1/librarian/settings/${encodeURIComponent(key)}`, { value }, { headers }))
     );
+  }
+
+  getLibraryInfo(): Observable<LibraryInfoRecord> {
+    return this.http.get<LibraryInfoRecord>('/api/v1/librarian/settings/library-info');
+  }
+
+  updateLibraryInfo(info: LibraryInfoRecord): Observable<LibraryInfoRecord> {
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.put<LibraryInfoRecord>('/api/v1/librarian/settings/library-info', info, { headers }))
+    );
+  }
+
+  // --- Holiday Calendar ---
+  getHolidays(): Observable<HolidayRecord[]> {
+    return this.http.get<HolidayRecord[]>('/api/v1/holidays');
+  }
+
+  addHoliday(holidayDate: string, name: string): Observable<HolidayRecord> {
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.post<HolidayRecord>('/api/v1/holidays', { holidayDate, name }, { headers }))
+    );
+  }
+
+  updateHoliday(id: string, holidayDate: string, name: string): Observable<HolidayRecord> {
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.put<HolidayRecord>(`/api/v1/holidays/${encodeURIComponent(id)}`, { holidayDate, name }, { headers }))
+    );
+  }
+
+  deleteHoliday(id: string): Observable<void> {
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.delete<void>(`/api/v1/holidays/${encodeURIComponent(id)}`, { headers }))
+    );
+  }
+
+  // --- Fixed Library Policies ---
+  getPolicies(): Observable<LibraryPoliciesRecord> {
+    return this.http.get<LibraryPoliciesRecord>('/api/v1/policies');
   }
 
   // --- Fines ---

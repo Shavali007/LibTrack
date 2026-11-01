@@ -174,14 +174,23 @@ import { LibrarianOperationsService, ReportSummary } from './librarian-operation
       align-items: flex-start;
       margin-bottom: 1.5rem;
     }
-    .page-heading h1 { margin: 0.2rem 0; font-size: 1.85rem; }
+    .page-heading h1 {
+      font-family: var(--type-page-title-family);
+      font-size: var(--type-page-title-size);
+      font-weight: var(--type-page-title-weight);
+      color: var(--type-page-title-color);
+      margin: 0 0 0.25rem;
+      line-height: var(--type-page-title-line);
+      letter-spacing: var(--letter-spacing-tight);
+    }
     .report-section {
       margin-bottom: 2rem;
     }
     .report-section h2 {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: var(--color-charcoal-900);
+      font-family: var(--type-section-heading-family);
+      font-size: var(--type-section-heading-size);
+      font-weight: var(--type-section-heading-weight);
+      color: var(--type-section-heading-color);
       margin-bottom: 0.85rem;
     }
     .metrics-grid {
@@ -200,17 +209,23 @@ import { LibrarianOperationsService, ReportSummary } from './librarian-operation
       display: flex;
       flex-direction: column;
       gap: 0.25rem;
+      box-shadow: var(--shadow-sm);
     }
     .metric-value {
-      font: 700 1.75rem/1.1 var(--font-serif);
-      color: #1b4332;
+      font-family: var(--type-stat-number-family);
+      font-size: var(--type-stat-number-size);
+      font-weight: var(--type-stat-number-weight);
+      line-height: 1.1;
+      color: var(--sidebar-bg);
     }
     .metric-label {
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--color-charcoal-600);
+      font-size: var(--type-stat-label-size);
+      font-weight: var(--type-stat-label-weight);
+      color: var(--type-stat-label-color);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
-    .tone-success .metric-value { color: #166534; }
+    .tone-success .metric-value { color: #003D30; }
     .tone-info .metric-value { color: #1e40af; }
     .tone-warning .metric-value { color: #b45309; }
     .tone-danger .metric-value { color: #b91c1c; }
@@ -271,8 +286,8 @@ import { LibrarianOperationsService, ReportSummary } from './librarian-operation
       display: inline-block;
       padding: 0.2rem 0.55rem;
       border-radius: 6px;
-      background: #e8f3ee;
-      color: #1b4332;
+      background: #EAF2EF;
+      color: #003D30;
       font-weight: 700;
       font-size: 0.82rem;
     }
@@ -288,8 +303,8 @@ import { LibrarianOperationsService, ReportSummary } from './librarian-operation
       font-size: 0.9rem;
     }
     .empty-good {
-      color: #166534;
-      background: #f0fdf4;
+      color: #003D30;
+      background: #EAF2EF;
       border-radius: 8px;
     }
     .book-title-cell {

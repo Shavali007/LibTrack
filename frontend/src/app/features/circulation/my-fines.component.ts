@@ -141,21 +141,26 @@ import { FineRecord } from '../librarian/librarian-operations.service';
       flex-wrap: wrap;
     }
     .page-heading h1 {
-      margin: 0.25rem 0 0.5rem;
-      font-size: 1.85rem;
-      color: var(--color-forest-900, #1b382b);
+      font-family: var(--type-page-title-family);
+      font-size: var(--type-page-title-size);
+      font-weight: var(--type-page-title-weight);
+      color: var(--type-page-title-color);
+      margin: 0 0 0.25rem;
+      line-height: var(--type-page-title-line);
+      letter-spacing: var(--letter-spacing-tight);
     }
     .eyebrow {
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      color: var(--color-forest-700, #2c5943);
+      font-size: var(--font-size-2xs);
+      font-weight: var(--font-weight-bold);
+      letter-spacing: var(--letter-spacing-wider);
+      color: var(--color-charcoal-600);
       margin: 0;
+      text-transform: uppercase;
     }
     .muted {
-      color: var(--color-charcoal-600, #555);
+      color: var(--type-page-subtitle-color);
       margin: 0;
-      font-size: 0.9rem;
+      font-size: var(--type-page-subtitle-size);
     }
     .summary-cards-grid {
       display: grid;
@@ -164,30 +169,33 @@ import { FineRecord } from '../librarian/librarian-operations.service';
       margin-bottom: 1.5rem;
     }
     .stat-card {
-      padding: 1.25rem;
-      border-radius: 8px;
-      background: #fff;
-      border: 1px solid var(--color-sand-200, #e2ded5);
+      padding: 1.15rem 1.25rem;
+      border-radius: var(--radius-panel);
+      background: var(--color-paper);
+      border: 1px solid var(--color-line-200);
+      box-shadow: var(--shadow-sm);
     }
     .stat-label {
-      font-size: 0.75rem;
+      font-size: var(--type-stat-label-size);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-weight: 700;
-      color: var(--color-charcoal-500, #666);
+      letter-spacing: 0.04em;
+      font-weight: var(--type-stat-label-weight);
+      color: var(--type-stat-label-color);
       margin: 0 0 0.5rem;
     }
     .stat-value {
-      font-size: 1.85rem;
-      font-weight: 700;
+      font-family: var(--type-stat-number-family);
+      font-size: var(--type-stat-number-size);
+      font-weight: var(--type-stat-number-weight);
+      line-height: 1.1;
       margin: 0 0 0.25rem;
-      color: var(--color-charcoal-900, #222);
+      color: var(--color-charcoal-900);
     }
     .text-danger {
       color: var(--color-danger-700, #b91c1c);
     }
     .text-success {
-      color: var(--color-forest-800, #15803d);
+      color: #003D30;
     }
     .stat-sub {
       font-size: 0.8rem;
@@ -208,11 +216,11 @@ import { FineRecord } from '../librarian/librarian-operations.service';
     .section-header h2 {
       margin: 0;
       font-size: 1.25rem;
-      color: var(--color-forest-900, #1b382b);
+      color: #003D30;
     }
     .count-badge {
-      background: var(--color-sage-100, #e8ede9);
-      color: var(--color-forest-900, #1b382b);
+      background: #EAF2EF;
+      color: #003D30;
       padding: 0.25rem 0.65rem;
       border-radius: 999px;
       font-size: 0.8rem;
@@ -223,7 +231,7 @@ import { FineRecord } from '../librarian/librarian-operations.service';
       text-align: center;
     }
     .empty-good h3 {
-      color: var(--color-forest-800, #15803d);
+      color: #003D30;
       margin: 0 0 0.5rem;
     }
     .data-table-wrap {
@@ -273,12 +281,12 @@ import { FineRecord } from '../librarian/librarian-operations.service';
       border: 1px solid #fca5a5;
     }
     .status-badge-success {
-      background: #dcfce7;
-      color: #166534;
-      border: 1px solid #86efac;
+      background: #EAF2EF;
+      color: #003D30;
+      border: 1px solid #C2D6CF;
     }
     .receipt-info strong {
-      color: var(--color-forest-900, #1b382b);
+      color: #003D30;
     }
     .loading-state {
       padding: 2rem;

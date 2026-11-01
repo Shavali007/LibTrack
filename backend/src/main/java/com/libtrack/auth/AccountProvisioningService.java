@@ -14,10 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountProvisioningService {
     private final UserAccountRepository accounts;
     private final PasswordEncoder passwordEncoder;
+    private final DisplayNameGenerationService nameGenerationService;
 
-    public AccountProvisioningService(UserAccountRepository accounts, PasswordEncoder passwordEncoder) {
+    public AccountProvisioningService(UserAccountRepository accounts,
+                                     PasswordEncoder passwordEncoder,
+                                     DisplayNameGenerationService nameGenerationService) {
         this.accounts = accounts;
         this.passwordEncoder = passwordEncoder;
+        this.nameGenerationService = nameGenerationService;
     }
 
     @PreAuthorize("hasRole('LIBRARIAN')")
@@ -32,9 +36,13 @@ public class AccountProvisioningService {
             throw new AccountIdentityConflictException();
         }
 
+        String displayName = (request.displayName() != null && !request.displayName().isBlank())
+                ? request.displayName().strip()
+                : nameGenerationService.generateDisplayName(email);
+
         AccountRole role = AccountRole.valueOf(request.role().name());
         UserAccount account = UserAccount.provisionMember(email, passwordEncoder.encode(request.password()),
-                role, institutionalId, librarianId, Instant.now());
+                role, institutionalId, librarianId, Instant.now(), displayName);
         try {
             UserAccount created = accounts.saveAndFlush(account);
             return UserProfileResponse.from(new AccountUserDetails(created));
