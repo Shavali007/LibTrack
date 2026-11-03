@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -38,9 +39,93 @@ public class DigitalEditionStorageService {
     private void initializeDirectory() {
         try {
             Files.createDirectories(storageDir);
+            syncDirectories();
         } catch (IOException ex) {
             throw new DigitalEditionStorageException("Could not initialize digital books storage directory.", ex);
         }
+    }
+
+    private void syncDirectories() {
+        List<Path> candidateDirs = getCandidateStorageDirs();
+        for (Path sourceDir : candidateDirs) {
+            if (!Files.exists(sourceDir) || !Files.isDirectory(sourceDir)) {
+                continue;
+            }
+            try (var stream = Files.list(sourceDir)) {
+                stream.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf"))
+                        .forEach(p -> {
+                            Path dest = storageDir.resolve(p.getFileName().toString());
+                            if (!Files.exists(dest)) {
+                                try {
+                                    Files.copy(p, dest, StandardCopyOption.REPLACE_EXISTING);
+                                    log.info("Synchronized digital edition file {} into {}", p.getFileName(), storageDir);
+                                } catch (IOException e) {
+                                    log.warn("Failed to synchronize digital edition {} to {}", p.getFileName(), storageDir, e);
+                                }
+                            }
+                        });
+            } catch (IOException ex) {
+                log.warn("Error reading candidate digital storage directory {}", sourceDir, ex);
+            }
+        }
+    }
+
+    private List<Path> getCandidateStorageDirs() {
+        List<Path> dirs = new java.util.ArrayList<>();
+        dirs.add(storageDir);
+
+        Path root1 = Paths.get("storage", "digital-books").toAbsolutePath().normalize();
+        if (!dirs.contains(root1)) dirs.add(root1);
+
+        Path root2 = Paths.get("backend", "storage", "digital-books").toAbsolutePath().normalize();
+        if (!dirs.contains(root2)) dirs.add(root2);
+
+        if (storageDir.getParent() != null) {
+            Path parentStorage = storageDir.getParent().resolve("storage").resolve("digital-books").normalize();
+            if (!dirs.contains(parentStorage)) dirs.add(parentStorage);
+
+            Path parentBackendStorage = storageDir.getParent().resolve("backend").resolve("storage").resolve("digital-books").normalize();
+            if (!dirs.contains(parentBackendStorage)) dirs.add(parentBackendStorage);
+        }
+
+        return dirs;
+    }
+
+    private Path findFile(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return null;
+        }
+
+        // Check primary storageDir first
+        Path primary = storageDir.resolve(storageKey).normalize();
+        if (primary.startsWith(storageDir) && Files.exists(primary) && Files.isReadable(primary)) {
+            return primary;
+        }
+
+        // Check candidate directories
+        for (Path candidateDir : getCandidateStorageDirs()) {
+            if (!Files.exists(candidateDir) || !Files.isDirectory(candidateDir)) {
+                continue;
+            }
+            Path candidateFile = candidateDir.resolve(storageKey).normalize();
+            if (candidateFile.startsWith(candidateDir) && Files.exists(candidateFile) && Files.isReadable(candidateFile)) {
+                // Auto-sync into primary storageDir if missing
+                try {
+                    Files.createDirectories(storageDir);
+                    Path target = storageDir.resolve(storageKey).normalize();
+                    if (!Files.exists(target)) {
+                        Files.copy(candidateFile, target, StandardCopyOption.REPLACE_EXISTING);
+                        log.info("Auto-recovered and copied digital edition file {} into {}", storageKey, storageDir);
+                        return target;
+                    }
+                } catch (IOException e) {
+                    log.warn("Could not copy fallback file {} into {}", storageKey, storageDir, e);
+                }
+                return candidateFile;
+            }
+        }
+
+        return null;
     }
 
     public StorageMetadata validateAndStore(MultipartFile file) {
@@ -96,8 +181,8 @@ public class DigitalEditionStorageService {
         if (storageKey == null || storageKey.isBlank()) {
             throw new DigitalEditionNotFoundException("Digital edition storage key is missing.");
         }
-        Path filePath = storageDir.resolve(storageKey).normalize();
-        if (!filePath.startsWith(storageDir) || !Files.exists(filePath) || !Files.isReadable(filePath)) {
+        Path filePath = findFile(storageKey);
+        if (filePath == null) {
             throw new DigitalEditionNotFoundException("The requested digital edition file could not be found in storage.");
         }
         return new FileSystemResource(filePath);
@@ -107,13 +192,17 @@ public class DigitalEditionStorageService {
         if (storageKey == null || storageKey.isBlank()) {
             return;
         }
-        try {
-            Path filePath = storageDir.resolve(storageKey).normalize();
-            if (filePath.startsWith(storageDir)) {
-                Files.deleteIfExists(filePath);
+        for (Path candidateDir : getCandidateStorageDirs()) {
+            try {
+                if (Files.exists(candidateDir)) {
+                    Path candidateFile = candidateDir.resolve(storageKey).normalize();
+                    if (candidateFile.startsWith(candidateDir)) {
+                        Files.deleteIfExists(candidateFile);
+                    }
+                }
+            } catch (IOException ex) {
+                log.warn("Could not delete digital edition file with storage key: {}", storageKey, ex);
             }
-        } catch (IOException ex) {
-            log.warn("Could not delete digital edition file with storage key: {}", storageKey, ex);
         }
     }
 
@@ -121,8 +210,7 @@ public class DigitalEditionStorageService {
         if (storageKey == null || storageKey.isBlank()) {
             return false;
         }
-        Path filePath = storageDir.resolve(storageKey).normalize();
-        return filePath.startsWith(storageDir) && Files.exists(filePath);
+        return findFile(storageKey) != null;
     }
 
     public Path getStorageDir() {

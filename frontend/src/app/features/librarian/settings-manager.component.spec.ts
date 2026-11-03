@@ -22,6 +22,9 @@ describe('SettingsManagerComponent', () => {
   const mockHolidays: HolidayRecord[] = [
     {
       id: 'h-1',
+      fromDate: '2026-01-14',
+      toDate: '2026-01-14',
+      durationDays: 1,
       holidayDate: '2026-01-14',
       name: 'Pongal',
       createdByEmail: 'librarian@vitap.ac.in',
@@ -29,8 +32,10 @@ describe('SettingsManagerComponent', () => {
     },
     {
       id: 'h-2',
-      holidayDate: '2026-03-08',
-      name: "Women's Day",
+      fromDate: '2026-11-07',
+      toDate: '2026-11-09',
+      durationDays: 3,
+      name: 'Diwali Break',
       createdByEmail: 'librarian@vitap.ac.in',
       createdAt: '2026-01-01T00:00:00Z'
     }
@@ -47,16 +52,20 @@ describe('SettingsManagerComponent', () => {
     getLibraryInfoSpy = vi.fn(() => of({ ...mockLibraryInfo }));
     updateLibraryInfoSpy = vi.fn((info: LibraryInfoRecord) => of({ ...info }));
     getHolidaysSpy = vi.fn(() => of([...mockHolidays]));
-    addHolidaySpy = vi.fn((date: string, name: string) => of({
+    addHolidaySpy = vi.fn((fromDate: string, toDate: string, name: string) => of({
       id: 'h-new',
-      holidayDate: date,
+      fromDate,
+      toDate,
+      durationDays: 1,
       name,
       createdByEmail: 'librarian@vitap.ac.in',
       createdAt: new Date().toISOString()
     }));
-    updateHolidaySpy = vi.fn((id: string, date: string, name: string) => of({
+    updateHolidaySpy = vi.fn((id: string, fromDate: string, toDate: string, name: string) => of({
       id,
-      holidayDate: date,
+      fromDate,
+      toDate,
+      durationDays: 1,
       name,
       createdByEmail: 'librarian@vitap.ac.in',
       createdAt: new Date().toISOString()
@@ -67,8 +76,8 @@ describe('SettingsManagerComponent', () => {
       getLibraryInfo: getLibraryInfoSpy as unknown as () => Observable<LibraryInfoRecord>,
       updateLibraryInfo: updateLibraryInfoSpy as unknown as (info: LibraryInfoRecord) => Observable<LibraryInfoRecord>,
       getHolidays: getHolidaysSpy as unknown as () => Observable<HolidayRecord[]>,
-      addHoliday: addHolidaySpy as unknown as (date: string, name: string) => Observable<HolidayRecord>,
-      updateHoliday: updateHolidaySpy as unknown as (id: string, date: string, name: string) => Observable<HolidayRecord>,
+      addHoliday: addHolidaySpy as unknown as (fromDate: string, toDate: string, name: string) => Observable<HolidayRecord>,
+      updateHoliday: updateHolidaySpy as unknown as (id: string, fromDate: string, toDate: string, name: string) => Observable<HolidayRecord>,
       deleteHoliday: deleteHolidaySpy as unknown as (id: string) => Observable<void>
     };
 
@@ -120,7 +129,7 @@ describe('SettingsManagerComponent', () => {
     expect(component.notice()).toContain('Library information saved successfully');
   });
 
-  it('switches to Holiday Calendar tab and loads real holiday records', () => {
+  it('switches to Holiday Calendar tab and renders 5-column table with inclusive durations', () => {
     component.setActiveTab('holidays');
     fixture.detectChanges();
 
@@ -129,35 +138,119 @@ describe('SettingsManagerComponent', () => {
     expect(component.holidays().length).toBe(2);
 
     const el = fixture.nativeElement as HTMLElement;
-    const tableText = el.querySelector('.holidays-table')?.textContent ?? '';
-    expect(tableText).toContain('Pongal');
-    expect(tableText).toContain("Women's Day");
+    const tableHeader = el.querySelector('.holidays-table thead')?.textContent ?? '';
+    expect(tableHeader).toContain('Holiday / Occasion');
+    expect(tableHeader).toContain('From Date');
+    expect(tableHeader).toContain('To Date');
+    expect(tableHeader).toContain('Duration');
+
+    const tableBody = el.querySelector('.holidays-table tbody')?.textContent ?? '';
+    expect(tableBody).toContain('Pongal');
+    expect(tableBody).toContain('1 day');
+    expect(tableBody).toContain('Diwali Break');
+    expect(tableBody).toContain('3 days');
   });
 
-  it('validates duplicate dates when adding holidays and executes deletion', () => {
+  it('calculates duration correctly for single-day and multi-day holiday ranges', () => {
+    expect(component.calculateDurationDays({ fromDate: '2026-11-07', toDate: '2026-11-09' })).toBe(3);
+    expect(component.calculateDurationText({ fromDate: '2026-11-07', toDate: '2026-11-09' })).toBe('3 days');
+
+    expect(component.calculateDurationDays({ fromDate: '2026-01-14', toDate: '2026-01-14' })).toBe(1);
+    expect(component.calculateDurationText({ fromDate: '2026-01-14', toDate: '2026-01-14' })).toBe('1 day');
+  });
+
+  it('validates mandatory fields and date ordering when saving holidays', () => {
     component.setActiveTab('holidays');
     component.openAddHolidayModal();
     expect(component.showHolidayModal()).toBe(true);
 
-    // Duplicate date check
-    component.holidayFormDate = '2026-01-14';
-    component.holidayFormName = 'Duplicate Pongal';
+    // Missing Name
+    component.holidayFormName = '';
+    component.holidayFormFromDate = '2026-12-25';
+    component.holidayFormToDate = '2026-12-25';
     component.saveHoliday();
-
-    expect(component.error()).toContain('already configured for this date');
+    expect(component.error()).toContain('Holiday name is mandatory');
     expect(addHolidaySpy).not.toHaveBeenCalled();
 
-    // Valid add
-    component.holidayFormDate = '2026-04-14';
-    component.holidayFormName = 'Ambedkar Jayanti';
+    // Missing From Date
+    component.holidayFormName = 'Christmas';
+    component.holidayFormFromDate = '';
     component.saveHoliday();
-    expect(addHolidaySpy).toHaveBeenCalledWith('2026-04-14', 'Ambedkar Jayanti');
+    expect(component.error()).toContain('From Date is mandatory');
+    expect(addHolidaySpy).not.toHaveBeenCalled();
 
-    // Delete holiday
+    // Missing To Date
+    component.holidayFormFromDate = '2026-12-25';
+    component.holidayFormToDate = '';
+    component.saveHoliday();
+    expect(component.error()).toContain('To Date is mandatory');
+    expect(addHolidaySpy).not.toHaveBeenCalled();
+
+    // To Date earlier than From Date
+    component.holidayFormFromDate = '2026-12-25';
+    component.holidayFormToDate = '2026-12-20';
+    component.saveHoliday();
+    expect(component.error()).toContain('To Date cannot be earlier than From Date');
+    expect(addHolidaySpy).not.toHaveBeenCalled();
+  });
+
+  it('validates overlapping date ranges against existing holidays', () => {
+    component.setActiveTab('holidays');
+    component.openAddHolidayModal();
+
+    // Overlaps with Diwali Break (2026-11-07 to 2026-11-09)
+    component.holidayFormName = 'Deepavali Eve';
+    component.holidayFormFromDate = '2026-11-08';
+    component.holidayFormToDate = '2026-11-10';
+    component.saveHoliday();
+
+    expect(component.error()).toContain('overlaps with an existing holiday: "Diwali Break"');
+    expect(addHolidaySpy).not.toHaveBeenCalled();
+  });
+
+  it('adds a valid holiday date range and closes modal', () => {
+    component.setActiveTab('holidays');
+    component.openAddHolidayModal();
+
+    component.holidayFormName = 'Christmas Holiday';
+    component.holidayFormFromDate = '2026-12-24';
+    component.holidayFormToDate = '2026-12-26';
+    component.saveHoliday();
+
+    expect(addHolidaySpy).toHaveBeenCalledWith('2026-12-24', '2026-12-26', 'Christmas Holiday');
+    expect(component.showHolidayModal()).toBe(false);
+    expect(component.notice()).toContain('Holiday added successfully');
+  });
+
+  it('edits an existing holiday date range and calls updateHoliday', () => {
+    component.setActiveTab('holidays');
+    const existing = mockHolidays[1]; // Diwali Break
+    component.openEditHolidayModal(existing);
+
+    expect(component.editingHolidayId()).toBe(existing.id);
+    expect(component.holidayFormName).toBe('Diwali Break');
+    expect(component.holidayFormFromDate).toBe('2026-11-07');
+    expect(component.holidayFormToDate).toBe('2026-11-09');
+
+    // Update to 4 days: 2026-11-07 to 2026-11-10
+    component.holidayFormToDate = '2026-11-10';
+    component.saveHoliday();
+
+    expect(updateHolidaySpy).toHaveBeenCalledWith(existing.id, '2026-11-07', '2026-11-10', 'Diwali Break');
+    expect(component.showHolidayModal()).toBe(false);
+    expect(component.notice()).toContain('Holiday updated successfully');
+  });
+
+  it('opens delete confirmation modal and executes deletion', () => {
+    component.setActiveTab('holidays');
     const target = mockHolidays[0];
+
     component.confirmDeleteHoliday(target);
     expect(component.deletingHoliday()?.id).toBe(target.id);
+
     component.executeDeleteHoliday();
     expect(deleteHolidaySpy).toHaveBeenCalledWith(target.id);
+    expect(component.deletingHoliday()).toBeNull();
+    expect(component.notice()).toContain('deleted successfully');
   });
 });

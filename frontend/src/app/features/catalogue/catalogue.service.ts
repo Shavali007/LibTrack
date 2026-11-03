@@ -72,4 +72,9 @@ export interface BookCreate extends BookWrite { numberOfCopies: number; location
   digitalEditionDownloadUrl(bookId: string): string {
     return `/api/v1/books/${bookId}/digital-edition/download`;
   }
+  fetchDigitalEditionBlob(bookId: string): Observable<Blob> {
+    return this.http.get(`/api/v1/books/${bookId}/digital-edition/content`, {
+      responseType: 'blob'
+    });
+  }
 }

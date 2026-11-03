@@ -1,5 +1,6 @@
 package com.libtrack.circulation;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 
@@ -37,34 +38,51 @@ public class DueDateService {
         return calculateDueDate(previousDueDate, RENEWAL_EXTENSION_DAYS);
     }
 
-    public LocalDate calculateDueDate(LocalDate baseDate, int eligibleDays) {
-        if (eligibleDays <= 0) {
-            return baseDate;
+    /**
+     * Centralized due date calculation:
+     * 1. Adds durationDays to baseDate to obtain the normal due date.
+     *    Holidays/Sundays/Mondays occurring during the borrowing period do NOT extend the loan.
+     * 2. Checks if the normal due date falls on Sunday, Monday, or a library holiday range.
+     * 3. Extends by exactly 1 calendar day iteratively until the date is not Sunday,
+     *    not Monday, and not within a configured holiday range.
+     *    Tuesday through Saturday are valid due dates unless configured as holidays.
+     */
+    public LocalDate calculateDueDate(LocalDate baseDate, int durationDays) {
+        if (durationDays < 0) {
+            durationDays = 0;
         }
-        LocalDate current = baseDate;
-        int counted = 0;
-        int safetyLimit = 0;
-        while (counted < eligibleDays) {
-            current = current.plusDays(1);
-            if (++safetyLimit > MAX_SEARCH_DAYS) {
+        LocalDate normalDueDate = baseDate.plusDays(durationDays);
+        return adjustDueDate(normalDueDate);
+    }
+
+    /**
+     * Adjusts a candidate due date according to non-working day rules.
+     */
+    public LocalDate adjustDueDate(LocalDate candidate) {
+        LocalDate current = candidate;
+        int shifted = 0;
+        while (isNonWorkingDay(current)) {
+            if (++shifted > MAX_SEARCH_DAYS) {
                 throw new LibraryCalendarConfigurationException();
             }
-            if (!holidays.existsByHolidayDate(current)) {
-                counted++;
-            }
+            current = current.plusDays(1);
         }
         return current;
     }
 
-    public LocalDate adjust(LocalDate candidate) {
-        LocalDate due = candidate;
-        int shifted = 0;
-        while (holidays.existsByHolidayDate(due)) {
-            if (++shifted > MAX_SEARCH_DAYS) {
-                throw new LibraryCalendarConfigurationException();
-            }
-            due = due.plusDays(1);
+    public boolean isNonWorkingDay(LocalDate date) {
+        DayOfWeek dow = date.getDayOfWeek();
+        if (dow == DayOfWeek.SUNDAY || dow == DayOfWeek.MONDAY) {
+            return true;
         }
-        return due;
+        return isLibraryHoliday(date);
+    }
+
+    public boolean isLibraryHoliday(LocalDate date) {
+        return holidays.isLibraryHoliday(date);
+    }
+
+    public LocalDate adjust(LocalDate candidate) {
+        return adjustDueDate(candidate);
     }
 }

@@ -97,9 +97,9 @@ import { ReservationCounts, ReservationItem, ReservationService } from './reserv
           {{ notice() }}
         </div>
       }
-      @if (error()) {
+      @if (actionError()) {
         <div class="alert alert-error" role="alert">
-          {{ error() }}
+          {{ actionError() }}
         </div>
       }
 
@@ -109,6 +109,25 @@ import { ReservationCounts, ReservationItem, ReservationService } from './reserv
           <div class="state-container loading-state">
             <div class="spinner" aria-hidden="true"></div>
             <p>Loading your reservations…</p>
+          </div>
+        } @else if (error()) {
+          <div class="state-container error-state" role="alert">
+            <div class="error-icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <h3 class="error-title">Unable to Load Reservations</h3>
+            <p class="error-desc">{{ error() }}</p>
+            <button type="button" class="button button-primary retry-btn" (click)="loadData()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              <span>Retry</span>
+            </button>
           </div>
         } @else if (reservations().length === 0) {
           <div class="state-container empty-state">
@@ -917,6 +936,50 @@ import { ReservationCounts, ReservationItem, ReservationService } from './reserv
       line-height: 1.45;
     }
 
+    .error-icon-wrap {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: #fee2e2;
+      color: #991b1b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+
+      svg {
+        width: 32px;
+        height: 32px;
+      }
+    }
+
+    .error-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #991b1b;
+      margin: 0 0 0.5rem;
+    }
+
+    .error-desc {
+      font-size: 0.875rem;
+      color: #5a625d;
+      max-width: 28rem;
+      margin: 0 auto 1.5rem;
+      line-height: 1.45;
+    }
+
+    .retry-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+
+      .btn-icon {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
     /* Modal Dialogs */
     .modal-backdrop {
       position: fixed;
@@ -1074,6 +1137,7 @@ export class MyReservationsComponent implements OnInit {
   readonly counts = signal<ReservationCounts>({ all: 0, waiting: 0, inQueue: 0, readyForPickup: 0, completed: 0, cancelled: 0 });
   readonly loading = signal<boolean>(false);
   readonly error = signal<string | null>(null);
+  readonly actionError = signal<string | null>(null);
   readonly notice = signal<string | null>(null);
 
   readonly cancellingItem = signal<ReservationItem | null>(null);
@@ -1092,6 +1156,7 @@ export class MyReservationsComponent implements OnInit {
   loadData(): void {
     this.loading.set(true);
     this.error.set(null);
+    this.actionError.set(null);
 
     this.reservationService.getCounts().subscribe({
       next: (c) => this.counts.set(c),
@@ -1155,7 +1220,7 @@ export class MyReservationsComponent implements OnInit {
 
   confirmCancel(item: ReservationItem): void {
     this.notice.set(null);
-    this.error.set(null);
+    this.actionError.set(null);
     this.cancellingItem.set(item);
   }
 
@@ -1182,7 +1247,7 @@ export class MyReservationsComponent implements OnInit {
           this.loadData();
         },
         error: (err) => {
-          this.error.set(err?.error?.message || 'Failed to cancel reservation. Please try again.');
+          this.actionError.set(err?.error?.message || 'Failed to cancel reservation. Please try again.');
           this.cancellingItem.set(null);
         }
       });

@@ -144,10 +144,13 @@ export interface LibraryInfoRecord {
 
 export interface HolidayRecord {
   id: string;
-  holidayDate: string;
+  fromDate?: string;
+  toDate?: string;
+  durationDays?: number;
+  holidayDate?: string;
   name: string;
-  createdByEmail: string;
-  createdAt: string;
+  createdByEmail?: string;
+  createdAt?: string;
 }
 
 export interface BorrowingPolicyDto {
@@ -293,15 +296,21 @@ export class LibrarianOperationsService {
     return this.http.get<HolidayRecord[]>('/api/v1/holidays');
   }
 
-  addHoliday(holidayDate: string, name: string): Observable<HolidayRecord> {
+  addHoliday(fromDateOrDate: string, toDateOrName: string, maybeName?: string): Observable<HolidayRecord> {
+    const fromDate = fromDateOrDate;
+    const toDate = maybeName !== undefined ? toDateOrName : fromDateOrDate;
+    const name = maybeName !== undefined ? maybeName : toDateOrName;
     return this.csrfHeaders().pipe(
-      switchMap(headers => this.http.post<HolidayRecord>('/api/v1/holidays', { holidayDate, name }, { headers }))
+      switchMap(headers => this.http.post<HolidayRecord>('/api/v1/holidays', { fromDate, toDate, name }, { headers }))
     );
   }
 
-  updateHoliday(id: string, holidayDate: string, name: string): Observable<HolidayRecord> {
+  updateHoliday(id: string, fromDateOrDate: string, toDateOrName: string, maybeName?: string): Observable<HolidayRecord> {
+    const fromDate = fromDateOrDate;
+    const toDate = maybeName !== undefined ? toDateOrName : fromDateOrDate;
+    const name = maybeName !== undefined ? maybeName : toDateOrName;
     return this.csrfHeaders().pipe(
-      switchMap(headers => this.http.put<HolidayRecord>(`/api/v1/holidays/${encodeURIComponent(id)}`, { holidayDate, name }, { headers }))
+      switchMap(headers => this.http.put<HolidayRecord>(`/api/v1/holidays/${encodeURIComponent(id)}`, { fromDate, toDate, name }, { headers }))
     );
   }
 

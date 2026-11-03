@@ -32,12 +32,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
 public class ReservationService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReservationService.class);
 
     public static final Duration HOLD_DURATION = Duration.ofDays(30);
 
@@ -145,11 +149,16 @@ public class ReservationService {
         BookReservation reservation = new BookReservation(book, student, initialStatus, now);
         BookReservation saved = reservationRepository.saveAndFlush(reservation);
 
-        notificationService.sendSystemNotification(
+        notificationService.sendMemberNotification(
                 student.getId(),
-                "Reservation Created",
-                "Your reservation for " + book.getTitle() + " has been placed successfully.",
-                "RESERVATION"
+                "Reservation Submitted",
+                "\"" + book.getTitle() + "\" has been placed in your reservation queue.",
+                "Your reservation has been created. You will be notified as soon as a physical copy is available for pickup.",
+                "RESERVATION",
+                "RESERVATION",
+                saved.getId(),
+                "/workspace/my/reservations",
+                null
         );
 
         return toResponse(saved);
@@ -188,11 +197,16 @@ public class ReservationService {
         reservation.cancel(now);
         BookReservation saved = reservationRepository.saveAndFlush(reservation);
 
-        notificationService.sendSystemNotification(
+        notificationService.sendMemberNotification(
                 studentId,
                 "Reservation Cancelled",
-                "Your reservation for " + saved.getBook().getTitle() + " has been cancelled.",
-                "RESERVATION"
+                "Your reservation for \"" + saved.getBook().getTitle() + "\" has been cancelled.",
+                "The reservation was removed from the active queue.",
+                "RESERVATION",
+                "RESERVATION",
+                saved.getId(),
+                "/workspace/my/reservations",
+                null
         );
 
         if (copyToRelease != null) {
@@ -297,11 +311,16 @@ public class ReservationService {
             candidate.assignCopyAndHold(copy, req, now, holdExpires);
             reservationRepository.saveAndFlush(candidate);
 
-            notificationService.sendSystemNotification(
+            notificationService.sendMemberNotification(
                     student.getId(),
-                    "Ready for Pickup",
-                    "Good news! " + candidate.getBook().getTitle() + " is now available for you. Please collect it within 1 calendar month.",
-                    "RESERVATION"
+                    "Reservation Update",
+                    "\"" + candidate.getBook().getTitle() + "\" is now ready for pickup.",
+                    "Good news! Your reserved book is now ready for pickup at the circulation desk.",
+                    "RESERVATION",
+                    "RESERVATION",
+                    candidate.getId(),
+                    "/workspace/my/reservations",
+                    null
             );
 
             notifyQueuePositionChanges(bookId);
@@ -332,11 +351,16 @@ public class ReservationService {
             res.expire(now);
             reservationRepository.save(res);
 
-            notificationService.sendSystemNotification(
+            notificationService.sendMemberNotification(
                     res.getStudent().getId(),
                     "Reservation Expired",
-                    "Your reservation for " + res.getBook().getTitle() + " has expired because the pickup period ended.",
-                    "RESERVATION"
+                    "Your hold for \"" + res.getBook().getTitle() + "\" has expired.",
+                    "The pickup period ended and the reservation was expired.",
+                    "RESERVATION",
+                    "RESERVATION",
+                    res.getId(),
+                    "/workspace/my/reservations",
+                    null
             );
 
             if (copy != null) {
@@ -387,14 +411,20 @@ public class ReservationService {
 
     private ReservationResponse toResponse(BookReservation r) {
         Book b = r.getBook();
-        List<String> authors = b.getAuthors().stream().map(Author::getName).toList();
-        String category = b.getCategories().isEmpty() ? "General" : b.getCategories().iterator().next().getName();
+        List<String> authors = (b != null && b.getAuthors() != null)
+                ? b.getAuthors().stream().map(Author::getName).toList()
+                : List.of();
+        String category = (b != null && b.getCategories() != null && !b.getCategories().isEmpty())
+                ? b.getCategories().iterator().next().getName()
+                : "General";
 
         Long queuePosition = null;
         String statusDisplay;
         String availabilityHoldText;
         boolean canCancel = false;
         boolean canBorrowNow = false;
+
+        UUID bookId = b != null ? b.getId() : null;
 
         switch (r.getStatus()) {
             case READY_FOR_PICKUP -> {
@@ -404,18 +434,18 @@ public class ReservationService {
                 canBorrowNow = true;
             }
             case WAITING_FOR_AVAILABILITY -> {
-                long pos = calculateQueuePosition(b.getId(), r.getId());
+                long pos = bookId != null ? calculateQueuePosition(bookId, r.getId()) : 1L;
                 queuePosition = pos;
                 statusDisplay = "Waiting for Availability";
-                availabilityHoldText = calculateEstimatedAvailability(b.getId(), pos);
+                availabilityHoldText = bookId != null ? calculateEstimatedAvailability(bookId, pos) : "—";
                 canCancel = true;
                 canBorrowNow = false;
             }
             case IN_QUEUE -> {
-                long pos = calculateQueuePosition(b.getId(), r.getId());
+                long pos = bookId != null ? calculateQueuePosition(bookId, r.getId()) : 1L;
                 queuePosition = pos;
                 statusDisplay = "In Queue";
-                availabilityHoldText = calculateEstimatedAvailability(b.getId(), pos);
+                availabilityHoldText = bookId != null ? calculateEstimatedAvailability(bookId, pos) : "—";
                 canCancel = true;
                 canBorrowNow = false;
             }
@@ -439,11 +469,11 @@ public class ReservationService {
 
         return new ReservationResponse(
                 r.getId(),
-                b.getId(),
-                b.getTitle(),
+                bookId,
+                b != null ? b.getTitle() : "Unknown Book",
                 authors,
                 category,
-                b.getCoverImageUrl(),
+                b != null ? b.getCoverImageUrl() : null,
                 r.getCreatedAt(),
                 queuePosition,
                 r.getStatus(),
@@ -458,14 +488,18 @@ public class ReservationService {
     }
 
     private long calculateQueuePosition(UUID bookId, UUID reservationId) {
-        List<BookReservation> waiting = reservationRepository.findByBook_IdAndStatusInOrderByCreatedAtAscIdAsc(
-                bookId,
-                List.of(ReservationStatus.WAITING_FOR_AVAILABILITY, ReservationStatus.IN_QUEUE)
-        );
-        for (int i = 0; i < waiting.size(); i++) {
-            if (waiting.get(i).getId().equals(reservationId)) {
-                return i + 1;
+        try {
+            List<BookReservation> waiting = reservationRepository.findByBook_IdAndStatusInOrderByCreatedAtAscIdAsc(
+                    bookId,
+                    List.of(ReservationStatus.WAITING_FOR_AVAILABILITY, ReservationStatus.IN_QUEUE)
+            );
+            for (int i = 0; i < waiting.size(); i++) {
+                if (waiting.get(i).getId().equals(reservationId)) {
+                    return i + 1;
+                }
             }
+        } catch (Exception ex) {
+            log.warn("Error calculating queue position for reservation {}: {}", reservationId, ex.getMessage());
         }
         return 1;
     }
@@ -494,21 +528,29 @@ public class ReservationService {
     }
 
     private String calculateEstimatedAvailability(UUID bookId, long queuePosition) {
-        List<Loan> activeLoans = loanRepository.findByCopy_Book_IdAndStatusOrderByDueDateAsc(bookId, LoanStatus.ACTIVE);
-        if (activeLoans.isEmpty()) {
+        try {
+            List<Loan> activeLoans = loanRepository.findByCopy_Book_IdAndStatusOrderByDueDateAsc(bookId, LoanStatus.ACTIVE);
+            if (activeLoans == null || activeLoans.isEmpty()) {
+                return "—";
+            }
+            int index = (int) queuePosition - 1;
+            if (index < 0 || index >= activeLoans.size()) {
+                return "—";
+            }
+            Loan targetLoan = activeLoans.get(index);
+            if (targetLoan == null || targetLoan.getDueDate() == null) {
+                return "—";
+            }
+            LocalDate dueDate = targetLoan.getDueDate();
+            LocalDate today = LocalDate.now(clock);
+            long days = ChronoUnit.DAYS.between(today, dueDate);
+            if (days <= 0) {
+                return "—";
+            }
+            return "Est. Available in ~" + days + " days";
+        } catch (Exception ex) {
+            log.warn("Error calculating estimated availability for book {}: {}", bookId, ex.getMessage());
             return "—";
         }
-        int index = (int) queuePosition - 1;
-        if (index < 0 || index >= activeLoans.size()) {
-            return "—";
-        }
-        Loan targetLoan = activeLoans.get(index);
-        LocalDate dueDate = targetLoan.getDueDate();
-        LocalDate today = LocalDate.now(clock);
-        long days = ChronoUnit.DAYS.between(today, dueDate);
-        if (days <= 0) {
-            return "—";
-        }
-        return "Est. Available in ~" + days + " days";
     }
 }

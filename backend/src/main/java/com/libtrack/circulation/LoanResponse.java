@@ -21,13 +21,40 @@ public record LoanResponse(
     boolean renewalEligible,
     String returnNote,
     List<LoanEventResponse> history,
-    String borrowerDisplayName
+    String borrowerDisplayName,
+    String borrowerRole,
+    String returnCondition,
+    String processedByEmail,
+    Long daysLeft,
+    String inventoryStatus
 ) {
     public LoanResponse(UUID id, UUID borrowRequestId, UUID bookId, String bookTitle, String coverImageUrl,
                         String copyIdentifier, String borrowerEmail, LoanStatus status, LocalDate issueDate,
                         LocalDate dueDate, LocalDate actualReturnDate, short renewalCount, boolean overdue,
                         boolean renewalEligible, String returnNote, List<LoanEventResponse> history) {
         this(id, borrowRequestId, bookId, bookTitle, coverImageUrl, copyIdentifier, borrowerEmail, status,
-             issueDate, dueDate, actualReturnDate, renewalCount, overdue, renewalEligible, returnNote, history, null);
+             issueDate, dueDate, actualReturnDate, renewalCount, overdue, renewalEligible, returnNote, history,
+             null, null, null, null, null, null);
+    }
+
+    public LoanResponse(UUID id, UUID borrowRequestId, UUID bookId, String bookTitle, String coverImageUrl,
+                        String copyIdentifier, String borrowerEmail, LoanStatus status, LocalDate issueDate,
+                        LocalDate dueDate, LocalDate actualReturnDate, short renewalCount, boolean overdue,
+                        boolean renewalEligible, String returnNote, List<LoanEventResponse> history,
+                        String borrowerDisplayName) {
+        this(id, borrowRequestId, bookId, bookTitle, coverImageUrl, copyIdentifier, borrowerEmail, status,
+             issueDate, dueDate, actualReturnDate, renewalCount, overdue, renewalEligible, returnNote, history,
+             borrowerDisplayName, null, null, null, null, null);
+    }
+
+    public LoanResponse(UUID id, UUID borrowRequestId, UUID bookId, String bookTitle, String coverImageUrl,
+                        String copyIdentifier, String borrowerEmail, LoanStatus status, LocalDate issueDate,
+                        LocalDate dueDate, LocalDate actualReturnDate, short renewalCount, boolean overdue,
+                        boolean renewalEligible, String returnNote, List<LoanEventResponse> history,
+                        String borrowerDisplayName, String borrowerRole, String returnCondition,
+                        String processedByEmail, Long daysLeft) {
+        this(id, borrowRequestId, bookId, bookTitle, coverImageUrl, copyIdentifier, borrowerEmail, status,
+             issueDate, dueDate, actualReturnDate, renewalCount, overdue, renewalEligible, returnNote, history,
+             borrowerDisplayName, borrowerRole, returnCondition, processedByEmail, daysLeft, null);
     }
 }

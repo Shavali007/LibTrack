@@ -25,6 +25,7 @@ import { MemberRequestReviewComponent } from './features/librarian/member-reques
 import { ReportViewerComponent } from './features/librarian/report-viewer.component';
 import { FeedbackViewerComponent } from './features/librarian/feedback-viewer.component';
 import { NotificationCenterComponent } from './features/librarian/notification-center.component';
+import { NotificationsPageComponent } from './features/notifications/notifications-page.component';
 import { SettingsManagerComponent } from './features/librarian/settings-manager.component';
 import { FinesViewerComponent } from './features/librarian/fines-viewer.component';
 import { LibraryPoliciesComponent } from './features/librarian/library-policies.component';
@@ -65,7 +66,7 @@ export const routes: Routes = [
     { path: 'librarian/fines', component: FinesViewerComponent, canMatch: [librarianGuard] },
     { path: 'librarian/reports', component: ReportViewerComponent, canMatch: [librarianGuard] },
     { path: 'librarian/feedback', component: FeedbackViewerComponent, canMatch: [librarianGuard] },
-    { path: 'librarian/notifications', component: NotificationCenterComponent, canMatch: [librarianGuard] },
+    { path: 'librarian/notifications', redirectTo: '/workspace/notifications', pathMatch: 'full' },
     { path: 'library-policies', component: LibraryPoliciesComponent },
     { path: 'library-policies/borrowing', component: BorrowingPolicyComponent },
     { path: 'library-policies/renewal', component: RenewalPolicyComponent },
@@ -79,13 +80,15 @@ export const routes: Routes = [
     { path: 'librarian/library-policies/membership', redirectTo: '/workspace/library-policies/membership', pathMatch: 'full' },
     { path: 'librarian/library-policies/usage', redirectTo: '/workspace/library-policies/usage', pathMatch: 'full' },
     { path: 'librarian/settings', component: SettingsManagerComponent, canMatch: [librarianGuard] },
+    { path: 'dashboard', redirectTo: '', pathMatch: 'full' },
     { path: 'my/requests', component: MyRequestsComponent, canMatch: [memberGuard] },
     { path: 'my/borrowings', component: MyBorrowingsComponent, canMatch: [memberGuard] },
+    { path: 'my/books', redirectTo: '/workspace/my/borrowings', pathMatch: 'full' },
     { path: 'my/reservations', component: MyReservationsComponent, canMatch: [memberGuard] },
     { path: 'wishlist', component: MyWishlistComponent, canMatch: [memberGuard] },
     { path: 'my/wishlist', redirectTo: '/workspace/wishlist', pathMatch: 'full' },
     { path: 'reservations', redirectTo: '/workspace/my/reservations', pathMatch: 'full' },
-    { path: 'notifications', component: NotificationCenterComponent, canMatch: [memberGuard] },
+    { path: 'notifications', component: NotificationsPageComponent },
     { path: 'my/notifications', redirectTo: '/workspace/notifications', pathMatch: 'full' },
     { path: 'my/fines', component: MyFinesComponent, canMatch: [memberGuard] },
     { path: 'my/feedback', component: MemberFeedbackComponent, canMatch: [memberGuard] },

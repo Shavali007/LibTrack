@@ -22,6 +22,7 @@ import com.libtrack.auth.ApprovalStatus;
 import com.libtrack.auth.UserAccount;
 import com.libtrack.auth.UserAccountRepository;
 import com.libtrack.catalogue.PageResponse;
+import com.libtrack.notifications.NotificationService;
 
 @Service
 public class MemberApprovalService {
@@ -29,13 +30,16 @@ public class MemberApprovalService {
 
     private final UserAccountRepository accounts;
     private final MemberApprovalAuditRepository auditRepository;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     public MemberApprovalService(UserAccountRepository accounts,
                                  MemberApprovalAuditRepository auditRepository,
+                                 NotificationService notificationService,
                                  Clock clock) {
         this.accounts = accounts;
         this.auditRepository = auditRepository;
+        this.notificationService = notificationService;
         this.clock = clock;
     }
 
@@ -169,6 +173,18 @@ public class MemberApprovalService {
         );
         auditRepository.saveAndFlush(audit);
 
+        notificationService.sendMemberNotification(
+                account.getId(),
+                "Account Approved",
+                "Your LibTrack membership has been approved.",
+                "Welcome to LibTrack! Your membership has been approved. You can now browse the catalogue and borrow books.",
+                "MEMBER",
+                "MEMBER_REQUEST",
+                account.getId(),
+                "/workspace",
+                null
+        );
+
         return getRequestDetails(requestId);
     }
 
@@ -201,6 +217,18 @@ public class MemberApprovalService {
                 remarks
         );
         auditRepository.saveAndFlush(audit);
+
+        notificationService.sendMemberNotification(
+                account.getId(),
+                "Registration Rejected",
+                "Your LibTrack registration request was not approved.",
+                "Reason: " + request.reason(),
+                "MEMBER",
+                "MEMBER_REQUEST",
+                account.getId(),
+                "/login",
+                null
+        );
 
         return getRequestDetails(requestId);
     }

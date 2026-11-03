@@ -1,0 +1,521 @@
+<div class="notifications-container">
+  <!-- Page Header -->
+  <header class="notifications-header">
+    <div class="header-left">
+      <div class="header-icon-box" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="header-bell-svg">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+      </div>
+      <div class="header-text">
+        <h1 class="page-title">Notifications</h1>
+        <p class="page-subtitle">Stay updated with your library activities and important alerts.</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button
+        type="button"
+        class="header-action-btn"
+        (click)="markAllAsRead()"
+        [disabled]="pendingAction() || notifService.counts().unread === 0"
+        title="Mark all notifications as read"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="btn-icon">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Mark all as read</span>
+      </button>
+
+      <button
+        type="button"
+        class="header-action-btn"
+        (click)="openClearModal()"
+        [disabled]="pendingAction() || notifService.counts().all === 0"
+        title="Clear all notifications"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+        <span>Clear All</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Feedback Banners -->
+  @if (errorMessage()) {
+    <div class="alert alert-error" role="alert">
+      <span>{{ errorMessage() }}</span>
+      <button type="button" class="alert-close" (click)="errorMessage.set(null)">✕</button>
+    </div>
+  }
+  @if (successMessage()) {
+    <div class="alert alert-success" role="status">
+      <span>{{ successMessage() }}</span>
+      <button type="button" class="alert-close" (click)="successMessage.set(null)">✕</button>
+    </div>
+  }
+
+  <!-- Filters & Sorting Bar -->
+  <div class="filters-sorting-bar">
+    <div class="filter-tabs" role="tablist" aria-label="Notification Filters">
+      <button
+        type="button"
+        role="tab"
+        class="tab-btn"
+        [class.active]="activeFilter() === 'ALL'"
+        [attr.aria-selected]="activeFilter() === 'ALL'"
+        (click)="setFilter('ALL')"
+      >
+        All ({{ notifService.counts().all }})
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        class="tab-btn"
+        [class.active]="activeFilter() === 'UNREAD'"
+        [attr.aria-selected]="activeFilter() === 'UNREAD'"
+        (click)="setFilter('UNREAD')"
+      >
+        <span>Unread ({{ notifService.counts().unread }})</span>
+        <span class="tab-red-dot" aria-hidden="true">•</span>
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        class="tab-btn"
+        [class.active]="activeFilter() === 'READ'"
+        [attr.aria-selected]="activeFilter() === 'READ'"
+        (click)="setFilter('READ')"
+      >
+        Read ({{ notifService.counts().read }})
+      </button>
+    </div>
+
+    <div class="sort-control">
+      <label for="notif-sort" class="sr-only">Sort notifications</label>
+      <div class="select-wrapper">
+        <select id="notif-sort" (change)="onSortChange($event)">
+          <option value="LATEST" [selected]="activeSort() === 'LATEST'">Latest First</option>
+          <option value="OLDEST" [selected]="activeSort() === 'OLDEST'">Oldest First</option>
+        </select>
+        <span class="select-chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Two-Column View -->
+  <div class="two-column-layout">
+    <!-- Left Column: Notification List -->
+    <section class="notification-list-col" aria-label="Notifications list">
+      @if (loading()) {
+        <div class="loading-state surface-card">
+          <div class="skeleton skeleton-row"></div>
+          <div class="skeleton skeleton-row"></div>
+          <div class="skeleton skeleton-row"></div>
+        </div>
+      } @else if (notifications().length === 0) {
+        <div class="empty-state surface-card">
+          <div class="empty-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+          </div>
+          <h3>No notifications</h3>
+          <p>
+            @if (activeFilter() === 'UNREAD') {
+              You're all caught up! No unread notifications.
+            } @else if (activeFilter() === 'READ') {
+              You have no read notifications.
+            } @else {
+              No notifications to display.
+            }
+          </p>
+        </div>
+      } @else {
+        <div class="cards-list">
+          @for (item of notifications(); track item.id) {
+            <article
+              class="notification-card surface-card"
+              [class.is-unread]="!isRead(item)"
+              [class.is-selected]="selectedNotification()?.id === item.id"
+              (click)="selectNotification(item)"
+              tabindex="0"
+              (keydown.enter)="selectNotification(item)"
+              (keydown.space)="selectNotification(item); $event.preventDefault()"
+            >
+              <!-- Card Icon -->
+              <div class="card-icon-box" [ngClass]="'icon-' + getIconType(item)">
+                @switch (getIconType(item)) {
+                  @case ('calendar') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                  }
+                  @case ('check-circle') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  }
+                  @case ('arrow-return') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="9 14 4 9 9 4"></polyline>
+                      <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                    </svg>
+                  }
+                  @case ('alert-triangle') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  }
+                  @case ('star') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                  }
+                  @case ('user') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  }
+                  @default {
+                    <!-- Default Book / Book-Due Icon -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    </svg>
+                  }
+                }
+              </div>
+
+              <!-- Card Content -->
+              <div class="card-main">
+                <div class="card-header-row">
+                  <div class="title-with-dot">
+                    <strong class="card-title">{{ item.title }}</strong>
+                    @if (!isRead(item)) {
+                      <span class="card-unread-dot" aria-label="Unread notification">•</span>
+                    }
+                  </div>
+                  <span class="card-timestamp">{{ getRelativeTime(item.createdAt) }}</span>
+                </div>
+                <p class="card-message">{{ item.message }}</p>
+              </div>
+
+              <!-- Chevron -->
+              <div class="card-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- Right Column: Detail Panel -->
+    <aside class="notification-detail-col surface-card" aria-label="Notification details">
+      @if (selectedNotification(); as current) {
+        <div class="detail-container">
+          <!-- Detail Header -->
+          <div class="detail-header">
+            <div class="detail-header-left">
+              <div class="detail-icon-box" [ngClass]="'icon-' + getIconType(current)">
+                @switch (getIconType(current)) {
+                  @case ('calendar') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                  }
+                  @case ('check-circle') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  }
+                  @case ('arrow-return') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="9 14 4 9 9 4"></polyline>
+                      <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                    </svg>
+                  }
+                  @case ('alert-triangle') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  }
+                  @case ('star') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                  }
+                  @default {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    </svg>
+                  }
+                }
+              </div>
+              <div class="detail-title-block">
+                <h2 class="detail-title">{{ current.title }}</h2>
+                <time class="detail-time">{{ current.createdAt | date:'EEEE, h:mm a' }}</time>
+              </div>
+            </div>
+
+            <div class="detail-status-badge" [class.status-unread]="!isRead(current)">
+              <span class="status-dot">•</span>
+              <span>{{ isRead(current) ? 'Read' : 'Unread' }}</span>
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="detail-desc-box">
+            <p class="detail-description">{{ current.fullMessage || current.message }}</p>
+          </div>
+
+          <!-- Book & Metadata Info -->
+          @if (current.metadata; as meta) {
+            <!-- Book Card Preview -->
+            @if (meta.bookTitle) {
+              <div class="book-preview-card">
+                <div class="book-cover-wrap">
+                  @if (meta.bookCoverUrl) {
+                    <img [src]="meta.bookCoverUrl" [alt]="meta.bookTitle || 'Book cover'" class="book-cover-img" />
+                  } @else {
+                    <div class="book-cover-fallback">
+                      <span class="cover-code">{{ meta.bookTitle.substring(0, 2).toUpperCase() }}</span>
+                      <span class="cover-sub">{{ meta.bookSubject || 'LIB' }}</span>
+                    </div>
+                  }
+                </div>
+                <div class="book-info">
+                  <h3 class="book-title">{{ meta.bookTitle }}</h3>
+                  <p class="book-author">{{ meta.bookAuthor }}</p>
+                  @if (meta.bookSubject) {
+                    <span class="subject-pill">{{ meta.bookSubject }}</span>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- Metadata Key-Value List -->
+            <div class="metadata-table">
+              @if (meta.dueDate) {
+                <div class="meta-row">
+                  <span class="meta-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-icon">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    Due Date
+                  </span>
+                  <span class="meta-value due-highlight">
+                    {{ meta.dueDate | date:'MMM dd, y' }}
+                    @if (meta.daysRemaining !== null && meta.daysRemaining !== undefined) {
+                      <span class="meta-subtext">
+                        @if (meta.daysRemaining > 0) {
+                          (in {{ meta.daysRemaining }} days)
+                        } @else if (meta.daysRemaining === 0) {
+                          (due today)
+                        } @else {
+                          ({{ -meta.daysRemaining }} days overdue)
+                        }
+                      </span>
+                    }
+                  </span>
+                </div>
+              }
+
+              @if (meta.loanDisplayCode) {
+                <div class="meta-row">
+                  <span class="meta-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-icon">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    Loan ID
+                  </span>
+                  <span class="meta-value code-value">{{ meta.loanDisplayCode }}</span>
+                </div>
+              }
+
+              @if (meta.queuePosition) {
+                <div class="meta-row">
+                  <span class="meta-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-icon">
+                      <line x1="8" y1="6" x2="21" y2="6"></line>
+                      <line x1="8" y1="12" x2="21" y2="12"></line>
+                      <line x1="8" y1="18" x2="21" y2="18"></line>
+                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    </svg>
+                    Queue Position
+                  </span>
+                  <span class="meta-value queue-highlight">#{{ meta.queuePosition }}</span>
+                </div>
+              }
+
+              @if (meta.pickupDeadline) {
+                <div class="meta-row">
+                  <span class="meta-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-icon">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Pickup Deadline
+                  </span>
+                  <span class="meta-value deadline-highlight">{{ meta.pickupDeadline }}</span>
+                </div>
+              }
+
+              @if (meta.fineAmount) {
+                <div class="meta-row">
+                  <span class="meta-label">Fine Amount</span>
+                  <span class="meta-value fine-highlight">₹{{ meta.fineAmount }}</span>
+                </div>
+              }
+
+              @if (meta.applicantName) {
+                <div class="meta-row">
+                  <span class="meta-label">Applicant</span>
+                  <span class="meta-value">{{ meta.applicantName }} ({{ meta.applicantEmail }})</span>
+                </div>
+              }
+
+              @if (meta.status) {
+                <div class="meta-row">
+                  <span class="meta-label">Status</span>
+                  <span class="meta-value status-badge-inline">{{ meta.status }}</span>
+                </div>
+              }
+            </div>
+
+            <!-- Info Callout Box -->
+            @if (meta.infoAlert) {
+              <div class="info-alert-box">
+                <span class="info-alert-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                  </svg>
+                </span>
+                <p class="info-alert-text">{{ meta.infoAlert }}</p>
+              </div>
+            }
+          }
+
+          <!-- Contextual Action Buttons -->
+          <div class="detail-actions">
+            @if (isRead(current)) {
+              <button
+                type="button"
+                class="btn-quiet"
+                (click)="markUnread(current)"
+                [disabled]="pendingAction()"
+              >
+                Mark as unread
+              </button>
+            } @else {
+              <button
+                type="button"
+                class="btn-quiet"
+                (click)="markRead(current)"
+                [disabled]="pendingAction()"
+              >
+                Mark as read
+              </button>
+            }
+
+            @if (current.metadata?.canRenew) {
+              <button
+                type="button"
+                class="btn-primary"
+                (click)="navigateToEntity(current)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <span>Renew Book</span>
+              </button>
+            } @else if (current.actionRoute || current.relatedEntityType) {
+              <button
+                type="button"
+                class="btn-primary"
+                (click)="navigateToEntity(current)"
+              >
+                <span>View Details</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="no-selection-state">
+          <p class="muted">Select a notification to view its full details.</p>
+        </div>
+      }
+    </aside>
+  </div>
+
+  <!-- Clear All Confirmation Modal -->
+  @if (showClearConfirm()) {
+    <div class="modal-backdrop" (click)="closeClearModal()">
+      <div class="modal-dialog surface-card" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="clear-modal-title">
+        <header class="modal-header">
+          <div class="modal-danger-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 id="clear-modal-title" class="modal-title">Clear All Notifications?</h2>
+            <p class="modal-desc">This will permanently remove all notifications from your account. This action cannot be undone.</p>
+          </div>
+        </header>
+        <footer class="modal-footer">
+          <button type="button" class="btn-secondary" (click)="closeClearModal()" [disabled]="pendingAction()">
+            Cancel
+          </button>
+          <button type="button" class="btn-danger" (click)="confirmClearAll()" [disabled]="pendingAction()">
+            Yes, Clear All
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+</div>

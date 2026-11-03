@@ -5,14 +5,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, UUID> {
 
+    @EntityGraph(attributePaths = {"book", "assignedCopy", "borrowRequest"})
     List<BookReservation> findByStudent_IdOrderByCreatedAtDesc(UUID studentId);
 
+    @EntityGraph(attributePaths = {"book", "assignedCopy", "borrowRequest"})
     List<BookReservation> findByStudent_IdAndStatusOrderByCreatedAtDesc(UUID studentId, ReservationStatus status);
 
     boolean existsByBook_IdAndStudent_IdAndStatusIn(UUID bookId, UUID studentId, Collection<ReservationStatus> statuses);

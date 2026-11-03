@@ -13,6 +13,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.libtrack.notifications.NotificationService;
+
 import com.libtrack.auth.UserAccount;
 import com.libtrack.auth.UserAccountRepository;
 import com.libtrack.catalogue.Book;
@@ -29,17 +31,20 @@ public class FineService {
     private final FinePaymentRepository finePaymentRepository;
     private final LoanRepository loanRepository;
     private final UserAccountRepository userAccountRepository;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     public FineService(FineRepository fineRepository,
                        FinePaymentRepository finePaymentRepository,
                        LoanRepository loanRepository,
                        UserAccountRepository userAccountRepository,
+                       NotificationService notificationService,
                        Clock clock) {
         this.fineRepository = fineRepository;
         this.finePaymentRepository = finePaymentRepository;
         this.loanRepository = loanRepository;
         this.userAccountRepository = userAccountRepository;
+        this.notificationService = notificationService;
         this.clock = clock;
     }
 
@@ -74,7 +79,19 @@ public class FineService {
                                     calculatedFine,
                                     now
                             );
-                            fineRepository.save(newFine);
+                            Fine saved = fineRepository.save(newFine);
+                            String dedupKey = "FINE_ASSESSED:" + loan.getId() + ":" + loan.getDueDate();
+                            notificationService.sendMemberNotification(
+                                    loan.getBorrower().getId(),
+                                    "Fine Generated",
+                                    "A fine of ₹" + calculatedFine + " was assessed for overdue loan.",
+                                    "Book: \"" + loan.getCopy().getBook().getTitle() + "\"",
+                                    "FINE",
+                                    "FINE",
+                                    saved.getId(),
+                                    "/workspace/my/fines",
+                                    dedupKey
+                            );
                         }
                 );
             }
@@ -182,6 +199,18 @@ public class FineService {
                 librarian
         );
         finePaymentRepository.save(payment);
+
+        notificationService.sendMemberNotification(
+                fine.getBorrower().getId(),
+                "Fine Payment Recorded",
+                "Payment of ₹" + request.amount() + " recorded for \"" + fine.getLoan().getCopy().getBook().getTitle() + "\".",
+                "Receipt number: " + request.receiptNumber(),
+                "FINE",
+                "FINE",
+                fine.getId(),
+                "/workspace/my/fines",
+                null
+        );
 
         return toResponse(fine);
     }

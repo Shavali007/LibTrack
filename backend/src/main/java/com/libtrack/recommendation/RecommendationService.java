@@ -22,6 +22,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.libtrack.notifications.NotificationService;
+
 @Service
 @Transactional
 public class RecommendationService {
@@ -30,17 +32,20 @@ public class RecommendationService {
     private final BookRecommendationHelpfulRepository helpfulRepository;
     private final BookRepository bookRepository;
     private final UserAccountRepository userAccountRepository;
+    private final NotificationService notificationService;
 
     public RecommendationService(
             BookRecommendationRepository recommendationRepository,
             BookRecommendationHelpfulRepository helpfulRepository,
             BookRepository bookRepository,
-            UserAccountRepository userAccountRepository
+            UserAccountRepository userAccountRepository,
+            NotificationService notificationService
     ) {
         this.recommendationRepository = recommendationRepository;
         this.helpfulRepository = helpfulRepository;
         this.bookRepository = bookRepository;
         this.userAccountRepository = userAccountRepository;
+        this.notificationService = notificationService;
     }
 
     public RecommendationResponse createRecommendation(UUID facultyId, CreateRecommendationRequest request) {
@@ -76,6 +81,18 @@ public class RecommendationService {
             recommendation = new BookRecommendation(book, faculty, sanitizedMessage);
         }
         BookRecommendation saved = recommendationRepository.saveAndFlush(recommendation);
+
+        notificationService.sendRoleNotification(
+                AccountRole.STUDENT,
+                "Recommended for You",
+                (faculty.getDisplayName() != null ? faculty.getDisplayName() : "Faculty") + " recommended \"" + book.getTitle() + "\".",
+                sanitizedMessage != null ? sanitizedMessage : "A faculty member recommended this title.",
+                "RECOMMENDATION",
+                "BOOK",
+                book.getId(),
+                "/workspace/books/" + book.getId(),
+                "REC:" + saved.getId()
+        );
 
         return toResponse(saved, 0, false);
     }

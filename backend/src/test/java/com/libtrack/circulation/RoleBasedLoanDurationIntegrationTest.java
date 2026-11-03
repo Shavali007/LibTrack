@@ -46,6 +46,7 @@ class RoleBasedLoanDurationIntegrationTest {
     @Autowired BorrowRequestRepository requests;
     @Autowired LoanRepository loans;
     @Autowired LibraryHolidayRepository holidays;
+    @Autowired DueDateService dueDates;
     @Autowired SystemSettingRepository settings;
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -92,8 +93,8 @@ class RoleBasedLoanDurationIntegrationTest {
         LocalDate issueDate = LocalDate.parse(loan.get("issueDate").asText());
         LocalDate dueDate = LocalDate.parse(loan.get("dueDate").asText());
 
-        // Issue date is not counted; 21 eligible days added
-        assertEquals(issueDate.plusDays(21), dueDate);
+        // Issue date is not counted; 21 eligible days added (with non-working day adjustment)
+        assertEquals(dueDates.calculateDueDate(issueDate, 21), dueDate);
     }
 
     @Test
@@ -113,8 +114,8 @@ class RoleBasedLoanDurationIntegrationTest {
         LocalDate issueDate = LocalDate.parse(loan.get("issueDate").asText());
         LocalDate dueDate = LocalDate.parse(loan.get("dueDate").asText());
 
-        // Faculty gets 30 days
-        assertEquals(issueDate.plusDays(30), dueDate);
+        // Faculty gets 30 days (with non-working day adjustment)
+        assertEquals(dueDates.calculateDueDate(issueDate, 30), dueDate);
     }
 
     @Test
@@ -132,7 +133,7 @@ class RoleBasedLoanDurationIntegrationTest {
         approveRequest(req1);
         JsonNode studentLoan = json(issueLoan(req1, copy1));
         LocalDate studentIssue = LocalDate.parse(studentLoan.get("issueDate").asText());
-        assertEquals(studentIssue.plusDays(14), LocalDate.parse(studentLoan.get("dueDate").asText()));
+        assertEquals(dueDates.calculateDueDate(studentIssue, 14), LocalDate.parse(studentLoan.get("dueDate").asText()));
 
         // Issue new faculty loan -> must still be 30 days
         UserAccount faculty = member(AccountRole.FACULTY);
@@ -143,7 +144,7 @@ class RoleBasedLoanDurationIntegrationTest {
         approveRequest(req2);
         JsonNode facultyLoan = json(issueLoan(req2, copy2));
         LocalDate facultyIssue = LocalDate.parse(facultyLoan.get("issueDate").asText());
-        assertEquals(facultyIssue.plusDays(30), LocalDate.parse(facultyLoan.get("dueDate").asText()));
+        assertEquals(dueDates.calculateDueDate(facultyIssue, 30), LocalDate.parse(facultyLoan.get("dueDate").asText()));
     }
 
     @Test
@@ -161,7 +162,7 @@ class RoleBasedLoanDurationIntegrationTest {
         approveRequest(req1);
         JsonNode facultyLoan = json(issueLoan(req1, copy1));
         LocalDate facultyIssue = LocalDate.parse(facultyLoan.get("issueDate").asText());
-        assertEquals(facultyIssue.plusDays(45), LocalDate.parse(facultyLoan.get("dueDate").asText()));
+        assertEquals(dueDates.calculateDueDate(facultyIssue, 45), LocalDate.parse(facultyLoan.get("dueDate").asText()));
 
         // Issue new student loan -> must still be default 21 days
         UserAccount student = member(AccountRole.STUDENT);
@@ -172,7 +173,7 @@ class RoleBasedLoanDurationIntegrationTest {
         approveRequest(req2);
         JsonNode studentLoan = json(issueLoan(req2, copy2));
         LocalDate studentIssue = LocalDate.parse(studentLoan.get("issueDate").asText());
-        assertEquals(studentIssue.plusDays(21), LocalDate.parse(studentLoan.get("dueDate").asText()));
+        assertEquals(dueDates.calculateDueDate(studentIssue, 21), LocalDate.parse(studentLoan.get("dueDate").asText()));
     }
 
     @Test
@@ -197,12 +198,13 @@ class RoleBasedLoanDurationIntegrationTest {
     }
 
     @Test
-    void holidaysAreExcludedForBothStudentAndFaculty() throws Exception {
+    void holidaysInsideBorrowingPeriodDoNotExtendLoanPeriod() throws Exception {
         LocalDate today = LocalDate.now(java.time.ZoneOffset.UTC);
         LocalDate holidayDate = today.plusDays(5);
         holidays.saveAndFlush(new LibraryHoliday(holidayDate, "Campus Festival " + UUID.randomUUID(), librarian));
 
-        // Student loan: 21 days + 1 holiday = 22 calendar days
+        // Intermediate holiday does NOT extend the loan period.
+        LocalDate expectedStudentDue = dueDates.calculateDueDate(today, 21);
         UserAccount student = member(AccountRole.STUDENT);
         MockHttpSession studentSession = login(student);
         String book1 = createBook();
@@ -211,9 +213,10 @@ class RoleBasedLoanDurationIntegrationTest {
         approveRequest(req1);
         JsonNode studentLoan = json(issueLoan(req1, copy1));
         LocalDate studentDue = LocalDate.parse(studentLoan.get("dueDate").asText());
-        assertEquals(today.plusDays(22), studentDue);
+        assertEquals(expectedStudentDue, studentDue);
 
-        // Faculty loan: 30 days + 1 holiday = 31 calendar days
+        // Faculty loan: uses 30-day duration, intermediate holiday does NOT extend
+        LocalDate expectedFacultyDue = dueDates.calculateDueDate(today, 30);
         UserAccount faculty = member(AccountRole.FACULTY);
         MockHttpSession facultySession = login(faculty);
         String book2 = createBook();
@@ -222,7 +225,7 @@ class RoleBasedLoanDurationIntegrationTest {
         approveRequest(req2);
         JsonNode facultyLoan = json(issueLoan(req2, copy2));
         LocalDate facultyDue = LocalDate.parse(facultyLoan.get("dueDate").asText());
-        assertEquals(today.plusDays(31), facultyDue);
+        assertEquals(expectedFacultyDue, facultyDue);
     }
 
     @Test

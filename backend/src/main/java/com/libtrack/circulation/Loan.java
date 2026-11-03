@@ -46,5 +46,10 @@ public class Loan {
  }
  public LocalDate renew(LocalDate nextDueDate){if(status!=LoanStatus.ACTIVE||renewalCount>=1)throw new IllegalStateException("Loan is not eligible for renewal.");LocalDate previous=dueDate;dueDate=nextDueDate;renewalCount++;return previous;}
  public void returnCopy(ReturnCondition condition,LocalDate returned,String note){if(status!=LoanStatus.ACTIVE)throw new IllegalStateException("Loan is no longer active.");if(condition==ReturnCondition.LOST){status=LoanStatus.LOST;actualReturnDate=null;}else{status=LoanStatus.RETURNED;actualReturnDate=returned;}returnNote=note;}
+ public void updateCondition(ReturnCondition condition, LocalDate effectiveDate, String note) {
+     if(status==LoanStatus.ACTIVE)throw new IllegalStateException("Active loans cannot have their condition changed.");
+     if(condition==ReturnCondition.LOST){status=LoanStatus.LOST;actualReturnDate=null;}else{status=LoanStatus.RETURNED;if(actualReturnDate==null){actualReturnDate=effectiveDate;}}
+     if(note!=null&&!note.isBlank()){returnNote=note;}
+ }
  public UUID getId(){return id;} public BorrowRequest getRequest(){return request;} public BookCopy getCopy(){return copy;} public UserAccount getBorrower(){return borrower;} public UserAccount getIssuedBy(){return issuedBy;} public LocalDate getIssueDate(){return issueDate;} public LocalDate getDueDate(){return dueDate;} public LocalDate getActualReturnDate(){return actualReturnDate;} public LoanStatus getStatus(){return status;} public short getRenewalCount(){return renewalCount;} public String getReturnNote(){return returnNote;} public BigDecimal getDailyFineRate(){return dailyFineRate;} public BigDecimal getMaxFineAmount(){return maxFineAmount;} public int getGracePeriodDays(){return gracePeriodDays;} public boolean isActive(){return status==LoanStatus.ACTIVE;} public Instant getCreatedAt(){return createdAt;}
 }

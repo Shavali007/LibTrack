@@ -92,6 +92,7 @@ public class SecurityConfiguration {
                         "/api/v1/recommendations", "/api/v1/recommendations/**",
                         "/api/v1/reservations", "/api/v1/reservations/**",
                         "/api/v1/wishlist", "/api/v1/wishlist/**",
+                        "/api/v1/circulation", "/api/v1/circulation/**",
                         "/api/v1/fines", "/api/v1/fines/**").authenticated();
                 authorize.anyRequest().denyAll();
             })

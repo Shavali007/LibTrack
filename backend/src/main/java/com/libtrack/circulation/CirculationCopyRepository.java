@@ -11,4 +11,6 @@ import com.libtrack.catalogue.CopyStatus;
 public interface CirculationCopyRepository extends JpaRepository<com.libtrack.catalogue.BookCopy,UUID>{
  @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select c from BookCopy c where c.id=:id") Optional<com.libtrack.catalogue.BookCopy> findByIdForUpdate(@Param("id") UUID id);
  boolean existsByIdAndStatus(UUID id,CopyStatus status);
+ long countByStatus(CopyStatus status);
+ List<com.libtrack.catalogue.BookCopy> findByStatusInOrderByUpdatedAtDesc(java.util.Collection<CopyStatus> statuses);
 }

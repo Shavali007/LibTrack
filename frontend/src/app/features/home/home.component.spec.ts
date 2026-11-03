@@ -7,15 +7,25 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AuthService, UserProfile } from '../auth/auth.service';
 import { HomeComponent } from './home.component';
 
-describe('role-aware dashboards', () => {
+describe('HomeComponent role-aware dashboards', () => {
   let fixture: ComponentFixture<HomeComponent>;
   let currentProfile: ReturnType<typeof signal<UserProfile | null>>;
 
   beforeEach(async () => {
-    currentProfile = signal<UserProfile | null>({ id: 'member-1', email: 'reader@vitap.ac.in', role: 'STUDENT' });
+    currentProfile = signal<UserProfile | null>({
+      id: 'member-1',
+      email: 'reader@vitapstudent.ac.in',
+      role: 'STUDENT',
+      displayName: 'Mahammad'
+    });
     await TestBed.configureTestingModule({
       imports: [HomeComponent],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: { profile: currentProfile } }],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: { profile: currentProfile } }
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(HomeComponent);
     fixture.detectChanges();
@@ -23,36 +33,39 @@ describe('role-aware dashboards', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('uses the authenticated Student profile and real service links without sample records', () => {
+  it('renders student dashboard with student welcome and without institutional email', () => {
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('reader@vitap.ac.in');
     expect(text).toContain('STUDENT WORKSPACE');
-    expect(text).toContain('My borrowings');
-    expect(text).toContain('My requests');
-    expect(text).toContain('Search books');
-    expect(text).not.toContain('Clean Code');
-    expect(fixture.nativeElement.querySelector('a[href="/books"]')).not.toBeNull();
+    expect(text).toContain('Welcome, Mahammad!');
+    expect(text).not.toContain('reader@vitapstudent.ac.in');
+    expect(fixture.nativeElement.querySelector('app-member-dashboard')).not.toBeNull();
   });
 
-  it('shows Faculty borrowing services and identifies recommendations as unavailable', () => {
-    currentProfile.set({ id: 'faculty-1', email: 'faculty@vitap.ac.in', role: 'FACULTY' });
+  it('renders faculty dashboard with faculty welcome and without institutional email', () => {
+    currentProfile.set({
+      id: 'faculty-1',
+      email: 'faculty@vitap.ac.in',
+      role: 'FACULTY',
+      displayName: 'Dr. Alan'
+    });
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('FACULTY WORKSPACE');
-    expect(text).toContain('My borrowings');
-    expect(text).toContain('Faculty-to-student recommendations are not implemented.');
+    expect(text).toContain('Welcome, Dr. Alan!');
+    expect(text).not.toContain('faculty@vitap.ac.in');
+    expect(fixture.nativeElement.querySelector('app-member-dashboard')).not.toBeNull();
   });
 
-  it('shows Librarian operational links without inventing reports or counts', () => {
-    currentProfile.set({ id: 'staff-1', email: 'librarian@vitap.ac.in', role: 'LIBRARIAN' });
+  it('renders librarian dashboard unchanged for librarian role', () => {
+    currentProfile.set({
+      id: 'staff-1',
+      email: 'librarian@vitap.ac.in',
+      role: 'LIBRARIAN',
+      displayName: 'Librarian Administrator'
+    });
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('LIBRARIAN WORKSPACE');
-    expect(text).toContain('Catalogue and copies');
-    expect(text).toContain('Borrowing requests');
-    expect(text).toContain('Circulation desk');
-    expect(fixture.nativeElement.querySelector('a[href="/books"]')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('a[href="/workspace/librarian/accounts/new"]')).toBeNull();
-    expect(text).not.toContain('12 / 20');
+    expect(fixture.nativeElement.querySelector('app-librarian-dashboard')).not.toBeNull();
   });
 });

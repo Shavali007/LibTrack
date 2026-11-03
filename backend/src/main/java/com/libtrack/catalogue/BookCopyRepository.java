@@ -14,6 +14,7 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, UUID> {
     long countByStatus(CopyStatus status);
     long countByBookIdAndStatus(UUID bookId, CopyStatus status);
     List<BookCopy> findByBookIdAndStatus(UUID bookId, CopyStatus status);
+    List<BookCopy> findByStatusInOrderByUpdatedAtDesc(Collection<CopyStatus> statuses);
 
     @Query("select new com.libtrack.catalogue.BookAvailability(c.book.id, count(c), " +
            "count(case when c.status = :available then 1 else null end), " +

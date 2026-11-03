@@ -1,15 +1,17 @@
 import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, finalize } from 'rxjs';
 import { AuthService } from '../../features/auth/auth.service';
 import { LibrarianOperationsService } from '../../features/librarian/librarian-operations.service';
 import { MemberRequestsService } from '../../features/librarian/member-requests.service';
+import { NotificationClientService, NotificationItem } from '../../features/notifications/notification.service';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, FormsModule],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, FormsModule, CommonModule],
   template: `
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="app-frame">
@@ -341,21 +343,139 @@ import { MemberRequestsService } from '../../features/librarian/member-requests.
 
           <!-- Right Area: Notifications & User Profile -->
           <div class="topbar-right">
-            <!-- Notification Bell -->
-            <a
-              [routerLink]="auth.profile()?.role === 'LIBRARIAN' ? '/workspace/librarian/notifications' : '/workspace/notifications'"
-              class="topbar-bell-btn"
-              [title]="unreadCount() + ' notifications'"
-              aria-label="Notifications"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="bell-svg">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-              </svg>
-              @if (unreadCount() > 0) {
-                <span class="bell-badge">{{ unreadCount() }}</span>
+            <!-- Notification Bell Quick Access Dropdown -->
+            <div class="topbar-bell-menu">
+              <button
+                type="button"
+                class="topbar-bell-btn"
+                (click)="toggleNotificationDropdown($event)"
+                [attr.aria-expanded]="notifDropdownOpen()"
+                [title]="unreadBadgeText + ' unread notifications'"
+                aria-label="Notifications quick access"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="bell-svg">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                @if (unreadCount() > 0) {
+                  <span class="bell-badge">{{ unreadBadgeText }}</span>
+                }
+              </button>
+
+              @if (notifDropdownOpen()) {
+                <div class="notif-dropdown-card surface-card" (click)="$event.stopPropagation()" role="region" aria-label="Notifications preview">
+                  <div class="nd-header">
+                    <div class="nd-title-row">
+                      <strong class="nd-heading">Notifications</strong>
+                      @if (unreadCount() > 0) {
+                        <span class="nd-count-pill">{{ unreadCount() }} unread</span>
+                      }
+                    </div>
+                    <div class="nd-header-actions">
+                      <button
+                        type="button"
+                        class="nd-action-btn"
+                        (click)="markAllDropdownRead()"
+                        [disabled]="unreadCount() === 0 || notifPending()"
+                      >
+                        ✓ Mark all as read
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="nd-body">
+                    @if (notifLoading()) {
+                      <div class="nd-loading">
+                        <p>Loading notifications…</p>
+                      </div>
+                    } @else if (dropdownNotifications().length === 0) {
+                      <div class="nd-empty">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="nd-empty-svg">
+                          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        <p>No notifications right now.</p>
+                      </div>
+                    } @else {
+                      <div class="nd-items-list">
+                        @for (item of dropdownNotifications(); track item.id) {
+                          <div
+                            class="nd-item"
+                            [class.nd-item-unread]="!isItemRead(item)"
+                            (click)="onDropdownItemClick(item)"
+                            tabindex="0"
+                            (keydown.enter)="onDropdownItemClick(item)"
+                          >
+                            <div class="nd-item-icon" [ngClass]="'icon-' + getNotifCategoryIcon(item)">
+                              @switch (getNotifCategoryIcon(item)) {
+                                @case ('calendar') {
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                  </svg>
+                                }
+                                @case ('check-circle') {
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                  </svg>
+                                }
+                                @case ('arrow-return') {
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="9 14 4 9 9 4"></polyline>
+                                    <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                                  </svg>
+                                }
+                                @case ('alert-triangle') {
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                  </svg>
+                                }
+                                @case ('star') {
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                  </svg>
+                                }
+                                @default {
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                                  </svg>
+                                }
+                              }
+                            </div>
+                            <div class="nd-item-details">
+                              <div class="nd-item-top">
+                                <span class="nd-item-title">{{ item.title }}</span>
+                                @if (!isItemRead(item)) {
+                                  <span class="nd-dot" aria-hidden="true">•</span>
+                                }
+                                <time class="nd-item-time">{{ getRelativeTime(item.createdAt) }}</time>
+                              </div>
+                              <p class="nd-item-msg">{{ item.message }}</p>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  <div class="nd-footer">
+                    <a
+                      [routerLink]="'/workspace/notifications'"
+                      class="nd-view-all"
+                      (click)="closeNotifDropdown()"
+                    >
+                      View all notifications →
+                    </a>
+                  </div>
+                </div>
               }
-            </a>
+            </div>
 
             <!-- User Menu with Avatar and Details -->
             <div class="user-profile-menu">
@@ -819,6 +939,173 @@ import { MemberRequestsService } from '../../features/librarian/member-requests.
       line-height: 1;
     }
 
+    /* Notification Bell Dropdown */
+    .topbar-bell-menu {
+      position: relative;
+    }
+    .notif-dropdown-card {
+      position: absolute;
+      top: calc(100% + 0.65rem);
+      right: 0;
+      width: 380px;
+      max-width: 90vw;
+      background: #FFFFFF;
+      border: 1px solid #E5E0D5;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+      z-index: 100;
+      overflow: hidden;
+      animation: fadeIn 0.15s ease-out;
+    }
+    .nd-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid #EFECE6;
+      background: #FDFCF9;
+    }
+    .nd-title-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .nd-heading {
+      font-size: 0.9375rem;
+      color: #1F2421;
+    }
+    .nd-count-pill {
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: #EAF2EF;
+      color: #003D30;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+    }
+    .nd-action-btn {
+      background: none;
+      border: none;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #003D30;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+    }
+    .nd-action-btn:hover:not(:disabled) {
+      background: #EAF2EF;
+    }
+    .nd-action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .nd-body {
+      max-height: 380px;
+      overflow-y: auto;
+    }
+    .nd-loading, .nd-empty {
+      padding: 2rem 1rem;
+      text-align: center;
+      color: #718096;
+      font-size: 0.84375rem;
+    }
+    .nd-empty-svg {
+      width: 32px;
+      height: 32px;
+      margin-bottom: 0.5rem;
+      color: #A0AEC0;
+    }
+    .nd-items-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .nd-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #F6F4EE;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      outline: none;
+    }
+    .nd-item:hover {
+      background: #F9F8F5;
+    }
+    .nd-item.nd-item-unread {
+      background: #F4F8F6;
+    }
+    .nd-item-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .nd-item-icon svg {
+      width: 17px;
+      height: 17px;
+    }
+    .nd-item-icon.icon-book, .nd-item-icon.icon-book-due { background: #EAF2EF; color: #003D30; }
+    .nd-item-icon.icon-calendar { background: #F0EBF8; color: #6D28D9; }
+    .nd-item-icon.icon-check-circle { background: #ECFDF5; color: #059669; }
+    .nd-item-icon.icon-arrow-return { background: #FFF4EB; color: #EA580C; }
+    .nd-item-icon.icon-alert-triangle { background: #FEE2E2; color: #DC2626; }
+    .nd-item-icon.icon-star { background: #FEF9C3; color: #D97706; }
+    .nd-item-details {
+      min-width: 0;
+    }
+    .nd-item-top {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-bottom: 0.15rem;
+    }
+    .nd-item-title {
+      font-size: 0.84375rem;
+      font-weight: 600;
+      color: #1F2421;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .nd-dot {
+      color: #DC2626;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .nd-item-time {
+      margin-left: auto;
+      font-size: 0.7rem;
+      color: #718096;
+      white-space: nowrap;
+    }
+    .nd-item-msg {
+      font-size: 0.78125rem;
+      color: #4A5568;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .nd-footer {
+      padding: 0.65rem 1rem;
+      border-top: 1px solid #EFECE6;
+      background: #FDFCF9;
+      text-align: center;
+    }
+    .nd-view-all {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #003D30;
+      text-decoration: none;
+    }
+    .nd-view-all:hover {
+      text-decoration: underline;
+    }
+
     /* User Profile Trigger & Dropdown */
     .user-profile-menu {
       position: relative;
@@ -938,13 +1225,91 @@ export class AppShellComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly ops = inject(LibrarianOperationsService);
   private readonly memberRequestsService = inject(MemberRequestsService);
+  readonly notifService = inject(NotificationClientService);
 
-  readonly unreadCount = signal(0);
   readonly pending = signal(false);
   readonly userMenuOpen = signal(false);
+  readonly notifDropdownOpen = signal(false);
+  readonly notifLoading = signal(false);
+  readonly notifPending = signal(false);
+  readonly dropdownNotifications = signal<NotificationItem[]>([]);
   readonly pendingRequestsCount = signal(0);
   readonly membersExpanded = signal(true);
   searchQuery = '';
+
+  get unreadCount() {
+    return this.notifService.unreadCount;
+  }
+
+  get unreadBadgeText(): string {
+    const c = this.unreadCount();
+    return c > 99 ? '99+' : c.toString();
+  }
+
+  toggleNotificationDropdown(event: Event): void {
+    event.stopPropagation();
+    if (this.notifDropdownOpen()) {
+      this.closeNotifDropdown();
+    } else {
+      this.openNotifDropdown();
+    }
+  }
+
+  openNotifDropdown(): void {
+    this.userMenuOpen.set(false);
+    this.notifDropdownOpen.set(true);
+    this.notifLoading.set(true);
+    this.notifService.getLatestDropdown(5).subscribe({
+      next: (items) => {
+        this.dropdownNotifications.set(items);
+        this.notifLoading.set(false);
+      },
+      error: () => {
+        this.notifLoading.set(false);
+      }
+    });
+  }
+
+  closeNotifDropdown(): void {
+    this.notifDropdownOpen.set(false);
+  }
+
+  markAllDropdownRead(): void {
+    this.notifPending.set(true);
+    this.notifService.markAllAsRead().subscribe({
+      next: () => {
+        this.notifPending.set(false);
+        this.dropdownNotifications.update((items) =>
+          items.map((i) => ({ ...i, read: true, isRead: true }))
+        );
+      },
+      error: () => this.notifPending.set(false)
+    });
+  }
+
+  onDropdownItemClick(item: NotificationItem): void {
+    if (!this.isItemRead(item)) {
+      this.notifService.markAsRead(item.id).subscribe();
+    }
+    this.closeNotifDropdown();
+    if (item.actionRoute) {
+      void this.router.navigateByUrl(item.actionRoute);
+    } else {
+      void this.router.navigate(['/workspace/notifications']);
+    }
+  }
+
+  isItemRead(item: NotificationItem): boolean {
+    return item.isRead ?? item.read ?? false;
+  }
+
+  getNotifCategoryIcon(item: NotificationItem): string {
+    return this.notifService.getCategoryIcon(item.category, item.title);
+  }
+
+  getRelativeTime(dateStr: string): string {
+    return this.notifService.getRelativeTime(dateStr);
+  }
 
   toggleMembersGroup(): void {
     this.membersExpanded.update((v) => !v);
@@ -961,8 +1326,9 @@ export class AppShellComponent implements OnInit {
       const input = document.querySelector('.topbar-search-input') as HTMLInputElement;
       if (input) input.focus();
     }
-    if (event.key === 'Escape' && this.userMenuOpen()) {
-      this.userMenuOpen.set(false);
+    if (event.key === 'Escape') {
+      if (this.notifDropdownOpen()) this.notifDropdownOpen.set(false);
+      if (this.userMenuOpen()) this.userMenuOpen.set(false);
     }
   }
 
@@ -971,6 +1337,9 @@ export class AppShellComponent implements OnInit {
     const target = event.target as HTMLElement;
     if (!target.closest('.user-profile-menu') && this.userMenuOpen()) {
       this.userMenuOpen.set(false);
+    }
+    if (!target.closest('.topbar-bell-menu') && this.notifDropdownOpen()) {
+      this.notifDropdownOpen.set(false);
     }
   }
 
@@ -1034,10 +1403,7 @@ export class AppShellComponent implements OnInit {
   }
 
   loadUnreadNotifications(): void {
-    this.ops.getUnreadCount().subscribe({
-      next: (res: { unreadCount: number }) => this.unreadCount.set(res.unreadCount),
-      error: () => this.unreadCount.set(0)
-    });
+    this.notifService.refreshCounts();
   }
 
   focusSearch(input: HTMLInputElement): void {

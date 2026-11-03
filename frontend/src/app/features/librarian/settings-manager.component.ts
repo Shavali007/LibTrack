@@ -279,15 +279,17 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
               <table class="holidays-table" aria-label="Library holidays list">
                 <thead>
                   <tr>
-                    <th scope="col" class="th-date">Date</th>
-                    <th scope="col" class="th-occasion">Occasion</th>
+                    <th scope="col" class="th-occasion">Holiday / Occasion</th>
+                    <th scope="col" class="th-from-date">From Date</th>
+                    <th scope="col" class="th-to-date">To Date</th>
+                    <th scope="col" class="th-duration">Duration</th>
                     <th scope="col" class="th-actions"><span class="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (h of holidays(); track h.id) {
                     <tr>
-                      <td class="td-date">
+                      <td class="td-occasion">
                         <span class="row-calendar-icon" aria-hidden="true">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -296,10 +298,16 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
                             <line x1="3" y1="10" x2="21" y2="10"></line>
                           </svg>
                         </span>
-                        <span class="date-text">{{ formatHolidayDate(h.holidayDate) }}</span>
+                        <span class="holiday-name-text">{{ h.name }}</span>
                       </td>
-                      <td class="td-occasion">
-                        {{ h.name }}
+                      <td class="td-from-date">
+                        <span class="date-text">{{ formatHolidayDate(h.fromDate || h.holidayDate) }}</span>
+                      </td>
+                      <td class="td-to-date">
+                        <span class="date-text">{{ formatHolidayDate(h.toDate || h.holidayDate || h.fromDate) }}</span>
+                      </td>
+                      <td class="td-duration">
+                        <span class="duration-badge">{{ calculateDurationText(h) }}</span>
                       </td>
                       <td class="td-actions">
                         <button
@@ -345,29 +353,50 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
 
             <form (ngSubmit)="saveHoliday()" class="modal-form">
               <div class="form-group">
-                <label for="holidayDateInput" class="form-label">Date *</label>
-                <input
-                  id="holidayDateInput"
-                  name="holidayDate"
-                  type="date"
-                  class="modal-input"
-                  [(ngModel)]="holidayFormDate"
-                  required
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="holidayNameInput" class="form-label">Occasion / Name *</label>
+                <label for="holidayNameInput" class="form-label">Holiday Name / Occasion *</label>
                 <input
                   id="holidayNameInput"
                   name="holidayName"
                   type="text"
                   class="modal-input"
-                  placeholder="e.g. Pongal, Ambedkar Jayanti"
+                  placeholder="e.g. Diwali, Ambedkar Jayanti"
                   [(ngModel)]="holidayFormName"
                   required
                 />
               </div>
+
+              <div class="form-row-2col">
+                <div class="form-group">
+                  <label for="holidayFromDateInput" class="form-label">From Date *</label>
+                  <input
+                    id="holidayFromDateInput"
+                    name="holidayFromDate"
+                    type="date"
+                    class="modal-input"
+                    [(ngModel)]="holidayFormFromDate"
+                    (change)="onFromDateChange()"
+                    required
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="holidayToDateInput" class="form-label">To Date *</label>
+                  <input
+                    id="holidayToDateInput"
+                    name="holidayToDate"
+                    type="date"
+                    class="modal-input"
+                    [(ngModel)]="holidayFormToDate"
+                    required
+                  />
+                </div>
+              </div>
+
+              @if (holidayFormFromDate && holidayFormToDate) {
+                <div class="duration-preview">
+                  <span>Duration: <strong>{{ calculateFormDurationText() }}</strong></span>
+                </div>
+              }
 
               <div class="modal-actions">
                 <button
@@ -381,7 +410,7 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
                 <button
                   type="submit"
                   class="btn-save-changes"
-                  [disabled]="savingHoliday() || !holidayFormDate || !holidayFormName.trim()"
+                  [disabled]="savingHoliday() || !holidayFormFromDate || !holidayFormToDate || !holidayFormName.trim()"
                 >
                   {{ savingHoliday() ? 'Saving…' : (editingHolidayId() ? 'Update Holiday' : 'Add Holiday') }}
                 </button>
@@ -397,7 +426,9 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
           <div class="modal-card">
             <h3 class="modal-title">Delete Holiday</h3>
             <p class="modal-desc">
-              Are you sure you want to remove the holiday <strong>{{ deletingHoliday()?.name }}</strong> on {{ deletingHoliday()?.holidayDate }}?
+              Are you sure you want to remove the holiday <strong>{{ deletingHoliday()?.name }}</strong>
+              ({{ formatHolidayDate(deletingHoliday()?.fromDate || deletingHoliday()?.holidayDate) }}
+              to {{ formatHolidayDate(deletingHoliday()?.toDate || deletingHoliday()?.holidayDate || deletingHoliday()?.fromDate) }})?
             </p>
 
             <div class="modal-actions">
@@ -762,6 +793,53 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
     .td-occasion {
       font-weight: 500;
       color: #1F2421;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .holiday-name-text {
+      font-weight: 600;
+      color: #1F2421;
+    }
+
+    .td-from-date, .td-to-date {
+      color: #1F2421;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .td-duration {
+      white-space: nowrap;
+    }
+
+    .duration-badge {
+      display: inline-block;
+      background: #EAF2EF;
+      color: #003D30;
+      font-weight: 600;
+      font-size: 0.8125rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      border: 1px solid #D1E2DB;
+    }
+
+    .form-row-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .duration-preview {
+      background: #F6F4EE;
+      border-radius: 8px;
+      padding: 0.6rem 0.875rem;
+      font-size: 0.84375rem;
+      color: #5A625D;
+    }
+
+    .duration-preview strong {
+      color: #003D30;
     }
 
     .td-actions {
@@ -962,8 +1040,20 @@ export class SettingsManagerComponent implements OnInit {
   readonly savingHoliday = signal(false);
   readonly showHolidayModal = signal(false);
   readonly editingHolidayId = signal<string | null>(null);
-  holidayFormDate = '';
   holidayFormName = '';
+  holidayFormFromDate = '';
+  holidayFormToDate = '';
+
+  // Backward-compatibility accessor for tests
+  get holidayFormDate(): string {
+    return this.holidayFormFromDate;
+  }
+  set holidayFormDate(val: string) {
+    this.holidayFormFromDate = val;
+    if (!this.holidayFormToDate) {
+      this.holidayFormToDate = val;
+    }
+  }
 
   readonly deletingHoliday = signal<HolidayRecord | null>(null);
 
@@ -1046,18 +1136,50 @@ export class SettingsManagerComponent implements OnInit {
 
   openAddHolidayModal(): void {
     this.editingHolidayId.set(null);
-    this.holidayFormDate = '';
     this.holidayFormName = '';
+    this.holidayFormFromDate = '';
+    this.holidayFormToDate = '';
     this.showHolidayModal.set(true);
     this.error.set('');
   }
 
   openEditHolidayModal(h: HolidayRecord): void {
     this.editingHolidayId.set(h.id);
-    this.holidayFormDate = h.holidayDate;
     this.holidayFormName = h.name;
+    this.holidayFormFromDate = h.fromDate || h.holidayDate || '';
+    this.holidayFormToDate = h.toDate || h.holidayDate || h.fromDate || '';
     this.showHolidayModal.set(true);
     this.error.set('');
+  }
+
+  onFromDateChange(): void {
+    if (!this.holidayFormToDate || this.holidayFormToDate < this.holidayFormFromDate) {
+      this.holidayFormToDate = this.holidayFormFromDate;
+    }
+  }
+
+  calculateDurationDays(h: { fromDate?: string; toDate?: string; holidayDate?: string; durationDays?: number }): number {
+    if (h.durationDays && h.durationDays > 0) return h.durationDays;
+    const fromStr = h.fromDate || h.holidayDate;
+    const toStr = h.toDate || h.holidayDate || h.fromDate;
+    if (!fromStr || !toStr) return 1;
+    const from = new Date(fromStr + 'T00:00:00');
+    const to = new Date(toStr + 'T00:00:00');
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) return 1;
+    const diffTime = to.getTime() - from.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays > 0 ? diffDays : 1;
+  }
+
+  calculateDurationText(h: { fromDate?: string; toDate?: string; holidayDate?: string; durationDays?: number }): string {
+    const days = this.calculateDurationDays(h);
+    return days === 1 ? '1 day' : `${days} days`;
+  }
+
+  calculateFormDurationText(): string {
+    if (!this.holidayFormFromDate || !this.holidayFormToDate) return '';
+    const days = this.calculateDurationDays({ fromDate: this.holidayFormFromDate, toDate: this.holidayFormToDate });
+    return days === 1 ? '1 day' : `${days} days`;
   }
 
   closeHolidayModal(): void {
@@ -1067,19 +1189,37 @@ export class SettingsManagerComponent implements OnInit {
 
   saveHoliday(): void {
     if (this.savingHoliday()) return;
-    const dateStr = this.holidayFormDate.trim();
     const nameStr = this.holidayFormName.trim();
+    const fromStr = this.holidayFormFromDate.trim();
+    const toStr = this.holidayFormToDate.trim();
 
-    if (!dateStr || !nameStr) {
-      this.error.set('Please provide both holiday date and occasion name.');
+    if (!nameStr) {
+      this.error.set('Holiday name is mandatory.');
+      return;
+    }
+    if (!fromStr) {
+      this.error.set('From Date is mandatory.');
+      return;
+    }
+    if (!toStr) {
+      this.error.set('To Date is mandatory.');
+      return;
+    }
+    if (toStr < fromStr) {
+      this.error.set('To Date cannot be earlier than From Date.');
       return;
     }
 
-    // Check duplicate dates locally as well
+    // Check duplicate/overlapping holiday ranges locally
     const editId = this.editingHolidayId();
-    const duplicate = this.holidays().find(h => h.holidayDate === dateStr && h.id !== editId);
-    if (duplicate) {
-      this.error.set('A holiday is already configured for this date.');
+    const overlapping = this.holidays().find(h => {
+      if (h.id === editId) return false;
+      const hFrom = h.fromDate || h.holidayDate || '';
+      const hTo = h.toDate || h.holidayDate || h.fromDate || '';
+      return hFrom <= toStr && hTo >= fromStr;
+    });
+    if (overlapping) {
+      this.error.set(`The holiday date range overlaps with an existing holiday: "${overlapping.name}".`);
       return;
     }
 
@@ -1088,12 +1228,12 @@ export class SettingsManagerComponent implements OnInit {
     this.notice.set('');
 
     const req$ = editId
-      ? this.opsService.updateHoliday(editId, dateStr, nameStr)
-      : this.opsService.addHoliday(dateStr, nameStr);
+      ? this.opsService.updateHoliday(editId, fromStr, toStr, nameStr)
+      : this.opsService.addHoliday(fromStr, toStr, nameStr);
 
     req$.pipe(finalize(() => this.savingHoliday.set(false)))
       .subscribe({
-        next: (saved) => {
+        next: () => {
           this.notice.set(editId ? 'Holiday updated successfully.' : 'Holiday added successfully.');
           this.closeHolidayModal();
           this.loadHolidays();
@@ -1132,7 +1272,7 @@ export class SettingsManagerComponent implements OnInit {
       });
   }
 
-  formatHolidayDate(isoDate: string): string {
+  formatHolidayDate(isoDate?: string | null): string {
     if (!isoDate) return '';
     const parts = isoDate.split('-');
     if (parts.length === 3) {

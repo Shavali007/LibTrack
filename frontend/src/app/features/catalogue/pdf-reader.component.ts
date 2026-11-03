@@ -53,6 +53,7 @@ import { BookDetail, CatalogueService, DigitalEdition } from './catalogue.servic
             [src]="safeContentUrl()"
             title="Digital PDF Reader"
             allow="fullscreen"
+            (load)="onFrameLoad($event)"
           ></iframe>
         </main>
       }
@@ -216,5 +217,25 @@ export class PdfReaderComponent {
     const units = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+  }
+
+  onFrameLoad(event: Event): void {
+    try {
+      const iframe = event.target as HTMLIFrameElement;
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (doc) {
+        const text = (doc.body?.innerText || doc.body?.textContent || '').trim();
+        if (text.includes('DIGITAL_EDITION_NOT_FOUND') || (text.startsWith('{') && text.includes('"code"'))) {
+          try {
+            const parsed = JSON.parse(text);
+            this.error.set(parsed.message || 'The requested digital edition file could not be found in storage.');
+          } catch {
+            this.error.set('The requested digital edition file could not be found in storage.');
+          }
+        }
+      }
+    } catch {
+      // Cross-origin framing or protected binary stream, ignore
+    }
   }
 }

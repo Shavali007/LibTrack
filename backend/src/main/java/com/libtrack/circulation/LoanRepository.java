@@ -1,5 +1,6 @@
 package com.libtrack.circulation;
 
+import com.libtrack.auth.AccountRole;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -44,8 +45,22 @@ public interface LoanRepository extends JpaRepository<Loan, UUID>, JpaSpecificat
 
     long countByStatus(LoanStatus status);
 
+    long countByStatusNot(LoanStatus status);
+
+    @Query("select count(l) from Loan l where l.status = com.libtrack.circulation.LoanStatus.RETURNED and l.copy.status = com.libtrack.catalogue.CopyStatus.DAMAGED")
+    long countHistoryDamaged();
+
+    @Query("select count(l) from Loan l where l.status = com.libtrack.circulation.LoanStatus.LOST")
+    long countHistoryLost();
+
+    @Query("select count(l) from Loan l where l.status = com.libtrack.circulation.LoanStatus.RETURNED and l.copy.status != com.libtrack.catalogue.CopyStatus.DAMAGED")
+    long countHistoryGood();
+
     @Query("select l from Loan l join fetch l.copy c join fetch c.book join fetch l.borrower where l.status = :status")
     List<Loan> findByStatus(@Param("status") LoanStatus status);
+
+    @Query("select l from Loan l join fetch l.copy c join fetch c.book join fetch l.borrower where l.status = :status and l.dueDate = :dueDate")
+    List<Loan> findByStatusAndDueDate(@Param("status") LoanStatus status, @Param("dueDate") LocalDate dueDate);
 
     long countByStatusAndDueDateBefore(LoanStatus status, LocalDate date);
 
@@ -64,4 +79,10 @@ public interface LoanRepository extends JpaRepository<Loan, UUID>, JpaSpecificat
 
     @Query("select count(l) > 0 from Loan l where l.borrower.id = :borrowerId and l.copy.book.id = :bookId")
     boolean hasBorrowHistoryForBook(@Param("borrowerId") UUID borrowerId, @Param("bookId") UUID bookId);
+
+    Optional<Loan> findTopByCopy_IdOrderByCreatedAtDesc(UUID copyId);
+
+    long countByBorrower_RoleAndStatus(AccountRole role, LoanStatus status);
+
+    long countByBorrower_Role(AccountRole role);
 }
