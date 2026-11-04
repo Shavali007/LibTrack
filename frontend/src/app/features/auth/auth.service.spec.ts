@@ -89,13 +89,16 @@ describe('AuthService', () => {
       confirmPassword: 'SecurePass1!',
       role: 'STUDENT' as const
     };
-    service.register(body).subscribe(response => expect(response.status).toBe('PENDING_VERIFICATION'));
+    service.register(body).subscribe(response => expect(response.status).toBe('PENDING_APPROVAL'));
     http.expectOne('/api/v1/auth/csrf').flush({ headerName: 'X-CSRF-TOKEN', token: 'csrf-value' });
     const request = http.expectOne('/api/v1/auth/register');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual(body);
     expect(request.request.headers.get('X-CSRF-TOKEN')).toBe('csrf-value');
-    request.flush({ status: 'PENDING_VERIFICATION', message: 'Waiting for email verification.' });
+    request.flush({
+      status: 'PENDING_APPROVAL',
+      message: 'Your registration has been submitted successfully. Your account is awaiting librarian verification. You will be able to sign in once your account is approved.'
+    });
     expect(service.profile()).toBeNull();
   });
 
