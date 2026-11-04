@@ -1,6 +1,8 @@
 package com.libtrack.librarian;
 
 import java.util.UUID;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -61,5 +63,11 @@ public class LibrarianMemberController {
     public ResponseEntity<Void> disable(@PathVariable UUID memberId) {
         memberService.updateAccountStatus(memberId, false);
         return ResponseEntity.noContent().build();
+    }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidAccountState(IllegalStateException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "INVALID_STATE", "message", exception.getMessage()));
     }
 }

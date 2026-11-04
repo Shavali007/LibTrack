@@ -217,6 +217,35 @@ class MemberApprovalIntegrationTest {
     }
 
     @Test
+    @DisplayName("Generic member enable cannot activate pending or rejected registrations")
+    void genericEnableCannotActivateUnapprovedAccounts() throws Exception {
+        UserAccount pending = accounts.saveAndFlush(UserAccount.pendingSelfRegistration(
+                "pending.enable." + UUID.randomUUID() + "@vitapstudent.ac.in",
+                encoder.encode("SecurePass1!"), AccountRole.STUDENT, "Pending Member", "PEN" + UUID.randomUUID()));
+        UserAccount rejected = UserAccount.pendingSelfRegistration(
+                "rejected.enable." + UUID.randomUUID() + "@vitap.ac.in",
+                encoder.encode("SecurePass1!"), AccountRole.FACULTY, "Rejected Member", "REJ" + UUID.randomUUID());
+        rejected.reject(librarian.getId(), "Identity mismatch", null, java.time.Instant.now());
+        rejected = accounts.saveAndFlush(rejected);
+
+        mvc.perform(post("/api/v1/librarian/members/{id}/enable", pending.getId())
+                        .with(csrf()).with(user(librarianPrincipal)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("INVALID_STATE"));
+        mvc.perform(post("/api/v1/librarian/members/{id}/enable", rejected.getId())
+                        .with(csrf()).with(user(librarianPrincipal)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("INVALID_STATE"));
+
+        UserAccount pendingAfter = accounts.findById(pending.getId()).orElseThrow();
+        UserAccount rejectedAfter = accounts.findById(rejected.getId()).orElseThrow();
+        assertThat(pendingAfter.isEnabled()).isFalse();
+        assertThat(pendingAfter.getApprovalStatus()).isEqualTo(ApprovalStatus.PENDING_APPROVAL);
+        assertThat(rejectedAfter.isEnabled()).isFalse();
+        assertThat(rejectedAfter.getApprovalStatus()).isEqualTo(ApprovalStatus.REJECTED);
+    }
+
+    @Test
     @DisplayName("7. Disabled approved account cannot login and receives ACCOUNT_NOT_ACTIVE error")
     void testDisabledApprovedAccountCannotLogin() throws Exception {
         UserAccount member = UserAccount.provisionMember(

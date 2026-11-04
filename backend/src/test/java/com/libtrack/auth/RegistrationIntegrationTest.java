@@ -150,7 +150,7 @@ class RegistrationIntegrationTest {
     @Test void duplicateEmailReturnsAppropriateStatusForApprovedAndRejected() throws Exception {
         String approvedEmail = "approved.24bce1234@vitapstudent.ac.in";
         UserAccount approved = UserAccount.pendingSelfRegistration(approvedEmail, encoder.encode("SecurePass1!"), AccountRole.STUDENT, "Approved User", "24BCE1234");
-        approved.activateAfterEmailVerification();
+        approved.approve(UUID.randomUUID(), "Approved by librarian", java.time.Instant.now());
         accounts.saveAndFlush(approved);
 
         register(approvedEmail, "STUDENT", "SecurePass1!")

@@ -150,14 +150,6 @@ public class UserAccount {
     public String getPasswordHash() { return passwordHash; }
     public AccountRole getRole() { return role; }
     public boolean isEnabled() { return enabled; }
-    public void activateAfterEmailVerification() {
-        if (enabled || provisioningSource != ProvisioningSource.SELF_REGISTRATION
-                || (role != AccountRole.STUDENT && role != AccountRole.FACULTY)) {
-            throw new IllegalStateException("Only a pending Student or Faculty self-registration can be verified.");
-        }
-        enabled = true;
-        approvalStatus = ApprovalStatus.APPROVED;
-    }
     public void updatePassword(String newPasswordHash) {
         if (newPasswordHash == null || newPasswordHash.isBlank()) {
             throw new IllegalArgumentException("Password hash must not be empty.");
@@ -190,7 +182,12 @@ public class UserAccount {
     }
 
     public void deactivate() { enabled = false; }
-    public void enable() { enabled = true; }
+    public void enable() {
+        if (approvalStatus != ApprovalStatus.APPROVED) {
+            throw new IllegalStateException("Only an approved account can be enabled.");
+        }
+        enabled = true;
+    }
     public String getInstitutionalId() { return institutionalId; }
     public Instant getIdentityVerifiedAt() { return identityVerifiedAt; }
     public Instant getCreatedAt() { return createdAt; }

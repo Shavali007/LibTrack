@@ -26,7 +26,7 @@ public class RegistrationVerificationService{
   String normalized=InstitutionalEmailPolicy.normalize(email);
   if(normalized==null)return;
   UserAccount account=accounts.findByEmailForUpdate(normalized).orElse(null);
-  if(account==null||account.isEnabled()||account.getProvisioningSource()!=ProvisioningSource.SELF_REGISTRATION
+  if(account==null||account.isEnabled()||account.getApprovalStatus()!=ApprovalStatus.PENDING_APPROVAL||account.getProvisioningSource()!=ProvisioningSource.SELF_REGISTRATION
       ||(account.getRole()!=AccountRole.STUDENT&&account.getRole()!=AccountRole.FACULTY))return;
   issue(account);
  }
@@ -37,19 +37,19 @@ public class RegistrationVerificationService{
   if(!token.isUsableAt(now)){log.debug("Email verification rejected: accountId={} reason={}",token.getAccountId(),token.getConsumedAt()==null?"expired":"already_consumed");return false;}
   UserAccount account=accounts.findById(token.getAccountId()).orElse(null);
   if(account==null){log.warn("Email verification rejected: accountId={} reason=account_missing",token.getAccountId());return false;}
-  if(account.isEnabled()||account.getProvisioningSource()!=ProvisioningSource.SELF_REGISTRATION
+  if(account.isEnabled()||account.getApprovalStatus()!=ApprovalStatus.PENDING_APPROVAL||account.getProvisioningSource()!=ProvisioningSource.SELF_REGISTRATION
       ||(account.getRole()!=AccountRole.STUDENT&&account.getRole()!=AccountRole.FACULTY)){
    log.warn("Email verification rejected: accountId={} reason=account_not_eligible",account.getId());return false;
   }
-  account.activateAfterEmailVerification();token.consume(now);accounts.flush();tokens.flush();
-  log.info("Email verification completed for accountId={}",account.getId());return true;
+  token.consume(now);tokens.flush();
+  log.info("Email ownership confirmed for pending accountId={}; librarian approval is still required",account.getId());return true;
  }
  @Transactional(readOnly=true) public VerificationDiagnostic diagnose(String raw){
   if(raw==null||raw.length()<40||raw.length()>100)return new VerificationDiagnostic("NOT_FOUND",null);
   EmailVerificationToken token=tokens.findByTokenHash(hash(raw)).orElse(null);
   if(token==null)return new VerificationDiagnostic("NOT_FOUND",null);
   UserAccount account=accounts.findById(token.getAccountId()).orElse(null);Instant now=clock.instant();
-  String status=token.getConsumedAt()!=null?"ALREADY_USED":!token.getExpiresAt().isAfter(now)?"EXPIRED":account==null?"ACCOUNT_MISSING":account.isEnabled()?"ACCOUNT_ALREADY_ACTIVE":"CURRENT";
+  String status=token.getConsumedAt()!=null?"ALREADY_USED":!token.getExpiresAt().isAfter(now)?"EXPIRED":account==null?"ACCOUNT_MISSING":account.isEnabled()?"ACCOUNT_ALREADY_ACTIVE":account.getApprovalStatus()!=ApprovalStatus.PENDING_APPROVAL?"ACCOUNT_NOT_PENDING_APPROVAL":"CURRENT";
   return new VerificationDiagnostic(status,token.getExpiresAt());
  }
  public record VerificationDiagnostic(String status,Instant expiresAt){}

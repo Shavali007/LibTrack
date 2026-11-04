@@ -40,22 +40,28 @@ class EmailVerificationIntegrationTest {
   assertNotEquals(token,row.getTokenHash()); // raw token is never stored
   assertEquals(RegistrationVerificationService.hash(token),tokens.findById(accounts.findByEmail(email).orElseThrow().getId()).orElseThrow().getTokenHash());
  }
- @Test void validTokenActivatesAccountOnceAndThenAllowsNormalLogin() throws Exception{
+ @Test void validTokenConfirmsEmailButAccountStillRequiresLibrarianApproval() throws Exception{
   String email=studentEmail();register(email);String token=token(capture.messages().getFirst());
   mvc.perform(post("/api/v1/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("email",email,"password","SecurePass1!"))))
     .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCOUNT_PENDING_APPROVAL"));
-  verify(token).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("VERIFIED"));
-  assertTrue(accounts.findByEmail(email).orElseThrow().isEnabled());
+  verify(token).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("VERIFIED"))
+    .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("pending librarian approval")));
+  UserAccount pending=accounts.findByEmail(email).orElseThrow();
+  assertFalse(pending.isEnabled());
+  assertEquals(ApprovalStatus.PENDING_APPROVAL,pending.getApprovalStatus());
+  assertNull(pending.getReviewedByAccountId());
   mvc.perform(post("/api/v1/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("email",email,"password","SecurePass1!"))))
-    .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("STUDENT"));
+    .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCOUNT_PENDING_APPROVAL"));
   verify(token).andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value("INVALID_OR_EXPIRED"));
  }
 @org.springframework.beans.factory.annotation.Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
- @Test void v7CompatibleProvisioningCheckAllowsTokenActivationAndConsumption() throws Exception{
+ @Test void v7CompatibleProvisioningCheckAllowsTokenConsumptionWithoutActivation() throws Exception{
   jdbc.execute("alter table user_account add constraint ck_test_self_registration_audit check (provisioning_source <> 'SELF_REGISTRATION' or (role in ('STUDENT','FACULTY') and created_by_account_id is null))");
   String email=studentEmail();register(email);String token=token(capture.messages().getFirst());
   verify(token).andExpect(status().isOk());
-  assertTrue(accounts.findByEmail(email).orElseThrow().isEnabled());
+  UserAccount pending=accounts.findByEmail(email).orElseThrow();
+  assertFalse(pending.isEnabled());
+  assertEquals(ApprovalStatus.PENDING_APPROVAL,pending.getApprovalStatus());
   verify(token).andExpect(status().isBadRequest());
  } @Test void reissueReplacesStaleCapturedLinkAndDiagnosticNeverReturnsToken() throws Exception{
   String email=studentEmail();register(email);String oldToken=token(capture.messages().getFirst());
@@ -69,6 +75,7 @@ class EmailVerificationIntegrationTest {
     .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(current))))
     .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(RegistrationVerificationService.hash(current)))));
   verify(current).andExpect(status().isOk());
+  assertFalse(accounts.findByEmail(email).orElseThrow().isEnabled());
  } @Test void invalidExpiredAndReusedTokensAreRejected() throws Exception{
   String email=studentEmail();register(email);String token=token(capture.messages().getFirst());
   verify("invalid-token").andExpect(status().isBadRequest());
@@ -77,15 +84,27 @@ class EmailVerificationIntegrationTest {
   verify(token).andExpect(status().isBadRequest());
   assertFalse(accounts.findById(row.getAccountId()).orElseThrow().isEnabled());
  }
+ @Test void outstandingVerificationTokenCannotApproveRejectedAccount() throws Exception{
+  String email=studentEmail();register(email);String token=token(capture.messages().getFirst());
+  UserAccount rejected=accounts.findByEmail(email).orElseThrow();
+  rejected.reject(UUID.randomUUID(),"Identity mismatch",null,Instant.now());
+  accounts.saveAndFlush(rejected);
+  verify(token).andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value("INVALID_OR_EXPIRED"));
+  assertEquals("ACCOUNT_NOT_PENDING_APPROVAL",verification.diagnose(token).status());
+  UserAccount unchanged=accounts.findByEmail(email).orElseThrow();
+  assertFalse(unchanged.isEnabled());
+  assertEquals(ApprovalStatus.REJECTED,unchanged.getApprovalStatus());
+ }
  @Test void diagnosticsEndpointRejectsNonLoopbackRequests() throws Exception{
   mvc.perform(get("/api/v1/dev/mail-capture/diagnostics").with(request-> {request.setRemoteAddr("192.0.2.9");return request;})).andExpect(status().isNotFound());
- } @Test void concurrentVerificationRequestsCanActivateOnlyOnce() throws Exception{
+ } @Test void concurrentVerificationRequestsCanConsumeOnlyOnceWithoutActivatingAccount() throws Exception{
   String email=studentEmail();register(email);String oneTime=token(capture.messages().getFirst());
   CompletableFuture<Boolean> first=CompletableFuture.supplyAsync(()->verification.verify(oneTime));
   CompletableFuture<Boolean> second=CompletableFuture.supplyAsync(()->verification.verify(oneTime));
   boolean firstResult=first.get(10,TimeUnit.SECONDS),secondResult=second.get(10,TimeUnit.SECONDS);
   assertNotEquals(firstResult,secondResult);
-  assertTrue(accounts.findByEmail(email).orElseThrow().isEnabled());
+  assertFalse(accounts.findByEmail(email).orElseThrow().isEnabled());
+  assertEquals(ApprovalStatus.PENDING_APPROVAL,accounts.findByEmail(email).orElseThrow().getApprovalStatus());
  }
  @Test void developerCanReissueForPreexistingPendingAccountWithoutActivatingIt() throws Exception{
   String email=studentEmail();
@@ -95,7 +114,9 @@ class EmailVerificationIntegrationTest {
   assertFalse(accounts.findById(pending.getId()).orElseThrow().isEnabled());
   String oneTime=token(capture.messages().getFirst());
   verify(oneTime).andExpect(status().isOk());
-  assertTrue(accounts.findById(pending.getId()).orElseThrow().isEnabled());
+  UserAccount stillPending=accounts.findById(pending.getId()).orElseThrow();
+  assertFalse(stillPending.isEnabled());
+  assertEquals(ApprovalStatus.PENDING_APPROVAL,stillPending.getApprovalStatus());
  }
  @Test void developmentMailCaptureRejectsNonLoopbackRequests() throws Exception{
   mvc.perform(get("/api/v1/dev/mail-capture").with(request-> {request.setRemoteAddr("192.0.2.9");return request;})).andExpect(status().isNotFound());
