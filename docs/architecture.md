@@ -34,21 +34,26 @@ Backend: authentication/authorization, business rules, DTO validation, transacti
 | members | member profile/status | auth, common |
 | borrowing | member-owned requests, Librarian review, workflow/history | books, auth, circulation |
 | circulation | issue, return, renewal, explicit holiday due dates | books, auth |
-| fines | assessment/status/waiver | circulation, members |
-| feedback | ratings and moderation | books, members |
+| fines | overdue assessment/status and manual payment records | circulation, members |
+| feedback | member-submitted category, subject, and message records; Librarian listing | members |
 | recommendations | category and faculty-to-student recommendations | books, members |
 | notifications | in-app notifications | borrowing, circulation, recommendations |
-| insights | derived personal reading summary | borrowing, circulation, books |
 | reports | librarian reporting queries | books, members, borrowing, circulation, fines |
+| reservations | member reservation queue and pickup lifecycle | books, circulation, auth |
+| digital | digital PDF edition storage and access | books, auth |
+| reviews / wishlist | eligible book reviews and member wishlists | books, members, auth |
+| settings | librarian-managed library and policy settings | common, auth |
+
+Personal reading insights are not currently implemented as an API or routed workspace feature.
 | common | API errors, configuration, audit primitives | no business module dependency |
 
 Use service interfaces and identifiers across modules; avoid cross-module repository access. Defer group/course modeling until an authoritative source exists.
 
 ## Authentication and authorization
-Public Student/Faculty registration validates the role-specific VIT-AP email convention, password policy and confirmation, normalizes email, hashes passwords, and creates a disabled `SELF_REGISTRATION` account with no institutional ID or verification attestation. There is no email delivery infrastructure; no token or delivery is pretended and these accounts cannot access authenticated features. Production activation requires institutional mail delivery, unpredictable single-use expiring verification tokens, safe token storage, abuse rate limiting, and backend verified-only activation. The separate Librarian provisioning process still records its verified identity attestation. Librarian accounts remain bootstrap/administrative only.
+Public Student/Faculty registration validates the role-specific VIT-AP email convention and password policy, normalizes email, hashes passwords, and creates a disabled `SELF_REGISTRATION` account with status `PENDING_APPROVAL`. A notification is sent to Librarians; an authorized Librarian reviews and approves or rejects the request. Approval records the reviewer and time and enables sign-in. Librarian provisioning remains a separate flow that records the identity attestation. Librarian accounts remain controlled bootstrap/administrative only; public registration cannot assign that role. Spring Security stores authentication in server-side sessions, rotates the session ID after login, uses session-backed CSRF, and hashes passwords with BCrypt. Password-reset endpoints exist, but production email delivery, rate limiting, evidence retention, and institutional SSO are not configured. The legacy email-verification endpoint and development mail capture remain in code, but the current registration service does not issue verification tokens.
 
 ## Transactions for borrowing
-Librarian approval and physical issue are separate actions. Issue locks the approved request and selected copy, checks active STANDARD book eligibility and copy availability, then records loan, 30-calendar-day due date, audit history, and ON_LOAN state in one transaction. Return locks the loan/copy, records condition and case note, then updates the copy state atomically. Renewal enforces owner, active STANDARD loan, one-renewal limit, and ON_LOAN copy; it adds 30 calendar days to prior due date. A generated nullable key with a unique index prevents concurrent active loans for a copy on MySQL (the historical PostgreSQL migration uses a partial unique index). Due dates move only across explicitly configured holiday dates; weekends are not implicit closures. No fine or replacement amount is assessed.
+Librarian approval and physical issue are separate actions. Issue locks the approved request and selected copy, checks active STANDARD book eligibility and copy availability, then records the loan, due date, audit history, and ON_LOAN state in one transaction. Student and Faculty loan durations and renewal limits/extensions are read from policy settings (current defaults are 21 and 30 days respectively for initial loans, one renewal, and a 21-day extension). Due-date adjustment skips Sundays, Mondays, and configured holiday ranges; the library time zone must be configured. Return locks the loan/copy, records condition and case note, then updates copy state atomically. Overdue fines are implemented using the rate, cap, and grace-period settings; Librarians can record payments manually. There is no external payment gateway or lost/damaged replacement charge. A generated nullable key with a unique index prevents concurrent active loans for a copy on MySQL.
 
 ## Deployment
 Build static frontend assets and run a single backend against MySQL 8.4. Supply configuration through environment variables/secret management. Backups, observability, retention, and scale-out policy are release decisions.
@@ -65,4 +70,4 @@ Flyway V4 persists member requests, request events, loans, loan events, and an e
 
 ## Database engine and migration history
 
-MySQL 8.4 is the active runtime target. Spring Boot uses the MySQL Connector/J driver and UTC-normalized `DATETIME(6)` values for `Instant`; library business dates remain SQL `DATE`. Flyway defaults to `classpath:db/migration/mysql`. PostgreSQL V1–V4 remain unchanged under `classpath:db/migration` to preserve checksums and historical deployment evidence. The MySQL V1–V4 scripts create the equivalent logical model for a fresh MySQL database. This is not an in-place conversion: populated PostgreSQL data requires a separately planned/exported/imported transfer.
+MySQL 8.4 is the active runtime target. Spring Boot uses MySQL Connector/J and Flyway defaults to `classpath:db/migration/mysql`; that directory currently contains V1–V22. Hibernate uses `ddl-auto: validate`. The separate `classpath:db/migration` location retains legacy/non-MySQL scripts (V1–V4 and V8–V22); it is not the configured runtime location. H2-backed automated tests do not validate either migration set. Do not edit migrations already applied to a real database; use forward-only migrations. Changing database engines or moving populated data requires a separately planned export/import.
