@@ -22,7 +22,7 @@ describe('Library Policies Suite', () => {
       studentMaxBooks: 5,
       facultyMaxBooks: 5,
       studentLoanDays: 21,
-      facultyLoanDays: 30,
+      facultyLoanDays: 21,
       studentMaxRenewals: 1,
       facultyMaxRenewals: 1,
       studentRenewalExtensionDays: 21,
@@ -43,7 +43,11 @@ describe('Library Policies Suite', () => {
       maxFinePerBook: '₹500',
       gracePeriod: '0 days',
       payment: 'Full payment only',
-      lostDamagedBooks: 'To be recorded and handled by the librarian'
+      lostDamagedBooks: 'Manual payment recorded by a Librarian at the circulation desk',
+      status: 'ACTIVE',
+      monetaryFinesEnabled: true,
+      policyDescription: 'Overdue fines use the configured daily rate and maximum.',
+      configured: true
     },
     membership: {
       eligibleMembers: 'Students and Faculty of VIT-AP',
@@ -135,7 +139,7 @@ describe('Library Policies Suite', () => {
     expect(el.textContent).toContain('Maximum books at a time');
     expect(el.textContent).toContain('5 books');
     expect(el.textContent).toContain('21 days');
-    expect(el.textContent).toContain('30 days');
+    expect(el.textContent).toContain('21 days');
     expect(el.textContent).toContain('Maximum active reservations');
     expect(el.textContent).toContain('1 calendar month');
 
@@ -189,6 +193,8 @@ describe('Library Policies Suite', () => {
     expect(el.textContent).toContain('₹10');
     expect(el.textContent).toContain('₹500');
     expect(el.textContent).toContain('0 days');
+    expect(el.textContent).toContain('Current policy · ACTIVE');
+    expect(el.textContent).toContain('existing loans retain the policy snapshot');
     expect(el.textContent).toContain('Full payment only');
 
     const breadcrumb = el.querySelector('.breadcrumb-link');

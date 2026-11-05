@@ -43,6 +43,7 @@ export class CirculationDeskComponent implements OnInit {
   activeBookFilter = '';
   readonly selectedLoanIds = signal<Set<string>>(new Set());
   readonly openDropdownLoanId = signal<string | null>(null);
+  readonly downloadingReceiptId = signal<string | null>(null);
 
   // Return Modal State (for returning active loans)
   readonly showReturnModal = signal(false);
@@ -267,6 +268,23 @@ export class CirculationDeskComponent implements OnInit {
         },
         error: (err) => {
           this.returnModalError = err?.error?.message || 'Failed to process book return.';
+        }
+      });
+  }
+
+  downloadReceipt(loan: LoanRecord): void {
+    if (!loan || !loan.id || this.downloadingReceiptId() === loan.id) return;
+    this.downloadingReceiptId.set(loan.id);
+    this.error.set('');
+    this.notice.set('');
+    this.service.downloadLoanReceipt(loan.id)
+      .pipe(finalize(() => this.downloadingReceiptId.set(null)))
+      .subscribe({
+        next: () => {
+          this.notice.set(`Receipt for "${loan.bookTitle}" (Copy: ${loan.copyIdentifier}) downloaded.`);
+        },
+        error: () => {
+          this.error.set(`Could not download receipt for loan ID ${loan.id}.`);
         }
       });
   }

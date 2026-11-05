@@ -139,6 +139,30 @@ export interface Holiday {
   createdAt: string;
 }
 
+export interface LoanReceiptRecord {
+  receiptId: string;
+  receiptNumber: string;
+  loanId: string;
+  generatedAt: string;
+  formattedGeneratedAt: string;
+  borrowerId: string;
+  borrowerName: string;
+  borrowerInstitutionalId: string;
+  borrowerEmail: string;
+  borrowerRole: string;
+  bookId: string;
+  bookTitle: string;
+  bookAuthors: string;
+  bookIsbn: string;
+  copyIdentifier: string;
+  issueDate: string;
+  dueDate: string;
+  issuedByName: string;
+  issuedByEmail: string;
+  libraryName: string;
+  universityName: string;
+}
+
 export interface CirculationCopy {
   id: string;
   bookId: string;
@@ -270,5 +294,30 @@ export class BorrowingService {
 
   myFines(): Observable<FineRecord[]> {
     return this.http.get<FineRecord[]>('/api/v1/fines/mine');
+  }
+
+  getLoanReceipt(loanId: string): Observable<LoanReceiptRecord> {
+    return this.http.get<LoanReceiptRecord>(`/api/v1/loans/${loanId}/receipt`);
+  }
+
+  getLoanReceiptBlob(loanId: string): Observable<Blob> {
+    return this.http.get(`/api/v1/loans/${loanId}/receipt/pdf`, {
+      responseType: 'blob'
+    });
+  }
+
+  downloadLoanReceipt(loanId: string, receiptNumber?: string): Observable<Blob> {
+    return this.getLoanReceiptBlob(loanId).pipe(
+      tap(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${receiptNumber ? 'receipt-' + receiptNumber : 'receipt-' + loanId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      })
+    );
   }
 }

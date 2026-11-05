@@ -92,6 +92,15 @@ export interface SettingRecord {
   updatedByEmail: string | null;
 }
 
+export type FinePolicySettingKey = 'fine.daily.rate' | 'fine.max.limit' | 'fine.grace.period.days' | 'loan.period.days';
+
+export interface FinePolicyUpdateRequest {
+  dailyFineRate: number;
+  maximumFinePerBook: number;
+  gracePeriodDays: number;
+  loanPeriodDays: number;
+}
+
 export interface FinePaymentRecord {
   id: string;
   amount: number;
@@ -117,12 +126,16 @@ export interface FineRecord {
   loanStatus: string;
   dailyRate: number;
   maxFine: number;
+  gracePeriodDays: number;
   overdueDays: number;
   fineAmount: number;
   status: 'UNPAID' | 'PAID';
   assessedAt: string;
   paidAt: string | null;
   payments: FinePaymentRecord[];
+  loanOverdue?: boolean;
+  renewed?: boolean;
+  originalDueDate?: string | null;
 }
 
 export interface FineSummary {
@@ -181,6 +194,10 @@ export interface FinePolicyDto {
   gracePeriod: string;
   payment: string;
   lostDamagedBooks: string;
+  status: 'ACTIVE' | 'DISABLED' | 'UNCONFIGURED';
+  monetaryFinesEnabled: boolean;
+  policyDescription: string;
+  configured: boolean;
 }
 
 export interface MembershipPolicyDto {
@@ -206,6 +223,11 @@ export interface FinesPolicyResponse {
   policyTitle: string;
   policyDescription: string;
   monetaryFinesEnabled: boolean;
+  dailyFineRate: number;
+  maximumFinePerBook: number;
+  gracePeriodDays: number;
+  loanPeriodDays: number;
+  configured: boolean;
   overdueLoansCount: number;
   overdueLoans: OverdueLoanItem[];
 }
@@ -328,6 +350,12 @@ export class LibrarianOperationsService {
   // --- Fines ---
   getFinesPolicy(): Observable<FinesPolicyResponse> {
     return this.http.get<FinesPolicyResponse>('/api/v1/librarian/fines/policy');
+  }
+
+  updateFinePolicy(policy: FinePolicyUpdateRequest): Observable<void> {
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.put<void>('/api/v1/librarian/settings/fine-policy', policy, { headers }))
+    );
   }
 
   getAllFines(): Observable<FineRecord[]> {

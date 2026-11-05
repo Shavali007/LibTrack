@@ -459,7 +459,7 @@ class HolidayCalendarAndDueDateCalculationIntegrationTest {
     }
 
     @Test
-    void facultyLoanIssuanceUses30DayDurationAndPersistsCorrectDueDate() throws Exception {
+    void facultyLoanIssuanceUsesShared21DayDurationAndPersistsCorrectDueDate() throws Exception {
         UserAccount faculty = member(AccountRole.FACULTY);
         MockHttpSession facultySession = login(faculty);
         String bookId = createBook();
@@ -473,7 +473,7 @@ class HolidayCalendarAndDueDateCalculationIntegrationTest {
         LocalDate issueDate = LocalDate.parse(loanJson.get("issueDate").asText());
         LocalDate actualDueDate = LocalDate.parse(loanJson.get("dueDate").asText());
 
-        LocalDate expectedDueDate = dueDates.calculateDueDate(issueDate, 30);
+        LocalDate expectedDueDate = dueDates.calculateDueDate(issueDate, 21);
         assertEquals(expectedDueDate, actualDueDate);
 
         Loan loan = loans.findById(UUID.fromString(loanJson.get("id").asText())).orElseThrow();

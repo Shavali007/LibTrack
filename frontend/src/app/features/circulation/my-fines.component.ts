@@ -71,7 +71,7 @@ import { FineRecord } from '../librarian/librarian-operations.service';
                   <th scope="col">Copy Barcode</th>
                   <th scope="col">Due Date</th>
                   <th scope="col">Overdue Days</th>
-                  <th scope="col">Daily Rate</th>
+                  <th scope="col">Terms Applied to This Loan</th>
                   <th scope="col">Fine Amount</th>
                   <th scope="col">Status</th>
                   <th scope="col">Payment / Receipt</th>
@@ -87,11 +87,26 @@ import { FineRecord } from '../librarian/librarian-operations.service';
                       }
                     </td>
                     <td><code>{{ fine.copyIdentifier }}</code></td>
-                    <td><time [attr.datetime]="fine.dueDate">{{ fine.dueDate | date:'mediumDate' }}</time></td>
+                    <td>
+                      <time [attr.datetime]="fine.dueDate">{{ fine.dueDate | date:'mediumDate' }}</time>
+                      @if (fine.renewed && fine.originalDueDate && fine.originalDueDate !== fine.dueDate) {
+                        <br><small class="muted">Renewed (Original: {{ fine.originalDueDate | date:'mediumDate' }})</small>
+                      }
+                    </td>
                     <td>
                       <span class="days-badge">{{ fine.overdueDays }} day(s)</span>
+                      @if (fine.renewed && !fine.loanOverdue) {
+                        <br><small class="muted">(Assessed prior to renewal)</small>
+                      } @else if (fine.loanStatus === 'RETURNED') {
+                        <br><small class="muted">(Loan returned)</small>
+                      } @else if (fine.loanOverdue) {
+                        <br><small class="text-danger">(Currently overdue)</small>
+                      }
                     </td>
-                    <td>₹{{ fine.dailyRate.toFixed(2) }}/day</td>
+                    <td>
+                      ₹{{ fine.dailyRate.toFixed(2) }}/day
+                      <br><small class="muted">Maximum ₹{{ fine.maxFine.toFixed(2) }} · {{ fine.gracePeriodDays }} grace day(s)</small>
+                    </td>
                     <td>
                       <strong [class.text-danger]="fine.status === 'UNPAID'">
                         ₹{{ fine.fineAmount.toFixed(2) }}

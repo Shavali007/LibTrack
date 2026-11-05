@@ -4,12 +4,10 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 
-import com.libtrack.auth.AccountRole;
 
 @Service
 public class DueDateService {
-    public static final int DEFAULT_STUDENT_LOAN_DAYS = 21;
-    public static final int DEFAULT_FACULTY_LOAN_DAYS = 30;
+    public static final int DEFAULT_LOAN_PERIOD_DAYS = 21;
     public static final int STANDARD_LOAN_DAYS = 21;
     public static final int RENEWAL_EXTENSION_DAYS = 21;
     public static final int LOAN_CALENDAR_DAYS = 21;
@@ -22,16 +20,11 @@ public class DueDateService {
     }
 
     public LocalDate initialDueDate(LocalDate issueDate) {
-        return calculateDueDate(issueDate, DEFAULT_STUDENT_LOAN_DAYS);
+        return calculateDueDate(issueDate, DEFAULT_LOAN_PERIOD_DAYS);
     }
 
     public LocalDate initialDueDate(LocalDate issueDate, int eligibleDays) {
         return calculateDueDate(issueDate, eligibleDays);
-    }
-
-    public LocalDate initialDueDate(LocalDate issueDate, AccountRole role) {
-        int days = (role == AccountRole.FACULTY) ? DEFAULT_FACULTY_LOAN_DAYS : DEFAULT_STUDENT_LOAN_DAYS;
-        return calculateDueDate(issueDate, days);
     }
 
     public LocalDate renewalDueDate(LocalDate previousDueDate) {

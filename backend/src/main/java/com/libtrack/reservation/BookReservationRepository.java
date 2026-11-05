@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import com.libtrack.catalogue.TrendingBookActivityProjection;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, UUID> {
 
@@ -45,4 +46,11 @@ public interface BookReservationRepository extends JpaRepository<BookReservation
     long countByStudent_IdAndStatus(UUID studentId, ReservationStatus status);
 
     long countByStudent_IdAndStatusIn(UUID studentId, Collection<ReservationStatus> statuses);
+
+    @Query("select r.book.id as bookId, count(r) as activityCount from BookReservation r " +
+           "where r.createdAt >= :cutoff and r.status in :statuses and r.book.active = true " +
+           "and (r.borrowRequest is null or not exists (select loan.id from Loan loan where loan.request = r.borrowRequest)) " +
+           "group by r.book.id")
+    List<TrendingBookActivityProjection> countActiveReservationsSince(@Param("cutoff") Instant cutoff,
+                                                                        @Param("statuses") Collection<ReservationStatus> statuses);
 }

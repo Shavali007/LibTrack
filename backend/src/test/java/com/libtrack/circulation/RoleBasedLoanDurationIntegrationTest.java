@@ -64,8 +64,7 @@ class RoleBasedLoanDurationIntegrationTest {
         libSession = login(librarian);
 
         // Ensure default settings are in place for each test run
-        resetSetting("loan.period.student.days", "21");
-        resetSetting("loan.period.faculty.days", "30");
+        resetSetting("loan.period.days", "21");
         resetSetting("loan.renewal.extension.days", "21");
     }
 
@@ -98,7 +97,7 @@ class RoleBasedLoanDurationIntegrationTest {
     }
 
     @Test
-    void facultyLoanDefaultsTo30EligibleDays() throws Exception {
+    void facultyUsesTheSameSharedLoanDurationAsStudents() throws Exception {
         UserAccount faculty = member(AccountRole.FACULTY);
         MockHttpSession facultySession = login(faculty);
 
@@ -114,14 +113,12 @@ class RoleBasedLoanDurationIntegrationTest {
         LocalDate issueDate = LocalDate.parse(loan.get("issueDate").asText());
         LocalDate dueDate = LocalDate.parse(loan.get("dueDate").asText());
 
-        // Faculty gets 30 days (with non-working day adjustment)
-        assertEquals(dueDates.calculateDueDate(issueDate, 30), dueDate);
+        assertEquals(dueDates.calculateDueDate(issueDate, 21), dueDate);
     }
 
     @Test
-    void changingStudentDurationDoesNotAffectFacultyDuration() throws Exception {
-        // Librarian changes student duration to 14 days
-        MvcResult updateResult = updateSetting("loan.period.student.days", "14");
+    void changingSharedDurationAppliesEquallyToStudentsAndFaculty() throws Exception {
+        MvcResult updateResult = updateSetting("loan.period.days", "14");
         assertEquals(200, updateResult.getResponse().getStatus());
 
         // Issue new student loan -> should be 14 days
@@ -135,7 +132,7 @@ class RoleBasedLoanDurationIntegrationTest {
         LocalDate studentIssue = LocalDate.parse(studentLoan.get("issueDate").asText());
         assertEquals(dueDates.calculateDueDate(studentIssue, 14), LocalDate.parse(studentLoan.get("dueDate").asText()));
 
-        // Issue new faculty loan -> must still be 30 days
+        // Faculty receives the same updated duration.
         UserAccount faculty = member(AccountRole.FACULTY);
         MockHttpSession facultySession = login(faculty);
         String book2 = createBook();
@@ -144,13 +141,12 @@ class RoleBasedLoanDurationIntegrationTest {
         approveRequest(req2);
         JsonNode facultyLoan = json(issueLoan(req2, copy2));
         LocalDate facultyIssue = LocalDate.parse(facultyLoan.get("issueDate").asText());
-        assertEquals(dueDates.calculateDueDate(facultyIssue, 30), LocalDate.parse(facultyLoan.get("dueDate").asText()));
+        assertEquals(dueDates.calculateDueDate(facultyIssue, 14), LocalDate.parse(facultyLoan.get("dueDate").asText()));
     }
 
     @Test
-    void changingFacultyDurationDoesNotAffectStudentDuration() throws Exception {
-        // Librarian changes faculty duration to 45 days
-        MvcResult updateResult = updateSetting("loan.period.faculty.days", "45");
+    void sharedDurationUpdateAlsoAppliesToStudentLoans() throws Exception {
+        MvcResult updateResult = updateSetting("loan.period.days", "45");
         assertEquals(200, updateResult.getResponse().getStatus());
 
         // Issue new faculty loan -> should be 45 days
@@ -164,7 +160,7 @@ class RoleBasedLoanDurationIntegrationTest {
         LocalDate facultyIssue = LocalDate.parse(facultyLoan.get("issueDate").asText());
         assertEquals(dueDates.calculateDueDate(facultyIssue, 45), LocalDate.parse(facultyLoan.get("dueDate").asText()));
 
-        // Issue new student loan -> must still be default 21 days
+        // Student receives the same updated duration.
         UserAccount student = member(AccountRole.STUDENT);
         MockHttpSession studentSession = login(student);
         String book2 = createBook();
@@ -173,7 +169,7 @@ class RoleBasedLoanDurationIntegrationTest {
         approveRequest(req2);
         JsonNode studentLoan = json(issueLoan(req2, copy2));
         LocalDate studentIssue = LocalDate.parse(studentLoan.get("issueDate").asText());
-        assertEquals(dueDates.calculateDueDate(studentIssue, 21), LocalDate.parse(studentLoan.get("dueDate").asText()));
+        assertEquals(dueDates.calculateDueDate(studentIssue, 45), LocalDate.parse(studentLoan.get("dueDate").asText()));
     }
 
     @Test
@@ -190,7 +186,7 @@ class RoleBasedLoanDurationIntegrationTest {
         LocalDate originalDue = LocalDate.parse(initialLoan.get("dueDate").asText());
 
         // Update student duration setting to 7 days
-        updateSetting("loan.period.student.days", "7");
+        updateSetting("loan.period.days", "7");
 
         // Existing loan in DB must remain untouched
         Loan existing = loans.findById(loanId).orElseThrow();
@@ -215,8 +211,8 @@ class RoleBasedLoanDurationIntegrationTest {
         LocalDate studentDue = LocalDate.parse(studentLoan.get("dueDate").asText());
         assertEquals(expectedStudentDue, studentDue);
 
-        // Faculty loan: uses 30-day duration, intermediate holiday does NOT extend
-        LocalDate expectedFacultyDue = dueDates.calculateDueDate(today, 30);
+        // Faculty loan uses the same duration and holiday rules.
+        LocalDate expectedFacultyDue = dueDates.calculateDueDate(today, 21);
         UserAccount faculty = member(AccountRole.FACULTY);
         MockHttpSession facultySession = login(faculty);
         String book2 = createBook();
@@ -265,21 +261,21 @@ class RoleBasedLoanDurationIntegrationTest {
     @Test
     void settingValidationRejectsInvalidValues() throws Exception {
         // Zero should be rejected
-        MvcResult zeroStudent = updateSetting("loan.period.student.days", "0");
+        MvcResult zeroStudent = updateSetting("loan.period.days", "0");
         assertEquals(400, zeroStudent.getResponse().getStatus());
 
         // Negative should be rejected
-        MvcResult negativeFaculty = updateSetting("loan.period.faculty.days", "-10");
+        MvcResult negativeFaculty = updateSetting("loan.period.days", "-10");
         assertEquals(400, negativeFaculty.getResponse().getStatus());
 
         // Non-number should be rejected
-        MvcResult invalidStr = updateSetting("loan.period.student.days", "thirty");
+        MvcResult invalidStr = updateSetting("loan.period.days", "thirty");
         assertEquals(400, invalidStr.getResponse().getStatus());
 
         // Non-librarian cannot modify settings (403)
         UserAccount student = member(AccountRole.STUDENT);
         MockHttpSession studentSession = login(student);
-        MvcResult forbiddenResult = mvc.perform(put("/api/v1/librarian/settings/loan.period.student.days")
+        MvcResult forbiddenResult = mvc.perform(put("/api/v1/librarian/settings/loan.period.days")
                 .session(studentSession)
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)

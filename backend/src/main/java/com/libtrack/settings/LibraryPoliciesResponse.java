@@ -44,7 +44,11 @@ public record LibraryPoliciesResponse(
             String maxFinePerBook,
             String gracePeriod,
             String payment,
-            String lostDamagedBooks
+            String lostDamagedBooks,
+            String status,
+            boolean monetaryFinesEnabled,
+            String policyDescription,
+            boolean configured
     ) {}
 
     public record MembershipPolicyDto(

@@ -22,6 +22,9 @@ import com.libtrack.catalogue.BookCopy;
 import com.libtrack.circulation.CirculationConflictException;
 import com.libtrack.circulation.CirculationNotFoundException;
 import com.libtrack.circulation.Loan;
+import com.libtrack.circulation.LoanEvent;
+import com.libtrack.circulation.LoanEventRepository;
+import com.libtrack.circulation.LoanEventType;
 import com.libtrack.circulation.LoanRepository;
 import com.libtrack.circulation.LoanStatus;
 
@@ -30,6 +33,7 @@ public class FineService {
     private final FineRepository fineRepository;
     private final FinePaymentRepository finePaymentRepository;
     private final LoanRepository loanRepository;
+    private final LoanEventRepository loanEventRepository;
     private final UserAccountRepository userAccountRepository;
     private final NotificationService notificationService;
     private final Clock clock;
@@ -37,12 +41,14 @@ public class FineService {
     public FineService(FineRepository fineRepository,
                        FinePaymentRepository finePaymentRepository,
                        LoanRepository loanRepository,
+                       LoanEventRepository loanEventRepository,
                        UserAccountRepository userAccountRepository,
                        NotificationService notificationService,
                        Clock clock) {
         this.fineRepository = fineRepository;
         this.finePaymentRepository = finePaymentRepository;
         this.loanRepository = loanRepository;
+        this.loanEventRepository = loanEventRepository;
         this.userAccountRepository = userAccountRepository;
         this.notificationService = notificationService;
         this.clock = clock;
@@ -55,6 +61,9 @@ public class FineService {
         List<Loan> overdueLoans = loanRepository.findOverdueLoans(LoanStatus.ACTIVE, today);
 
         for (Loan loan : overdueLoans) {
+            if (loan.getDailyFineRate().signum() == 0 || loan.getMaxFineAmount().signum() == 0) {
+                continue;
+            }
             long daysOverdue = ChronoUnit.DAYS.between(loan.getDueDate(), today);
             if (daysOverdue > loan.getGracePeriodDays()) {
                 long effectiveDays = daysOverdue - loan.getGracePeriodDays();
@@ -102,6 +111,9 @@ public class FineService {
     public void finalizeFineOnReturn(Loan loan) {
         LocalDate returnDate = loan.getActualReturnDate();
         if (returnDate != null && returnDate.isAfter(loan.getDueDate())) {
+            if (loan.getDailyFineRate().signum() == 0 || loan.getMaxFineAmount().signum() == 0) {
+                return;
+            }
             Instant now = Instant.now(clock);
             long daysOverdue = ChronoUnit.DAYS.between(loan.getDueDate(), returnDate);
             if (daysOverdue > loan.getGracePeriodDays()) {
@@ -238,6 +250,20 @@ public class FineService {
                 ))
                 .toList();
 
+        LocalDate today = LocalDate.now(clock);
+        boolean loanOverdue = loan.getStatus() == LoanStatus.ACTIVE && loan.getDueDate().isBefore(today);
+        boolean renewed = loan.getRenewalCount() > 0;
+        LocalDate originalDueDate = loan.getDueDate();
+        if (renewed) {
+            List<LoanEvent> events = loanEventRepository.history(loan.getId());
+            for (LoanEvent e : events) {
+                if (e.getEventType() == LoanEventType.RENEWED && e.getPreviousDueDate() != null) {
+                    originalDueDate = e.getPreviousDueDate();
+                    break;
+                }
+            }
+        }
+
         return new FineRecordResponse(
                 fine.getId(),
                 loan.getId(),
@@ -255,12 +281,16 @@ public class FineService {
                 loan.getStatus().name(),
                 fine.getDailyFineRate(),
                 fine.getMaxFineAmount(),
+                loan.getGracePeriodDays(),
                 fine.getOverdueDays(),
                 fine.getFineAmount(),
                 fine.getStatus(),
                 fine.getAssessedAt(),
                 fine.getPaidAt(),
-                paymentResponses
+                paymentResponses,
+                loanOverdue,
+                renewed,
+                originalDueDate
         );
     }
 }

@@ -32,6 +32,7 @@ import com.libtrack.circulation.BorrowerLoanCount;
 import com.libtrack.circulation.Loan;
 import com.libtrack.circulation.LoanEventRepository;
 import com.libtrack.circulation.LoanEventResponse;
+import com.libtrack.circulation.LoanEventType;
 import com.libtrack.circulation.LoanRepository;
 import com.libtrack.circulation.LoanResponse;
 import com.libtrack.circulation.LoanStatus;
@@ -165,6 +166,7 @@ public class LibrarianMemberService {
                 && loan.getRenewalCount() < 1
                 && loan.getCopy().getStatus() == CopyStatus.ON_LOAN
                 && loan.getCopy().getBook().getCirculationPolicy() == CirculationPolicy.STANDARD
+                && !loan.getDueDate().isBefore(today)
                 && !userSemesterRenewals.existsByUser_IdAndSemesterCode(loan.getBorrower().getId(), semesterCode);
 
         List<LoanEventResponse> history = loanEvents.history(loan.getId()).stream()
@@ -172,12 +174,18 @@ public class LibrarianMemberService {
                 e.getEventType(),
                 e.getActor().getEmail(),
                 e.getOccurredAt(),
-                e.getEffectiveDate(),
+                (e.getEventType() == LoanEventType.ISSUED && e.getOccurredAt() != null)
+                    ? LocalDate.ofInstant(e.getOccurredAt(), clock.getZone())
+                    : e.getEffectiveDate(),
                 e.getPreviousDueDate(),
                 e.getNewDueDate(),
                 e.getCopyStatus(),
                 e.getNote()
             )).toList();
+
+        LocalDate effectiveIssueDate = loan.getCreatedAt() != null
+            ? LocalDate.ofInstant(loan.getCreatedAt(), clock.getZone())
+            : loan.getIssueDate();
 
         return new LoanResponse(
             loan.getId(),
@@ -188,7 +196,7 @@ public class LibrarianMemberService {
             loan.getCopy().getCopyIdentifier(),
             loan.getBorrower().getEmail(),
             loan.getStatus(),
-            loan.getIssueDate(),
+            effectiveIssueDate,
             loan.getDueDate(),
             loan.getActualReturnDate(),
             loan.getRenewalCount(),

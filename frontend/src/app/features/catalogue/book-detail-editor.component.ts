@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService, UserProfile } from '../auth/auth.service';
 import { SignInDialogComponent } from '../auth/sign-in-dialog.component';
-import { BookDetail, BookWrite, CatalogueService, DigitalEdition, InventorySummary } from './catalogue.service';
+import { BookDetail, BookWrite, CatalogueService, Chapter, ChapterCreateRequest, ChapterUpdateRequest, DigitalEdition, InventorySummary } from './catalogue.service';
 import { BorrowingService } from '../circulation/borrowing.service';
 import { ToastService } from '../../shared/layout/toast.component';
 import { RecommendationService, Recommendation } from '../recommendations/recommendation.service';
@@ -14,6 +14,7 @@ import { ReviewService, BookReview, ReviewSummary, ReviewEligibility } from '../
 import { WriteReviewModalComponent } from '../reviews/write-review-modal.component';
 import { ReservationService, ReservationItem } from '../reservations/reservation.service';
 import { WishlistService } from '../wishlist/wishlist.service';
+import { PublicNavigationComponent } from '../../shared/layout/public-navigation.component';
 
 function validIsbn(control: AbstractControl): ValidationErrors | null {
   const value = String(control.value ?? '').trim();
@@ -62,7 +63,7 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-book-detail',
   standalone: true,
-  imports: [RouterLink, SignInDialogComponent, RecommendModalComponent, WriteReviewModalComponent],
+  imports: [RouterLink, SignInDialogComponent, RecommendModalComponent, WriteReviewModalComponent, PublicNavigationComponent],
   template: `
     @if (loading()) {
       <div class="loading-state" role="status">Loading book record…</div>
@@ -72,20 +73,7 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
       </div>
     } @else if (book(); as b) {
       @if (!isInsideWorkspace()) {
-        <header class="catalogue-public-nav">
-          <a class="brand" routerLink="/" aria-label="LibTrack home">
-            <span class="brand-icon" aria-hidden="true">▤</span>
-            <strong>LibTrack</strong>
-          </a>
-          <nav aria-label="Catalogue navigation">
-            <a routerLink="/books">Explore books</a>
-            @if (auth.profile()) {
-              <a routerLink="/workspace">My workspace</a>
-            } @else {
-              <button class="button button-secondary" type="button" (click)="openSignIn()">Sign in</button>
-            }
-          </nav>
-        </header>
+        <app-public-navigation activePage="books" (signInRequested)="openSignIn()" />
       }
 
       <!-- Breadcrumb matching Screenshot -->
@@ -2037,6 +2025,119 @@ export class BookDetailComponent {
       </div>
     </div>
 
+    <div class="chapters-panel" aria-labelledby="chapter-management-title">
+      <div class="chapters-heading">
+        <div>
+          <h3 id="chapter-management-title">Chapter Navigation & Indexing</h3>
+          <p class="field-hint">Manage chapters and index bookmarks extracted from the PDF to enable chapter-wise search.</p>
+        </div>
+        <div class="chapter-top-actions">
+          <button class="button button-secondary button-sm" type="button" (click)="openCreateChapter()" [disabled]="chapterBusy() || editingChapterId() !== null">
+            + Add Chapter
+          </button>
+          <button class="button button-secondary button-sm" type="button" (click)="reprocessChapters()" [disabled]="chapterBusy() || editingChapterId() !== null">
+            {{ chapterBusy() ? 'Processing…' : '↻ Reprocess from PDF' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="reprocess-option-row">
+        <label class="checkbox-label">
+          <input type="checkbox" [checked]="overwriteManualOnReprocess()" (change)="overwriteManualOnReprocess.set($any($event.target).checked)" [disabled]="chapterBusy()" />
+          <span>Overwrite manually edited chapters when reprocessing</span>
+        </label>
+      </div>
+
+      @if(chapterNotice()){<p class="alert alert-success" role="status" aria-live="polite">{{chapterNotice()}}</p>}
+      @if(chapterError()){<p class="alert alert-error" role="alert">{{chapterError()}}</p>}
+
+      @if(editingChapterId() !== null) {
+        <div class="chapter-form-card">
+          <h4>{{ editingChapterId() === 'new' ? 'Add Chapter' : 'Edit Chapter' }}</h4>
+          <div class="chapter-form-grid">
+            <div class="field">
+              <label for="ch-num">Chapter #</label>
+              <input id="ch-num" type="number" min="0" [value]="chapterNumberInput()" (input)="chapterNumberInput.set($any($event.target).value)" placeholder="e.g. 1">
+            </div>
+            <div class="field ch-title-field">
+              <label for="ch-title">Chapter Title <span class="required-mark">*</span></label>
+              <input id="ch-title" type="text" [value]="chapterTitleInput()" (input)="chapterTitleInput.set($any($event.target).value)" placeholder="e.g. Introduction to Algorithms" required>
+            </div>
+            <div class="field">
+              <label for="ch-start">Start Page <span class="required-mark">*</span></label>
+              <input id="ch-start" type="number" min="1" [value]="chapterStartPageInput()" (input)="chapterStartPageInput.set($any($event.target).value)" placeholder="1" required>
+            </div>
+            <div class="field">
+              <label for="ch-end">End Page <span class="required-mark">*</span></label>
+              <input id="ch-end" type="number" min="1" [value]="chapterEndPageInput()" (input)="chapterEndPageInput.set($any($event.target).value)" placeholder="25" required>
+            </div>
+          </div>
+          <div class="field ch-content-field">
+            <label for="ch-content">Chapter Content / Notes (optional)</label>
+            <textarea id="ch-content" rows="3" [value]="chapterContentInput()" (input)="chapterContentInput.set($any($event.target).value)" placeholder="Text content with optional [Page N] markers for search indexing..."></textarea>
+          </div>
+          <div class="chapter-form-actions">
+            <button class="button button-primary button-sm" type="button" (click)="saveChapter()" [disabled]="chapterBusy()">
+              {{ chapterBusy() ? 'Saving…' : 'Save Chapter' }}
+            </button>
+            <button class="button button-secondary button-sm" type="button" (click)="cancelChapterEdit()" [disabled]="chapterBusy()">
+              Cancel
+            </button>
+          </div>
+        </div>
+      }
+
+      @if(deletingChapter(); as delCh) {
+        <div class="confirm-box chapter-delete-confirm">
+          <span>Delete chapter <strong>{{ delCh.title }}</strong>?</span>
+          <button class="button button-danger button-sm" type="button" (click)="confirmDeleteChapter()" [disabled]="chapterBusy()">Yes, delete</button>
+          <button class="button button-secondary button-sm" type="button" (click)="deletingChapter.set(null)" [disabled]="chapterBusy()">Cancel</button>
+        </div>
+      }
+
+      @if(loadingChapters()){
+        <div class="loading-state" role="status">Loading chapters…</div>
+      } @else if(chapters().length === 0){
+        <div class="empty-chapters-box">
+          <p class="empty-hint">No chapters extracted yet. Click "Reprocess from PDF" to parse headings from bookmarks or text, or add chapters manually.</p>
+        </div>
+      } @else {
+        <div class="chapters-table-wrapper">
+          <table class="chapters-table">
+            <thead>
+              <tr>
+                <th style="width: 70px;">#</th>
+                <th>Title</th>
+                <th style="width: 110px;">Pages</th>
+                <th style="width: 90px;">Source</th>
+                <th style="width: 140px; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for(ch of chapters(); track ch.id){
+                <tr>
+                  <td>{{ ch.chapterNumber != null ? 'Ch. ' + ch.chapterNumber : '—' }}</td>
+                  <td class="ch-name-cell"><strong>{{ ch.title }}</strong></td>
+                  <td>pp. {{ ch.startPage }}–{{ ch.endPage }}</td>
+                  <td>
+                    @if(ch.isManuallyEdited){
+                      <span class="badge-manual">Manual</span>
+                    } @else {
+                      <span class="badge-auto">Auto</span>
+                    }
+                  </td>
+                  <td style="text-align: right;">
+                    <button class="button button-secondary button-xs" type="button" (click)="openEditChapter(ch)" [disabled]="chapterBusy() || editingChapterId() !== null">Edit</button>
+                    <button class="button button-danger button-xs" type="button" (click)="deletingChapter.set(ch)" [disabled]="chapterBusy() || editingChapterId() !== null">Delete</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
     <div class="digital-manage-panel">
       <h3>Replace digital edition</h3>
       <p class="field-hint">Upload a replacement PDF. The old file will be deleted automatically.</p>
@@ -2091,19 +2192,27 @@ export class BookDetailComponent {
 </section>
 }@if(error()){<p class="alert alert-error" role="alert">{{error()}}</p>}@if(loading()){<div class="loading-state" role="status">Loading record…</div>}@else{<form class="editor surface-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
 <div class="field"><label for="title">Title <span class="required-mark">*</span></label><input id="title" formControlName="title" maxlength="240" required [attr.aria-invalid]="invalid('title')" aria-describedby="title-help"><p id="title-help" class="field-hint">Use the title printed on this edition.</p></div><div class="field"><label for="authors">Author names <span class="required-mark">*</span></label><input id="authors" formControlName="authors" required aria-describedby="authors-help"><p id="authors-help" class="field-hint">Separate multiple names with commas.</p></div><div class="field"><label for="categories">Categories <span class="required-mark">*</span></label><input id="categories" formControlName="categories" required aria-describedby="categories-help"><p id="categories-help" class="field-hint">Separate categories with commas.</p></div>@if(!editing){<div class="two-col"><div class="field"><label for="numberOfCopies">Number of copies <span class="required-mark">*</span></label><input id="numberOfCopies" type="number" formControlName="numberOfCopies" min="1" max="500" step="1" required (input)="clearFieldError('numberOfCopies')" [attr.aria-invalid]="!!fieldMessage('numberOfCopies')" [attr.aria-describedby]="fieldMessage('numberOfCopies') ? 'number-of-copies-error' : 'number-of-copies-help'"><p id="number-of-copies-help" class="field-hint">Create between 1 and 500 physical copies with this book record.</p>@if(fieldMessage('numberOfCopies')){<p id="number-of-copies-error" class="field-error" role="alert">{{fieldMessage('numberOfCopies')}}</p>}</div><div class="field"><label for="initialLocation">Shelf / location</label><input id="initialLocation" formControlName="location" maxlength="120" placeholder="e.g. A-12, Science Stacks" autocomplete="off"><p class="field-hint">Optional shelf or room location for the initial copies.</p></div></div>}<div class="two-col"><div class="field"><label for="isbn">ISBN</label><input id="isbn" formControlName="isbn" maxlength="17" autocomplete="off" [attr.aria-invalid]="!!fieldMessage('isbn')" [attr.aria-describedby]="fieldMessage('isbn') ? 'isbn-error' : 'isbn-help'" (input)="clearFieldError('isbn')"><p id="isbn-help" class="field-hint">ISBN-10 or ISBN-13; checksum validated on save.</p>@if(fieldMessage('isbn')){<p id="isbn-error" class="field-error" role="alert">{{fieldMessage('isbn')}}</p>}</div><div class="field"><label for="publicationYear">Publication year</label><input id="publicationYear" type="number" formControlName="publicationYear" min="1000" [max]="year" [attr.aria-invalid]="!!fieldMessage('publicationYear')" [attr.aria-describedby]="fieldMessage('publicationYear') ? 'publication-year-error' : null" (input)="clearFieldError('publicationYear')">@if(fieldMessage('publicationYear')){<p id="publication-year-error" class="field-error" role="alert">{{fieldMessage('publicationYear')}}</p>}</div></div><div class="two-col"><div class="field"><label for="publisher">Publisher</label><input id="publisher" formControlName="publisher" maxlength="200"></div><div class="field"><label for="coverImageUrl">Cover image URL</label><input id="coverImageUrl" type="url" formControlName="coverImageUrl" maxlength="2048" placeholder="https://…" [attr.aria-invalid]="!!fieldMessage('coverImageUrl')" [attr.aria-describedby]="fieldMessage('coverImageUrl') ? 'cover-url-error' : 'cover-url-help'" (input)="clearFieldError('coverImageUrl')"><p id="cover-url-help" class="field-hint">Optional. Use an absolute HTTP or HTTPS image URL.</p>@if(fieldMessage('coverImageUrl')){<p id="cover-url-error" class="field-error" role="alert">{{fieldMessage('coverImageUrl')}}</p>}</div></div><div class="field"><label for="description">Description</label><textarea id="description" rows="5" formControlName="description" maxlength="4000"></textarea></div><div class="field"><label for="circulationPolicy">Catalogue circulation policy</label><select id="circulationPolicy" formControlName="circulationPolicy"><option value="STANDARD">Standard circulation</option><option value="REFERENCE_ONLY">Reference only</option><option value="SERIAL_RESTRICTED">Serial material · restricted</option><option value="APPROVED_OVERNIGHT_EXCEPTION">Approved overnight exception</option></select><p class="field-hint">This is catalogue metadata; circulation rules are not yet enforced.</p></div><div class="actions"><button class="button button-primary" type="submit" [disabled]="form.invalid||pending()">{{pending()?'Saving…':(editing?'Save changes':'Create book')}}</button><a class="button button-secondary" routerLink="/books">Cancel</a></div></form>}
-`,styles:[`:host{display:block}.page-heading{margin-bottom:1.3rem}.page-heading h1{margin-bottom:.4rem}.page-heading p{margin-bottom:0}.editor{display:grid;max-width:52rem;gap:1rem;padding:clamp(1rem,3vw,2rem)}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}textarea{resize:vertical}.inventory-summary{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.inventory-summary-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.inventory-summary-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.inventory-summary-heading .eyebrow{margin:0 0 .2rem}.inventory-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem;margin:1rem 0}.inventory-counts div{padding:.7rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.inventory-counts dt{color:var(--color-charcoal-600);font-size:.8rem}.inventory-counts dd{margin:.2rem 0 0;color:var(--color-forest-950);font-weight:700;font-size:1.2rem}.actions{display:flex;gap:.65rem;margin-top:.35rem}.reconcile-panel{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--color-line-200)}.reconcile-panel h3{margin:0 0 .3rem;font-size:1.05rem}.reconcile-form{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(12rem,1.5fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.preview-box{display:flex;gap:.5rem;align-items:center;padding:.65rem .9rem;margin-bottom:1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}.preview-add{color:var(--color-forest-900);font-weight:600}.preview-remove{color:#991b1b;font-weight:600}.reconcile-actions{display:flex;gap:.65rem}.digital-editor-card{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.digital-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.digital-editor-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.digital-editor-heading .eyebrow{margin:0 0 .2rem}.current-edition-box{margin:1rem 0;padding:.8rem 1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.edition-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.6rem;margin:0 0 .8rem}.edition-meta-grid dt{color:var(--color-charcoal-600);font-size:.78rem}.edition-meta-grid dd{margin:.1rem 0 0;font-weight:600;font-size:.9rem;color:var(--color-forest-950)}.edition-actions{display:flex;gap:.6rem}.digital-manage-panel{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--color-line-200)}.digital-manage-panel h3{margin:0 0 .3rem;font-size:1.05rem}.digital-form-fields{display:grid;grid-template-columns:minmax(12rem,1.5fr) minmax(10rem,1fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.digital-button-row{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin-top:1rem}.confirm-box{display:flex;align-items:center;gap:.65rem;padding:.4rem .8rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}@media(max-width:600px){.two-col{grid-template-columns:1fr}.reconcile-form{grid-template-columns:1fr}.digital-form-fields{grid-template-columns:1fr}.actions>*{flex:1}}`]} )
+`,styles:[`:host{display:block}.page-heading{margin-bottom:1.3rem}.page-heading h1{margin-bottom:.4rem}.page-heading p{margin-bottom:0}.editor{display:grid;max-width:52rem;gap:1rem;padding:clamp(1rem,3vw,2rem)}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}textarea{resize:vertical}.inventory-summary{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.inventory-summary-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.inventory-summary-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.inventory-summary-heading .eyebrow{margin:0 0 .2rem}.inventory-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem;margin:1rem 0}.inventory-counts div{padding:.7rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.inventory-counts dt{color:var(--color-charcoal-600);font-size:.8rem}.inventory-counts dd{margin:.2rem 0 0;color:var(--color-forest-950);font-weight:700;font-size:1.2rem}.actions{display:flex;gap:.65rem;margin-top:.35rem}.reconcile-panel{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--color-line-200)}.reconcile-panel h3{margin:0 0 .3rem;font-size:1.05rem}.reconcile-form{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(12rem,1.5fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.preview-box{display:flex;gap:.5rem;align-items:center;padding:.65rem .9rem;margin-bottom:1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}.preview-add{color:var(--color-forest-900);font-weight:600}.preview-remove{color:#991b1b;font-weight:600}.reconcile-actions{display:flex;gap:.65rem}.digital-editor-card{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.digital-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.digital-editor-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.digital-editor-heading .eyebrow{margin:0 0 .2rem}.current-edition-box{margin:1rem 0;padding:.8rem 1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.edition-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.6rem;margin:0 0 .8rem}.edition-meta-grid dt{color:var(--color-charcoal-600);font-size:.78rem}.edition-meta-grid dd{margin:.1rem 0 0;font-weight:600;font-size:.9rem;color:var(--color-forest-950)}.edition-actions{display:flex;gap:.6rem}.digital-manage-panel{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--color-line-200)}.digital-manage-panel h3{margin:0 0 .3rem;font-size:1.05rem}.digital-form-fields{display:grid;grid-template-columns:minmax(12rem,1.5fr) minmax(10rem,1fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.digital-button-row{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin-top:1rem}.confirm-box{display:flex;align-items:center;gap:.65rem;padding:.4rem .8rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}.chapters-panel{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--color-line-200)}.chapters-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.5rem}.chapters-heading h3{margin:0 0 .2rem;font-size:1.05rem}.chapter-top-actions{display:flex;gap:.5rem;flex-shrink:0}.reprocess-option-row{margin-bottom:.8rem;font-size:.82rem;color:var(--color-charcoal-700)}.checkbox-label{display:inline-flex;align-items:center;gap:.45rem;cursor:pointer}.chapter-form-card{background:var(--color-ivory-100);border:1px solid var(--color-line-200);border-radius:var(--radius-control);padding:1rem;margin-bottom:1rem}.chapter-form-card h4{margin:0 0 .8rem;font-size:.95rem;color:var(--color-forest-950)}.chapter-form-grid{display:grid;grid-template-columns:80px 1fr 100px 100px;gap:.75rem;margin-bottom:.75rem}.chapter-form-actions{display:flex;gap:.5rem;margin-top:.6rem}.chapters-table-wrapper{overflow-x:auto;margin-top:.6rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control)}.chapters-table{width:100%;border-collapse:collapse;font-size:.85rem;background:#ffffff}.chapters-table th{background:var(--color-ivory-100);padding:.55rem .75rem;text-align:left;font-weight:600;color:var(--color-charcoal-700);border-bottom:1px solid var(--color-line-200);font-size:.8rem}.chapters-table td{padding:.6rem .75rem;border-bottom:1px solid var(--color-line-200);color:var(--color-charcoal-800)}.chapters-table tr:last-child td{border-bottom:none}.badge-manual{display:inline-block;font-size:.72rem;font-weight:600;background:rgba(147,51,234,.1);color:#7e22ce;padding:.15rem .45rem;border-radius:4px}.badge-auto{display:inline-block;font-size:.72rem;font-weight:600;background:rgba(16,185,129,.1);color:#047857;padding:.15rem .45rem;border-radius:4px}.button-xs{padding:.25rem .5rem;font-size:.75rem}.button-sm{padding:.35rem .7rem;font-size:.82rem}.empty-chapters-box{padding:1.2rem;background:var(--color-ivory-100);border:1px dashed var(--color-line-200);border-radius:var(--radius-control);text-align:center;margin-top:.6rem}@media(max-width:600px){.two-col{grid-template-columns:1fr}.reconcile-form{grid-template-columns:1fr}.digital-form-fields{grid-template-columns:1fr}.chapter-form-grid{grid-template-columns:1fr}.actions>*{flex:1}}`]} )
 export class BookEditorComponent {
  private readonly fb=inject(NonNullableFormBuilder);readonly service=inject(CatalogueService);private readonly route=inject(ActivatedRoute);private readonly router=inject(Router);readonly year=new Date().getFullYear();readonly id=this.route.snapshot.paramMap.get('bookId');readonly editing=!!this.id;readonly loading=signal(!!this.id);readonly pending=signal(false);readonly error=signal('');readonly inventory=signal<InventorySummary|null>(null);readonly inventoryLoadFailed=signal(false);readonly serverFieldErrors=signal<Record<string,string>>({});
  readonly reconcileTarget=signal<number|null>(null);readonly reconcileLocation=signal('');readonly reconciling=signal(false);readonly reconcileNotice=signal('');readonly reconcileError=signal('');
  readonly digitalEdition=signal<DigitalEdition|null>(null);readonly loadingDigital=signal<boolean>(false);readonly digitalBusy=signal<boolean>(false);readonly digitalNotice=signal<string>('');readonly digitalError=signal<string>('');readonly selectedFile=signal<File|null>(null);readonly editionLabelInput=signal<string>('');readonly confirmingDelete=signal<boolean>(false);
+ readonly chapters=signal<Chapter[]>([]);readonly loadingChapters=signal<boolean>(false);readonly chapterError=signal<string>('');readonly chapterNotice=signal<string>('');readonly chapterBusy=signal<boolean>(false);readonly editingChapterId=signal<string|null>(null);readonly chapterNumberInput=signal<string>('');readonly chapterTitleInput=signal<string>('');readonly chapterStartPageInput=signal<string>('');readonly chapterEndPageInput=signal<string>('');readonly chapterContentInput=signal<string>('');readonly deletingChapter=signal<Chapter|null>(null);readonly overwriteManualOnReprocess=signal<boolean>(false);
  readonly targetDiff=computed(()=>{const t=this.reconcileTarget();const cur=this.inventory()?.totalCopies;if(t===null||cur===undefined)return null;return t-cur});
  readonly form=this.fb.group({title:['',[Validators.required,Validators.maxLength(240)]],authors:['',[Validators.required]],categories:['',[Validators.required]],numberOfCopies:['1',[Validators.required,Validators.min(1),Validators.max(500),validCopyQuantity]],isbn:['',[Validators.maxLength(17),validIsbn]],publisher:[''],publicationYear:['',[validPublicationYear]],coverImageUrl:['',[Validators.maxLength(2048),validCoverImageUrl]],description:[''],circulationPolicy:['STANDARD' as 'STANDARD'|'REFERENCE_ONLY'|'SERIAL_RESTRICTED'|'APPROVED_OVERNIGHT_EXCEPTION',[Validators.required]],location:['',[Validators.maxLength(120)]]});
  constructor(){if(this.id){this.service.get(this.id).subscribe({next:b=>{this.inventory.set(b);this.reconcileTarget.set(b.totalCopies);this.form.patchValue({title:b.title,authors:b.authors.join(', '),categories:b.categories.join(', '),isbn:b.isbn||'',publisher:b.publisher||'',publicationYear:b.publicationYear?.toString()||'',coverImageUrl:b.coverImageUrl||'',description:b.description||'',circulationPolicy:b.circulationPolicy});this.loading.set(false)},error:()=>{this.inventoryLoadFailed.set(true);this.loading.set(false);this.error.set('The book record or inventory summary could not be loaded.')}});this.loadDigitalEdition();}}
  formatBytes(bytes:number):string{if(!bytes||bytes<=0)return '0 B';const units=['B','KB','MB','GB'];const i=Math.floor(Math.log(bytes)/Math.log(1024));return `${(bytes/Math.pow(1024,i)).toFixed(1)} ${units[i]}`;}
- loadDigitalEdition():void{if(!this.id)return;this.loadingDigital.set(true);this.service.getDigitalEdition(this.id).pipe(finalize(()=>this.loadingDigital.set(false))).subscribe({next:ed=>{this.digitalEdition.set(ed);this.editionLabelInput.set(ed.editionLabel||'');},error:()=>this.digitalEdition.set(null)});}
+ loadDigitalEdition():void{if(!this.id)return;this.loadingDigital.set(true);this.service.getDigitalEdition(this.id).pipe(finalize(()=>this.loadingDigital.set(false))).subscribe({next:ed=>{this.digitalEdition.set(ed);this.editionLabelInput.set(ed.editionLabel||'');this.loadChapters();},error:()=>{this.digitalEdition.set(null);this.chapters.set([]);}});}
+ loadChapters():void{if(!this.id)return;this.loadingChapters.set(true);this.service.getChapters(this.id).pipe(finalize(()=>this.loadingChapters.set(false))).subscribe({next:chs=>this.chapters.set(chs),error:()=>this.chapters.set([])});}
+ openCreateChapter():void{this.editingChapterId.set('new');this.chapterNumberInput.set(String(this.chapters().length+1));this.chapterTitleInput.set('');this.chapterStartPageInput.set('');this.chapterEndPageInput.set('');this.chapterContentInput.set('');this.chapterError.set('');this.chapterNotice.set('');}
+ openEditChapter(ch:Chapter):void{this.editingChapterId.set(ch.id);this.chapterNumberInput.set(ch.chapterNumber!=null?String(ch.chapterNumber):'');this.chapterTitleInput.set(ch.title);this.chapterStartPageInput.set(String(ch.startPage));this.chapterEndPageInput.set(String(ch.endPage));this.chapterContentInput.set('');this.chapterError.set('');this.chapterNotice.set('');}
+ cancelChapterEdit():void{this.editingChapterId.set(null);this.chapterError.set('');}
+ saveChapter():void{if(!this.id||this.chapterBusy())return;const title=this.chapterTitleInput().trim();const startPage=Number(this.chapterStartPageInput());const endPage=Number(this.chapterEndPageInput());const chapterNumber=this.chapterNumberInput().trim()?Number(this.chapterNumberInput()):undefined;const content=this.chapterContentInput().trim()||undefined;if(!title){this.chapterError.set('Chapter title is required.');return;}if(isNaN(startPage)||startPage<1){this.chapterError.set('Start page must be at least 1.');return;}if(isNaN(endPage)||endPage<startPage){this.chapterError.set('End page must be greater than or equal to start page.');return;}this.chapterBusy.set(true);this.chapterError.set('');this.chapterNotice.set('');const editingId=this.editingChapterId();if(editingId==='new'){const req:ChapterCreateRequest={title,startPage,endPage,chapterNumber,content};this.service.createChapter(this.id,req).pipe(finalize(()=>this.chapterBusy.set(false))).subscribe({next:created=>{this.chapterNotice.set(`Chapter "${created.title}" added successfully.`);this.editingChapterId.set(null);this.loadChapters();},error:err=>{if(err instanceof HttpErrorResponse&&err.error?.message){this.chapterError.set(err.error.message);}else{this.chapterError.set('Failed to save chapter.');}}});}else if(editingId){const req:ChapterUpdateRequest={title,startPage,endPage,chapterNumber,content};this.service.updateChapter(this.id,editingId,req).pipe(finalize(()=>this.chapterBusy.set(false))).subscribe({next:updated=>{this.chapterNotice.set(`Chapter "${updated.title}" updated successfully.`);this.editingChapterId.set(null);this.loadChapters();},error:err=>{if(err instanceof HttpErrorResponse&&err.error?.message){this.chapterError.set(err.error.message);}else{this.chapterError.set('Failed to update chapter.');}}});}}
+ confirmDeleteChapter():void{const ch=this.deletingChapter();if(!this.id||!ch||this.chapterBusy())return;this.chapterBusy.set(true);this.chapterError.set('');this.chapterNotice.set('');this.service.deleteChapter(this.id,ch.id).pipe(finalize(()=>{this.chapterBusy.set(false);this.deletingChapter.set(null);})).subscribe({next:()=>{this.chapterNotice.set(`Chapter "${ch.title}" deleted successfully.`);this.loadChapters();},error:()=>this.chapterError.set('Failed to delete chapter.')});}
+ reprocessChapters():void{if(!this.id||this.chapterBusy())return;this.chapterBusy.set(true);this.chapterError.set('');this.chapterNotice.set('');this.service.reprocessChapters(this.id,this.overwriteManualOnReprocess()).pipe(finalize(()=>this.chapterBusy.set(false))).subscribe({next:chs=>{this.chapters.set(chs);this.chapterNotice.set(`Reprocessed successfully. Indexed ${chs.length} chapters.`);},error:err=>{if(err instanceof HttpErrorResponse&&err.error?.message){this.chapterError.set(err.error.message);}else{this.chapterError.set('Failed to reprocess chapters from PDF.');}}});}
  onFileSelected(event:Event):void{const input=event.target as HTMLInputElement;if(input.files&&input.files.length>0){const file=input.files[0];if(!file.name.toLowerCase().endsWith('.pdf')){this.digitalError.set('Only PDF files (.pdf) are supported.');this.selectedFile.set(null);return;}if(file.size>25*1024*1024){this.digitalError.set('File size exceeds the 25 MB limit.');this.selectedFile.set(null);return;}this.digitalError.set('');this.selectedFile.set(file);}else{this.selectedFile.set(null);}}
- uploadOrReplace(isReplace:boolean):void{const file=this.selectedFile();if(!file||!this.id||this.digitalBusy())return;this.digitalBusy.set(true);this.digitalError.set('');this.digitalNotice.set('');const call=isReplace?this.service.replaceDigitalEdition(this.id,file,this.editionLabelInput().trim()||undefined):this.service.uploadDigitalEdition(this.id,file,this.editionLabelInput().trim()||undefined);call.pipe(finalize(()=>this.digitalBusy.set(false))).subscribe({next:ed=>{this.digitalEdition.set(ed);this.selectedFile.set(null);this.digitalNotice.set(isReplace?'Digital edition replaced successfully.':'Digital edition uploaded successfully.');},error:err=>{if(err instanceof HttpErrorResponse&&err.error?.message){this.digitalError.set(err.error.message);}else{this.digitalError.set('Failed to upload digital edition. Please ensure the file is a valid PDF under 25MB.');}}});}
- deleteEdition():void{if(!this.id||this.digitalBusy())return;this.digitalBusy.set(true);this.digitalError.set('');this.digitalNotice.set('');this.service.deleteDigitalEdition(this.id).pipe(finalize(()=>{this.digitalBusy.set(false);this.confirmingDelete.set(false);})).subscribe({next:()=>{this.digitalEdition.set(null);this.selectedFile.set(null);this.editionLabelInput.set('');this.digitalNotice.set('Digital edition removed successfully. Physical copies and inventory remain unchanged.');},error:()=>this.digitalError.set('Failed to remove digital edition. Please try again.')});}
+ uploadOrReplace(isReplace:boolean):void{const file=this.selectedFile();if(!file||!this.id||this.digitalBusy())return;this.digitalBusy.set(true);this.digitalError.set('');this.digitalNotice.set('');const call=isReplace?this.service.replaceDigitalEdition(this.id,file,this.editionLabelInput().trim()||undefined):this.service.uploadDigitalEdition(this.id,file,this.editionLabelInput().trim()||undefined);call.pipe(finalize(()=>this.digitalBusy.set(false))).subscribe({next:ed=>{this.digitalEdition.set(ed);this.selectedFile.set(null);this.digitalNotice.set(isReplace?'Digital edition replaced successfully.':'Digital edition uploaded successfully.');this.loadChapters();},error:err=>{if(err instanceof HttpErrorResponse&&err.error?.message){this.digitalError.set(err.error.message);}else{this.digitalError.set('Failed to upload digital edition. Please ensure the file is a valid PDF under 25MB.');}}});}
+ deleteEdition():void{if(!this.id||this.digitalBusy())return;this.digitalBusy.set(true);this.digitalError.set('');this.digitalNotice.set('');this.service.deleteDigitalEdition(this.id).pipe(finalize(()=>{this.digitalBusy.set(false);this.confirmingDelete.set(false);})).subscribe({next:()=>{this.digitalEdition.set(null);this.selectedFile.set(null);this.editionLabelInput.set('');this.chapters.set([]);this.digitalNotice.set('Digital edition removed successfully. Physical copies and inventory remain unchanged.');},error:()=>this.digitalError.set('Failed to remove digital edition. Please try again.')});}
  invalid(name:'title'){const c=this.form.controls[name];return c.invalid&&c.touched}
  fieldMessage(field:'isbn'|'publicationYear'|'coverImageUrl'|'numberOfCopies'):string|null {
    const control=this.form.controls[field];

@@ -1,6 +1,8 @@
 package com.libtrack.settings;
 
 import java.util.List;
+import com.libtrack.fines.FinePolicy;
+import com.libtrack.fines.FinePolicyService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,29 +16,30 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/policies")
 public class LibraryPolicyController {
     private final SystemSettingService settingService;
+    private final FinePolicyService finePolicyService;
 
-    public LibraryPolicyController(SystemSettingService settingService) {
+    public LibraryPolicyController(SystemSettingService settingService, FinePolicyService finePolicyService) {
         this.settingService = settingService;
+        this.finePolicyService = finePolicyService;
     }
 
     @GetMapping
     public ResponseEntity<LibraryPoliciesResponse> getPolicies() {
         int studentMaxBooks = parseInt(settingService.getSetting("loan.max.active.student", "5"), 5);
         int facultyMaxBooks = parseInt(settingService.getSetting("loan.max.active.faculty", "5"), 5);
-        int studentLoanDays = parseInt(settingService.getSetting("loan.period.student.days", "21"), 21);
-        int facultyLoanDays = parseInt(settingService.getSetting("loan.period.faculty.days", "30"), 30);
+        int sharedLoanDays = finePolicyService.currentPolicy().loanPeriodDays();
         int maxRenewals = parseInt(settingService.getSetting("loan.renewal.limit", "1"), 1);
         int renewalExtDays = parseInt(settingService.getSetting("loan.renewal.extension.days", "21"), 21);
 
-        String dailyFine = "₹" + settingService.getSetting("fine.daily.rate", "10");
-        String maxFine = "₹" + settingService.getSetting("fine.max.limit", "500");
-        String gracePeriod = settingService.getSetting("fine.grace.period.days", "0") + " days";
+        FinePolicy finePolicy = finePolicyService.currentPolicy();
+        boolean finePolicyConfigured = finePolicyService.isConfigured();
+        boolean monetaryFinesEnabled = finePolicyConfigured && finePolicy.monetaryFinesEnabled();
 
         var borrowing = new LibraryPoliciesResponse.BorrowingPolicyDto(
                 studentMaxBooks,
                 facultyMaxBooks,
-                studentLoanDays,
-                facultyLoanDays,
+                sharedLoanDays,
+                sharedLoanDays,
                 maxRenewals,
                 maxRenewals,
                 renewalExtDays,
@@ -55,11 +58,15 @@ public class LibraryPolicyController {
         );
 
         var fines = new LibraryPoliciesResponse.FinePolicyDto(
-                dailyFine,
-                maxFine,
-                gracePeriod,
+                finePolicyConfigured ? finePolicy.dailyRateLabel() : "Not configured",
+                finePolicyConfigured ? finePolicy.maximumFineLabel() : "Not configured",
+                finePolicyConfigured ? finePolicy.gracePeriodLabel() : "Not configured",
                 "Full payment only",
-                "To be recorded and handled by the librarian"
+                "Manual payment recorded by a Librarian at the circulation desk",
+                !finePolicyConfigured ? "UNCONFIGURED" : monetaryFinesEnabled ? "ACTIVE" : "DISABLED",
+                monetaryFinesEnabled,
+                finePolicyConfigured ? finePolicy.description() : "No borrowing and fine policy is currently configured.",
+                finePolicyConfigured
         );
 
         var membership = new LibraryPoliciesResponse.MembershipPolicyDto(

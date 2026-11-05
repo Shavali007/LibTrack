@@ -48,4 +48,29 @@ describe('BorrowingService', () => {
     expect(request.request.headers.get('X-CSRF-TOKEN')).toBe('csrf-test');
     request.flush({});
   });
+
+  it('fetches loan receipt metadata', () => {
+    service.getLoanReceipt('loan-123').subscribe(receipt => {
+      expect(receipt.receiptNumber).toBe('REC-20261105-ABCDEF');
+      expect(receipt.bookTitle).toBe('Algorithms 101');
+    });
+    const request = http.expectOne('/api/v1/loans/loan-123/receipt');
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      receiptId: 'rec-1',
+      receiptNumber: 'REC-20261105-ABCDEF',
+      loanId: 'loan-123',
+      bookTitle: 'Algorithms 101'
+    });
+  });
+
+  it('fetches loan receipt PDF blob', () => {
+    service.getLoanReceiptBlob('loan-123').subscribe(blob => {
+      expect(blob).toBeTruthy();
+      expect(blob.type).toBe('application/pdf');
+    });
+    const request = http.expectOne('/api/v1/loans/loan-123/receipt/pdf');
+    expect(request.request.method).toBe('GET');
+    request.flush(new Blob(['%PDF-1.4 test'], { type: 'application/pdf' }));
+  });
 });

@@ -113,11 +113,11 @@ import {
           </div>
           <p class="banner-text">{{ data.policyDescription }}</p>
           <div class="policy-invariants">
-            <span class="invariant-item">✓ Standard loan: 21 eligible days (skipping holidays)</span>
-            <span class="invariant-item">✓ Daily fine: ₹10.00/day (max ₹500.00/book)</span>
-            <span class="invariant-item">✓ Full payment only (partial prohibited)</span>
-            <span class="invariant-item">✓ No unauthorized ledger debiting</span>
-            <span class="invariant-item">✓ Administrative resolution model</span>
+            <span class="invariant-item">Daily overdue fine: ₹{{ data.dailyFineRate.toFixed(2) }} per day</span>
+            <span class="invariant-item">Maximum fine per book: ₹{{ data.maximumFinePerBook.toFixed(2) }}</span>
+            <span class="invariant-item">Grace period: {{ data.gracePeriodDays }} day(s)</span>
+            <span class="invariant-item">Manual full payment at the circulation desk; partial payments are not accepted.</span>
+            <span class="invariant-item">Current policy applies to new loans. Existing loans keep their issue-time terms.</span>
           </div>
         </div>
       </section>
@@ -194,9 +194,21 @@ import {
                     }
                   </td>
                   <td><code>{{ fine.copyIdentifier }}</code></td>
-                  <td><time [attr.datetime]="fine.dueDate">{{ fine.dueDate | date:'mediumDate' }}</time></td>
+                  <td>
+                    <time [attr.datetime]="fine.dueDate">{{ fine.dueDate | date:'mediumDate' }}</time>
+                    @if (fine.renewed && fine.originalDueDate && fine.originalDueDate !== fine.dueDate) {
+                      <br><small class="muted">Renewed (Orig: {{ fine.originalDueDate | date:'mediumDate' }})</small>
+                    }
+                  </td>
                   <td>
                     <span class="days-badge">{{ fine.overdueDays }} day(s)</span>
+                    @if (fine.renewed && !fine.loanOverdue) {
+                      <br><small class="muted">(Prior to renewal)</small>
+                    } @else if (fine.loanStatus === 'RETURNED') {
+                      <br><small class="muted">(Returned)</small>
+                    } @else if (fine.loanOverdue) {
+                      <br><small class="text-danger">(Overdue)</small>
+                    }
                   </td>
                   <td>
                     <strong [class.text-danger]="fine.status === 'UNPAID'">

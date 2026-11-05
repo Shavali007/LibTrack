@@ -5,118 +5,72 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService, UserProfile } from '../auth/auth.service';
 import { SignInDialogComponent } from '../auth/sign-in-dialog.component';
-import { BookSummary, CatalogueService, Category } from './catalogue.service';
+import { BookSummary, CatalogueService, CatalogueStatistics, Category } from './catalogue.service';
 import { RecommendationService, Recommendation } from '../recommendations/recommendation.service';
 import { RecommendModalComponent, RecommendableBook } from '../recommendations/recommend-modal.component';
 import { WishlistService } from '../wishlist/wishlist.service';
+import { PublicNavigationComponent } from '../../shared/layout/public-navigation.component';
 
 @Component({
   selector: 'app-book-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, SignInDialogComponent, RecommendModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, SignInDialogComponent, RecommendModalComponent, PublicNavigationComponent],
   template: `
+    <div class="catalogue-page">
     @if (!isInsideWorkspace()) {
-      <header class="catalogue-public-nav">
-        <a class="brand" routerLink="/" aria-label="LibTrack home">
-          <span class="brand-icon" aria-hidden="true">▤</span>
-          <strong>LibTrack</strong>
-        </a>
-        <nav aria-label="Catalogue navigation">
-          <a routerLink="/">Home</a>
-          @if (auth.profile()) {
-            <a routerLink="/workspace">My workspace</a>
-          } @else {
-            <button class="button button-secondary" type="button" (click)="openSignIn()">Sign in</button>
-          }
-        </nav>
-      </header>
+      <app-public-navigation activePage="books" (signInRequested)="openWorkspace()" />
     }
 
-    <!-- Page Header matching Reference Mockup -->
-    <header class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">Books & Catalogue</h1>
-        <p class="page-subtitle">Search, manage and organize your library collection.</p>
-      </div>
-      @if (auth.profile()?.role === 'LIBRARIAN') {
-        <a class="add-book-btn" routerLink="/workspace/librarian/books/new">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="btn-icon">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          Add New Book
-        </a>
-      }
-    </header>
-
-    <!-- Search & Filter Bar matching Reference Mockup -->
-    <form class="catalogue-toolbar" (ngSubmit)="apply()" aria-label="Search catalogue">
-      <div class="search-input-wrap">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <label for="q" class="sr-only">Title, author, subject, ISBN or keyword</label>
-        <input
-          id="q"
-          name="q"
-          [(ngModel)]="q"
-          placeholder="Search by title, author, subject or ISBN..."
-          autocomplete="off"
-        >
-      </div>
-
-      <div class="select-field">
-        <label for="category" class="sr-only">Category</label>
-        <select id="category" name="category" [(ngModel)]="category">
-          <option value="">All Categories</option>
-          @for (c of categories(); track c.id) {
-            <option [value]="c.name">{{ c.name }}</option>
-          }
-        </select>
-        <svg class="select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </div>
-
-      <div class="select-field">
-        <label for="availability" class="sr-only">Availability</label>
-        <select id="availability" name="availability" [(ngModel)]="availability">
-          <option value="">All Status</option>
-          <option value="true">Available</option>
-          <option value="false">Unavailable</option>
-        </select>
-        <svg class="select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </div>
-
-      <button class="filter-submit-btn" type="submit">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="filter-icon">
-          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-        </svg>
-        Filter
-      </button>
-
-      @if (q || category || availability) {
-        <div class="filter-actions">
-          <span class="filter-chip">Filters applied</span>
-          <button class="text-button" type="button" (click)="clearFilters()">Clear filters</button>
+    <div class="catalogue-content">
+      <section class="catalogue-hero" aria-labelledby="catalogue-title">
+        <div class="catalogue-hero-copy">
+          <p class="catalogue-eyebrow">LIBRARY CATALOGUE</p>
+          <h1 id="catalogue-title" class="page-title">Books &amp; Catalogue</h1>
+          <p class="page-subtitle">Search, explore and find books across all subjects in the university library.</p>
         </div>
-      }
-    </form>
+        <div class="catalogue-hero-art" aria-hidden="true"><img src="/assets/banner-plant-books.png" alt="" loading="eager"></div>
+      </section>
 
-    <!-- Category Chips Filter Row -->
-    <div class="category-chips-row" role="tablist" aria-label="Filter by category">
+      <section class="search-and-stats" aria-label="Catalogue search and statistics">
+        <form class="catalogue-search" (ngSubmit)="apply()" role="search">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <label for="q" class="sr-only">Title, author, subject, ISBN or keyword</label>
+          <input id="q" name="q" [(ngModel)]="q" placeholder="Search by title, author, subject, or ISBN..." autocomplete="off">
+          <button class="search-submit" type="submit">Search</button>
+        </form>
+        <div class="catalogue-stats" aria-label="Catalogue totals">
+          <article class="stat-card"><span class="stat-icon" aria-hidden="true">▤</span><div><strong>{{ statistics()?.totalBooks ?? '—' }}</strong><span>Total Books</span></div></article>
+          <article class="stat-card"><span class="stat-icon" aria-hidden="true">▱</span><div><strong>{{ statistics()?.totalCategories ?? '—' }}</strong><span>Categories</span></div></article>
+          <article class="stat-card"><span class="stat-icon" aria-hidden="true">♧</span><div><strong>{{ statistics()?.availableCopies ?? '—' }}</strong><span>Available Copies</span></div></article>
+        </div>
+        @if (statisticsLoading()) { <p class="stats-note" role="status" aria-live="polite">Loading catalogue totals…</p> }
+        @else if (statisticsError()) { <p class="stats-note stats-error" role="alert">Catalogue totals are temporarily unavailable. <button class="text-button" type="button" (click)="loadStatistics()">Retry</button></p> }
+        @else if (statistics()?.totalBooks === 0) { <p class="stats-note" role="status">The catalogue currently has no active books.</p> }
+      </section>
+
+    <nav class="category-chips-row" aria-label="Browse by category">
+      <strong>Browse by Category:</strong>
       <button
         type="button"
         class="category-chip"
         [class.active]="category === '' && !facultyRecommendedOnly()"
         (click)="selectCategory('')"
       >
-        All ({{ total() }})
+        All
       </button>
-      <button
+      @for (c of visibleChipCategories(); track c.id) {
+        <button
+          type="button"
+          class="category-chip"
+          [class.active]="category.toLowerCase() === c.name.toLowerCase() && !facultyRecommendedOnly()"
+          (click)="selectCategory(c.name)"
+        >{{ c.name }}</button>
+      }
+      @if (categories().length > chipCategoryLimit) {
+        <button type="button" class="category-chip more-chip" (click)="showAllChips.update(v => !v)">{{ showAllChips() ? 'Less' : 'More' }} <span aria-hidden="true">⌄</span></button>
+      }
+      @if (auth.profile()) {
+        <button
         type="button"
         class="category-chip faculty-filter-chip"
         [class.active]="facultyRecommendedOnly()"
@@ -126,29 +80,60 @@ import { WishlistService } from '../wishlist/wishlist.service';
         @if (facultyRecommendedOnly()) {
           <span class="chip-remove" aria-hidden="true">&times;</span>
         }
-      </button>
-      @for (c of categories(); track c.id) {
-        <button
-          type="button"
-          class="category-chip"
-          [class.active]="category.toLowerCase() === c.name.toLowerCase() && !facultyRecommendedOnly()"
-          (click)="selectCategory(c.name)"
-        >
-          {{ c.name }}
         </button>
       }
-    </div>
+    </nav>
 
-    @if (error()) {
-      <div class="alert alert-error error-row" role="alert">
-        <span>{{ error() }}</span>
-        <button class="button button-secondary" type="button" (click)="load(page())">Retry</button>
-      </div>
-    }
+    <div class="results-layout">
+      <button class="mobile-filter-toggle" type="button" (click)="filtersOpen.update(v => !v)" [attr.aria-expanded]="filtersOpen()">{{ filtersOpen() ? 'Hide filters' : 'Show filters' }}</button>
+      <aside class="filters-panel" [class.filters-open]="filtersOpen()" aria-label="Catalogue filters">
+        <div class="filters-heading"><h2>Filters</h2><button class="text-button" type="button" (click)="clearFilters()">Clear All</button></div>
+        <section class="filter-group" aria-labelledby="availability-filter-title">
+          <h3 id="availability-filter-title">Availability</h3>
+          <label><input type="checkbox" aria-label="Available" [checked]="draftAvailable()" (change)="setAvailability('available', $any($event.target).checked)"> Available ({{ availableCount() }})</label>
+          <label><input type="checkbox" aria-label="Not Available" [checked]="draftUnavailable()" (change)="setAvailability('unavailable', $any($event.target).checked)"> Not Available ({{ unavailableCount() }})</label>
+        </section>
+        <section class="filter-group" aria-labelledby="category-filter-title">
+          <h3 id="category-filter-title">Category</h3>
+          @for (c of visibleFilterCategories(); track c.id) {
+            <label><input type="checkbox" [checked]="category.toLowerCase() === c.name.toLowerCase()" (change)="selectFilterCategory(c.name, $any($event.target).checked)"> {{ c.name }} ({{ c.bookCount ?? 0 }})</label>
+          }
+          @if (categories().length > filterCategoryLimit) { <button class="text-button show-more" type="button" (click)="showAllFilterCategories.update(v => !v)">{{ showAllFilterCategories() ? 'Show Less' : 'Show More' }} <span aria-hidden="true">⌄</span></button> }
+        </section>
+        <section class="filter-group year-filter" aria-labelledby="year-filter-title">
+          <h3 id="year-filter-title">Publication Year</h3>
+          @if (statistics()?.minimumPublicationYear !== null && statistics()?.minimumPublicationYear !== undefined && statistics()?.maximumPublicationYear !== null && statistics()?.maximumPublicationYear !== undefined) {
+            <div class="year-values"><label>From <strong>{{ draftYearFrom() ?? statistics()!.minimumPublicationYear }}</strong></label><label>To <strong>{{ draftYearTo() ?? statistics()!.maximumPublicationYear }}</strong></label></div>
+            <input aria-label="Earliest publication year" type="range" [min]="statistics()!.minimumPublicationYear!" [max]="draftYearTo() ?? statistics()!.maximumPublicationYear!" [value]="draftYearFrom() ?? statistics()!.minimumPublicationYear!" (input)="setYearFrom($any($event.target).value)">
+            <input aria-label="Latest publication year" type="range" [min]="draftYearFrom() ?? statistics()!.minimumPublicationYear!" [max]="statistics()!.maximumPublicationYear!" [value]="draftYearTo() ?? statistics()!.maximumPublicationYear!" (input)="setYearTo($any($event.target).value)">
+          } @else { <p class="muted">Publication years are not available in the catalogue.</p> }
+        </section>
+        @if (filterError()) { <p class="filter-error" role="alert">{{ filterError() }}</p> }
+        <button class="apply-filters" type="button" (click)="apply()">Apply Filters</button>
+      </aside>
 
-    @if (loading()) {
-      <div class="loading-state" role="status" aria-live="polite">Loading catalogue…</div>
-    } @else if (!error() && displayedBooks().length === 0) {
+      <section class="results-panel" aria-label="Catalogue results">
+        @if (error()) {
+          <div class="alert alert-error error-row" role="alert"><span>{{ error() }}</span><button class="button button-secondary" type="button" (click)="load(page())">Retry</button></div>
+        }
+        <div class="results-toolbar">
+          <p class="result-count" aria-live="polite">Showing {{ getStartIndex() }}–{{ getEndIndex() }} of {{ total() }} books <span class="sr-only">({{ total() }} catalogue {{ total() === 1 ? 'record' : 'records' }})</span></p>
+          <div class="results-controls">
+            @if (auth.profile()?.role === 'LIBRARIAN') { <a class="add-book-btn compact-add" routerLink="/workspace/librarian/books/new">＋ Add Book</a> }
+            <label for="catalogue-sort">Sort by:</label>
+            <select id="catalogue-sort" [value]="sortSelection()" (change)="changeSort($any($event.target).value)">
+              <option value="trending">Trending</option><option value="title:asc">Title A–Z</option><option value="title:desc">Title Z–A</option><option value="publicationYear:desc">Newest publication year</option><option value="publicationYear:asc">Oldest publication year</option>
+            </select>
+            <div class="view-toggle" role="group" aria-label="Catalogue view">
+              <button type="button" [class.active]="viewMode() === 'grid'" [attr.aria-pressed]="viewMode() === 'grid'" aria-label="Grid view" (click)="viewMode.set('grid')">▦</button>
+              <button type="button" [class.active]="viewMode() === 'list'" [attr.aria-pressed]="viewMode() === 'list'" aria-label="List view" (click)="viewMode.set('list')">☷</button>
+            </div>
+          </div>
+        </div>
+
+        @if (loading()) {
+          <div class="loading-state" role="status" aria-live="polite">Loading catalogue…</div>
+        } @else if (!error() && displayedBooks().length === 0) {
       <section class="empty-state">
         <div class="empty-icon-circle" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
@@ -161,186 +146,51 @@ import { WishlistService } from '../wishlist/wishlist.service';
         <button class="button button-secondary" type="button" (click)="clearFilters()">Clear filters</button>
       </section>
     } @else if (!error()) {
-      <!-- Book Table View matching Reference Mockup -->
-      <div class="table-card">
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th scope="col" style="width: 32%;">Book</th>
-                <th scope="col" style="width: 20%;">Author</th>
-                <th scope="col" style="width: 16%;">Category</th>
-                <th scope="col" style="width: 12%;">Copies</th>
-                <th scope="col" style="width: 12%;">Status</th>
-                <th scope="col" style="width: 8%; text-align: right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (book of displayedBooks(); track book.id) {
-                <tr class="book-row">
-                  <!-- Book Info -->
-                  <td>
-                    <div class="book-cell">
-                      <a class="book-thumb-link" [routerLink]="bookLink(book.id)" [queryParams]="currentQueryParams()" [attr.aria-label]="'View '+book.title">
-                        @if (book.coverImageUrl && !broken().has(book.id)) {
-                          <img class="book-thumb" [src]="book.coverImageUrl" [alt]="'Cover of '+book.title" loading="lazy" (error)="markBroken(book.id)">
-                        } @else {
-                          <div class="thumb-fallback" aria-hidden="true">
-                            <span>{{ book.title.substring(0, 3).toUpperCase() }}</span>
-                          </div>
-                        }
-                      </a>
-                      <div class="book-title-meta">
-                        <a class="book-title" [routerLink]="bookLink(book.id)" [queryParams]="currentQueryParams()">
-                          {{ book.title }}
-                        </a>
-                        <div class="book-submeta">
-                          @if (book.isbn) {
-                            <span class="meta-isbn">ISBN: {{ book.isbn }}</span>
-                          } @else {
-                            <span class="meta-isbn muted">No ISBN</span>
-                          }
-                          @if (book.hasDigitalEdition) {
-                            <span class="badge-pdf">PDF</span>
-                          }
-                          @if (recommendedBookIds().has(book.id)) {
-                            <span class="badge-faculty-rec" title="Recommended by faculty">🎓 Faculty Recommended</span>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <!-- Author -->
-                  <td>
-                    <span class="author-text">{{ book.authors.join(', ') || 'Unknown Author' }}</span>
-                  </td>
-
-                  <!-- Category -->
-                  <td>
-                    <span class="badge-category" [ngClass]="getCategoryClass(book.categories[0] || '')">
-                      {{ book.categories[0] || 'General' }}
-                    </span>
-                  </td>
-
-                  <!-- Copies: small bordered container -->
-                  <td>
-                    <div class="copies-cell">
-                      <span class="copies-box" [title]="book.totalCopies + ' total · ' + book.availableCopies + ' available · ' + book.onLoanCopies + ' on loan'">
-                        {{ book.availableCopies }}
-                      </span>
-                      <span class="sr-only">
-                        {{ book.totalCopies }} total · {{ book.availableCopies }} available · {{ book.onLoanCopies }} on loan
-                      </span>
-                    </div>
-                  </td>
-
-                  <!-- Status -->
-                  <td>
-                    <span
-                      class="status-pill"
-                      [class.status-available]="book.availableCopies > 0"
-                      [class.status-unavailable]="book.availableCopies === 0"
-                    >
-                      <span class="status-dot"></span>
-                      {{ book.availableCopies > 0 ? 'Active' : 'Unavailable' }}
-                    </span>
-                  </td>
-
-                  <!-- Actions -->
-                  <td style="text-align: right;">
-                    <div class="row-actions">
-                      <a
-                        class="action-icon-btn"
-                        [routerLink]="bookLink(book.id)"
-                        [queryParams]="currentQueryParams()"
-                        title="View details"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                      </a>
-                      @if (auth.profile()?.role === 'STUDENT' && book.availableCopies === 0) {
-                        <a
-                          class="action-icon-btn action-reserve-btn"
-                          [routerLink]="bookLink(book.id)"
-                          [queryParams]="currentQueryParams()"
-                          title="Reserve book"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="16" y1="2" x2="16" y2="6"></line>
-                            <line x1="8" y1="2" x2="8" y2="6"></line>
-                            <line x1="3" y1="10" x2="21" y2="10"></line>
-                          </svg>
-                        </a>
-                      }
-                      @if (auth.profile()?.role === 'STUDENT' || auth.profile()?.role === 'FACULTY') {
-                        <button
-                          type="button"
-                          class="action-icon-btn action-wishlist-btn"
-                          [class.is-wishlisted]="wishlistService.isInWishlist(book.id)"
-                          [title]="wishlistService.isInWishlist(book.id) ? 'Remove from wishlist' : 'Add to wishlist'"
-                          (click)="wishlistService.toggleWishlist(book.id).subscribe()"
-                        >
-                          <svg viewBox="0 0 24 24" [attr.fill]="wishlistService.isInWishlist(book.id) ? '#DC2626' : 'none'" [attr.stroke]="wishlistService.isInWishlist(book.id) ? '#DC2626' : 'currentColor'" stroke-width="2">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                          </svg>
-                        </button>
-                      }
-                      @if (auth.profile()?.role === 'FACULTY') {
-                        <button
-                          type="button"
-                          class="action-icon-btn action-rec-btn"
-                          [class.is-rec]="recommendedBookIds().has(book.id)"
-                          [title]="recommendedBookIds().has(book.id) ? 'Already recommended' : 'Recommend book'"
-                          (click)="openRecommendModal(book)"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                            <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-                          </svg>
-                        </button>
-                      }
-                      @if (auth.profile()?.role === 'LIBRARIAN') {
-                        <a
-                          class="action-icon-btn"
-                          [routerLink]="['/workspace/librarian/books', book.id, 'edit']"
-                          title="Edit book"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                          </svg>
-                        </a>
-                        <a
-                          class="action-icon-btn"
-                          [routerLink]="['/workspace/librarian/books', book.id, 'copies']"
-                          title="Manage copies"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="1.5"></circle>
-                            <circle cx="19" cy="12" r="1.5"></circle>
-                            <circle cx="5" cy="12" r="1.5"></circle>
-                          </svg>
-                        </a>
-                      }
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Table Footer / Pagination -->
-        <div class="table-footer">
-          <p class="result-count" aria-live="polite">
-            Showing {{ getStartIndex() }} to {{ getEndIndex() }} of {{ total() }} books
-            <span class="sr-only">({{ total() }} catalogue {{ total() === 1 ? 'record' : 'records' }})</span>
-          </p>
-
+          <div class="book-grid" [class.list-view]="viewMode() === 'list'">
+            @for (book of displayedBooks(); track book.id) {
+              <article class="book-card">
+                <a class="card-cover" [routerLink]="bookLink(book.id)" [queryParams]="currentQueryParams()" [attr.aria-label]="'View '+book.title">
+                  @if (book.coverImageUrl && !broken().has(book.id)) { <img [src]="book.coverImageUrl" [alt]="'Cover of '+book.title" loading="lazy" (error)="markBroken(book.id)"> }
+                  @else { <span class="card-cover-fallback" aria-hidden="true">{{ book.title.substring(0, 3).toUpperCase() }}</span> }
+                  @if (book.availableCopies > 0) { <span class="cover-status available">Available</span> }
+                  @else { <span class="cover-status unavailable">Unavailable</span> }
+                </a>
+                <div class="book-main">
+                  <p class="book-category">{{ book.categories[0] || 'General' }}</p>
+                  <h2><a [routerLink]="bookLink(book.id)" [queryParams]="currentQueryParams()">{{ book.title }}</a></h2>
+                  <p class="book-author">{{ book.authors.join(', ') || 'Unknown Author' }}</p>
+                  <p class="book-isbn">{{ book.isbn ? 'ISBN: '+book.isbn : 'No ISBN listed' }}</p>
+                  <div class="book-badges">
+                    @if (book.hasDigitalEdition) { <span class="badge-pdf">PDF</span> }
+                    @if (recommendedBookIds().has(book.id)) { <span class="badge-faculty-rec">Faculty Recommended</span> }
+                    @if (book.publicationYear) { <span>{{ book.publicationYear }}</span> }
+                  </div>
+                </div>
+                <div class="book-action">
+                  @if (book.availableCopies > 0) { <span class="availability-pill available">● {{ book.availableCopies }} Available / {{ book.totalCopies }} Copies</span> }
+                  @else { <span class="availability-pill unavailable">● Currently Unavailable</span> }
+                  <span class="sr-only">{{ book.totalCopies }} total copies, {{ book.availableCopies }} available, {{ book.onLoanCopies }} on loan</span>
+                  @if (auth.profile()?.role === 'STUDENT' || auth.profile()?.role === 'FACULTY') {
+                    @if (book.availableCopies > 0) { <a class="book-action-button primary" [routerLink]="bookLink(book.id)" [queryParams]="currentQueryParams()">Request to Borrow</a> }
+                    @else if (auth.profile()?.role === 'STUDENT') { <a class="book-action-button secondary" [routerLink]="bookLink(book.id)" [queryParams]="currentQueryParams()">Reserve Book</a> }
+                    @else { <span class="book-action-note">Reservation is student-only</span> }
+                  } @else if (!auth.profile()) {
+                    <button class="book-action-button primary" type="button" (click)="requestOrSignIn(book)">{{ book.availableCopies > 0 ? 'Request to Borrow' : 'Sign in to reserve' }}</button>
+                  } @else {
+                    <a class="book-action-button secondary" [routerLink]="bookLink(book.id)" [queryParams]="currentQueryParams()">View Details</a>
+                  }
+                  <div class="book-utilities">
+                    @if (auth.profile()?.role === 'STUDENT' || auth.profile()?.role === 'FACULTY') {
+                      <button type="button" class="utility-button" [class.is-wishlisted]="wishlistService.isInWishlist(book.id)" [attr.aria-label]="wishlistService.isInWishlist(book.id) ? 'Remove from wishlist' : 'Add to wishlist'" [title]="wishlistService.isInWishlist(book.id) ? 'Remove from wishlist' : 'Add to wishlist'" (click)="wishlistService.toggleWishlist(book.id).subscribe()">♡</button>
+                    }
+                    @if (auth.profile()?.role === 'FACULTY') { <button type="button" class="utility-button" [class.is-rec]="recommendedBookIds().has(book.id)" [attr.aria-label]="recommendedBookIds().has(book.id) ? 'Already recommended' : 'Recommend book'" title="Recommend book" (click)="openRecommendModal(book)">♧</button> }
+                    <a class="utility-button" [routerLink]="bookLink(book.id)" [queryParams]="currentQueryParams()" [attr.aria-label]="'View details for '+book.title" title="View details">⌕</a>
+                    @if (auth.profile()?.role === 'LIBRARIAN') { <a class="utility-button" [routerLink]="['/workspace/librarian/books', book.id, 'edit']" [attr.aria-label]="'Edit '+book.title" title="Edit book">✎</a><a class="utility-button" [routerLink]="['/workspace/librarian/books', book.id, 'copies']" [attr.aria-label]="'Manage copies for '+book.title" title="Manage copies">⋯</a> }
+                  </div>
+                </div>
+              </article>
+            }
+          </div>
           <nav class="pagination-controls" aria-label="Catalogue pages">
             <button
               class="pagination-btn"
@@ -379,14 +229,16 @@ import { WishlistService } from '../wishlist/wishlist.service';
               </svg>
             </button>
           </nav>
-        </div>
-      </div>
-    }
+        }
+      </section>
+    </div>
+    </div>
 
     @if (showDialog()) {
       <app-sign-in-dialog
         [initialRole]="loginRole()"
-        (dismissed)="showDialog.set(false)"
+        [contextMessage]="signInContext()"
+        (dismissed)="dismissSignIn()"
         (authenticated)="onAuthenticated($event)"
       />
     }
@@ -1050,9 +902,28 @@ import { WishlistService } from '../wishlist/wishlist.service';
         grid-template-columns: 1fr;
       }
     }
+
+    /* Explore Books catalogue layout */
+    .catalogue-page{min-height:100vh;background:#fbf9f6;color:#18231f}.catalogue-content{width:min(100%,112rem);margin:0 auto;padding:0 clamp(1rem,3.6vw,4.25rem) 2.5rem}
+    .catalogue-public-nav{min-height:4rem;margin:0;padding:.55rem clamp(1rem,4.2vw,4.5rem);background:rgb(255 255 255 / 94%);border-bottom:1px solid #e9e5dc;gap:1.5rem}.catalogue-public-nav .brand{gap:.65rem}.brand-icon{width:2.6rem;height:2.6rem;border-radius:.65rem}.brand-icon svg{width:1.45rem;fill:none;stroke:#d9f5e8;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.brand-copy{display:grid;gap:.1rem}.brand-copy strong{font:600 1.35rem/1 var(--font-serif);letter-spacing:-.02em}.brand-copy small{font-size:.58rem;font-weight:600;letter-spacing:.02em;color:#58645e}.catalogue-public-nav nav{gap:clamp(.8rem,2.4vw,2.4rem)}.catalogue-public-nav nav a[aria-current="page"]{color:var(--color-forest-900);font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:.65rem}.catalogue-public-nav nav a,.catalogue-public-nav nav button{font-size:.88rem}.workspace-action{display:inline-flex;min-height:2.75rem;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.2rem;border:0;border-radius:.65rem;background:var(--color-forest-900);color:#fff;font:600 .86rem var(--font-sans);text-decoration:none;white-space:nowrap;cursor:pointer;box-shadow:0 2px 5px rgb(0 61 48 / 16%)}.workspace-action:hover{background:var(--color-forest-950)}
+    .catalogue-public-nav{min-height:4rem;margin:0;padding:.55rem clamp(1rem,4.2vw,4.5rem);background:rgb(255 255 255 / 94%);border-bottom:1px solid #e9e5dc;gap:1.5rem}.catalogue-public-nav .brand{gap:.65rem}.brand-icon{width:2.6rem;height:2.6rem;border-radius:.65rem}.brand-icon svg{width:1.45rem;fill:none;stroke:#d9f5e8;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.brand-copy{display:grid;gap:.1rem}.brand-copy strong{font:600 1.35rem/1 var(--font-serif);letter-spacing:-.02em}.brand-copy small{font-size:.58rem;font-weight:600;letter-spacing:.02em;color:#58645e}.catalogue-public-nav nav{gap:clamp(.8rem,2.4vw,2.4rem)}.catalogue-public-nav nav a[aria-current="page"]{color:var(--color-forest-900);font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:.65rem}.catalogue-public-nav nav a,.catalogue-public-nav nav button{font-size:.88rem}.workspace-action{display:inline-flex;min-height:2.75rem;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.2rem;border:0;border-radius:.65rem;background:var(--color-forest-900);color:#fff;font:600 .86rem var(--font-sans);text-decoration:none;white-space:nowrap;cursor:pointer;box-shadow:0 2px 5px rgb(0 61 48 / 16%)}.workspace-action:hover{background:var(--color-forest-950)}
+
+    .catalogue-hero{position:relative;display:flex;min-height:8.25rem;align-items:center;overflow:hidden;margin:0 calc(-1 * clamp(1rem,3.6vw,4.25rem));padding:1.35rem clamp(1rem,3.6vw,4.25rem);background:linear-gradient(90deg,#faf8f4 0%,#faf8f4 55%,#f4eee2 100%);border-bottom:1px solid #eee9df}.catalogue-hero-copy{position:relative;z-index:1;max-width:55rem}.catalogue-eyebrow{margin:0 0 .25rem;color:var(--color-forest-800);font-size:.72rem;font-weight:750;letter-spacing:.07em}.page-title{margin:0 0 .25rem;color:#101729;font:700 clamp(1.8rem,2.7vw,2.35rem)/1.1 var(--font-sans);letter-spacing:-.035em}.page-subtitle{margin:0;color:#475569;font:400 .98rem/1.45 var(--font-sans)}.catalogue-hero-art{position:absolute;inset:0 0 0 auto;width:min(35%,32rem);overflow:hidden;mask-image:linear-gradient(90deg,transparent 0%,#000 20%)}.catalogue-hero-art img{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;object-position:right center;clip-path:inset(0 0 0 42%)}
+    .search-and-stats{display:grid;grid-template-columns:minmax(15rem,1fr) auto;align-items:center;gap:1rem;padding:1rem 0}.catalogue-search{display:flex;min-width:0;min-height:3.55rem;align-items:center;gap:.7rem;padding:.38rem .45rem .38rem .9rem;border:1px solid #e3e2de;border-radius:.85rem;background:#fff;box-shadow:0 2px 7px rgb(20 40 30 / 4%)}.catalogue-search .search-icon{width:1.35rem;height:1.35rem;flex:0 0 auto;color:#263b34}.catalogue-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#263b34;font:500 .93rem var(--font-sans)}.catalogue-search input::placeholder{color:#77818d}.catalogue-search input:focus-visible{outline:2px solid var(--color-forest-700);outline-offset:2px;border-radius:.2rem}.search-submit{min-height:2.75rem;padding:.45rem 1.25rem;border:0;border-radius:.65rem;background:var(--color-forest-900);color:#fff;font:650 .88rem var(--font-sans);cursor:pointer}.search-submit:hover{background:var(--color-forest-950)}.catalogue-stats{display:grid;grid-template-columns:repeat(3,minmax(8rem,1fr));gap:.65rem}.stat-card{display:flex;min-width:8rem;min-height:3.55rem;align-items:center;gap:.65rem;padding:.5rem .8rem;border:1px solid #eeeae3;border-radius:.75rem;background:#fff;box-shadow:0 2px 8px rgb(20 40 30 / 5%)}.stat-icon{display:grid;width:1.8rem;height:1.8rem;flex:0 0 auto;place-items:center;color:var(--color-forest-800);font-size:1.45rem;font-weight:600}.stat-card div{display:grid;gap:.1rem}.stat-card strong{color:#15221c;font-size:1.05rem;font-weight:750;line-height:1.1}.stat-card span:not(.stat-icon){color:#52605a;font-size:.72rem;white-space:nowrap}.stats-note{margin:0 0 .5rem;color:#80631a;font-size:.78rem}
+    .category-chips-row{display:flex;align-items:center;gap:.5rem;margin:0 0 1rem;padding:.1rem 0 .8rem;border-bottom:1px solid #e8e4dc;overflow-x:auto}.category-chips-row>strong{flex:0 0 auto;margin-right:.3rem;color:#27332e;font-size:.8rem}.category-chip{padding:.5rem .9rem;border:1px solid #e8e7e2;border-radius:999px;background:#fff;color:#313c36;font-size:.78rem;font-weight:600;white-space:nowrap;box-shadow:0 1px 3px rgb(20 40 30 / 3%)}.category-chip:hover{border-color:#aac8ba;color:var(--color-forest-900)}.category-chip.active,.faculty-filter-chip.active{border-color:var(--color-forest-900);background:var(--color-forest-900);color:#fff}.faculty-filter-chip{display:inline-flex;align-items:center;gap:.3rem;background:#f8faf8;border-color:#c9d7d0;color:var(--color-forest-900)}.more-chip{color:var(--color-forest-900)}
+    .results-layout{display:grid;grid-template-columns:15rem minmax(0,1fr);align-items:start;gap:1.2rem}.filters-panel{padding:1rem;border:1px solid #ebe8e1;border-radius:.9rem;background:#fff;box-shadow:0 2px 8px rgb(20 40 30 / 4%)}.filters-heading{display:flex;align-items:center;justify-content:space-between;padding-bottom:.75rem;border-bottom:1px solid #eeeae3}.filters-heading h2{margin:0;color:#202c26;font-size:1rem;font-weight:750}.filters-heading .text-button{font-size:.78rem;text-decoration:none}.filter-group{display:grid;gap:.65rem;padding:.85rem 0;border-bottom:1px solid #eeeae3}.filter-group h3{margin:0 0 .15rem;color:#28352f;font-size:.84rem;font-weight:700}.filter-group>label{display:flex;align-items:center;gap:.55rem;color:#47534c;font-size:.8rem;cursor:pointer}.filter-group input[type="checkbox"]{width:1rem;height:1rem;accent-color:var(--color-forest-900)}.filter-group .show-more{justify-self:start;padding:0;text-decoration:none}.year-values{display:flex;justify-content:space-between;color:#59665e;font-size:.73rem}.year-values strong{color:#28352f}.year-filter input[type="range"]{width:100%;height:.3rem;accent-color:var(--color-forest-900)}.filter-error{margin:.65rem 0 0;color:#a33727;font-size:.75rem}.apply-filters{width:100%;min-height:2.55rem;margin-top:.9rem;border:1px solid #8fb7a4;border-radius:.65rem;background:#eef7f1;color:var(--color-forest-900);font-weight:700;cursor:pointer}.apply-filters:hover{background:#e3f1e8}.mobile-filter-toggle{display:none}
+    .results-panel{min-width:0}.results-toolbar{display:flex;min-height:2.65rem;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.75rem}.result-count{margin:0;color:#4d5953;font-size:.82rem;font-weight:600}.results-controls{display:flex;align-items:center;gap:.5rem;color:#34423a;font-size:.78rem}.results-controls label{font-weight:600}.results-controls select{min-height:2.3rem;max-width:12rem;padding:0 2rem 0 .65rem;border:1px solid #e4e2dc;border-radius:.55rem;background:#fff;color:#29362f;font-size:.78rem}.compact-add{min-height:2.25rem;padding:.45rem .7rem;font-size:.75rem}.view-toggle{display:flex;overflow:hidden;border:1px solid #e5e3de;border-radius:.6rem;background:#fff}.view-toggle button{width:2.25rem;height:2.25rem;border:0;background:transparent;color:#59645e;font-size:1rem;cursor:pointer}.view-toggle button.active{background:var(--color-forest-900);color:#fff}.book-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}.book-card{display:grid;min-width:0;grid-template-columns:5.2rem minmax(0,1fr) minmax(9rem,11.5rem);align-items:center;gap:.8rem;padding:.75rem;border:1px solid #e8e7e2;border-radius:.9rem;background:#fff;box-shadow:0 2px 6px rgb(20 40 30 / 4%);transition:box-shadow .16s ease,transform .16s ease}.book-card:hover{box-shadow:0 5px 15px rgb(20 40 30 / 8%);transform:translateY(-1px)}.card-cover{position:relative;display:block;width:5.2rem;height:7.6rem;overflow:hidden;border-radius:.45rem;background:#eef0eb;box-shadow:0 2px 5px rgb(20 40 30 / 12%)}.card-cover img{display:block;width:100%;height:100%;object-fit:contain;background:#f5f4ef}.card-cover-fallback{display:grid;width:100%;height:100%;place-items:center;padding:.4rem;border-left:4px solid #a5c4b2;background:#0b3d30;color:#fff;font:700 .85rem var(--font-serif);text-align:center;overflow-wrap:anywhere}.cover-status{position:absolute;top:.25rem;right:.25rem;padding:.16rem .3rem;border-radius:.3rem;font-size:.55rem;font-weight:700}.cover-status.available{background:#e4f3e8;color:#075632}.cover-status.unavailable{background:#fff1d2;color:#8e4a00}.book-main{min-width:0}.book-category{margin:0 0 .35rem;color:var(--color-forest-800);font-size:.65rem;font-weight:750;letter-spacing:.06em;text-transform:uppercase}.book-main h2{margin:0 0 .28rem;color:#1a2420;font-size:.98rem;font-weight:750;line-height:1.25;overflow-wrap:anywhere}.book-main h2 a{color:inherit;text-decoration:none}.book-main h2 a:hover{color:var(--color-forest-900);text-decoration:underline;text-underline-offset:.15rem}.book-author{margin:0 0 .28rem;color:#55615a;font-size:.8rem;overflow-wrap:anywhere}.book-isbn{margin:0;color:#65716a;font-size:.7rem;overflow-wrap:anywhere}.book-badges{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}.book-badges>span:not(.badge-pdf):not(.badge-faculty-rec){padding:.1rem .3rem;border-radius:.3rem;background:#f3f3ef;color:#68736d;font-size:.62rem}.book-action{display:flex;min-width:0;flex-direction:column;align-items:stretch;gap:.5rem;padding-left:.75rem;border-left:1px solid #ecebe6}.availability-pill{display:block;max-width:100%;padding:.4rem .5rem;border-radius:999px;font-size:.68rem;font-weight:700;text-align:center;white-space:normal;line-height:1.2}.availability-pill.available{background:#e6f3e9;color:#075632}.availability-pill.unavailable{background:#fff2d4;color:#945000}.book-action-button{display:flex;min-height:2.35rem;align-items:center;justify-content:center;padding:.4rem .55rem;border:1px solid var(--color-forest-900);border-radius:.55rem;font-size:.73rem;font-weight:700;line-height:1.2;text-align:center;text-decoration:none;cursor:pointer}.book-action-button.primary{background:var(--color-forest-900);color:#fff}.book-action-button.primary:hover{background:var(--color-forest-950)}.book-action-button.secondary{background:#fff;color:var(--color-forest-900)}.book-action-button.secondary:hover{background:#eef7f1}.book-action-note{color:#68736d;font-size:.66rem;text-align:center}.book-utilities{display:flex;justify-content:flex-end;gap:.35rem}.utility-button{display:grid;width:1.8rem;height:1.8rem;place-items:center;border:1px solid #e6e5df;border-radius:.45rem;background:#fff;color:#52625a;font-size:1rem;text-decoration:none;cursor:pointer}.utility-button:hover,.utility-button.is-rec{border-color:#b7d3c3;background:#edf7f0;color:var(--color-forest-900)}.utility-button.is-wishlisted{border-color:#f5c5ca;background:#fff3f4;color:#bd2332}.pagination-controls{display:flex;justify-content:center;gap:.4rem;margin:1.1rem 0 0}.pagination-btn,.pagination-page{width:2.15rem;height:2.15rem;border:1px solid #e5e4de;border-radius:50%;background:#fff;color:#33423a}.pagination-page.active{border-color:var(--color-forest-900);background:var(--color-forest-900);color:#fff}.pagination-btn:disabled{opacity:.42;cursor:not-allowed}
+    .book-grid.list-view{grid-template-columns:1fr}.book-grid.list-view .book-card{grid-template-columns:5.2rem minmax(0,1fr) minmax(10rem,13rem)}
+    @media(max-width:1250px){.search-and-stats{grid-template-columns:1fr}.catalogue-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.results-layout{grid-template-columns:13rem minmax(0,1fr);gap:.8rem}.book-grid{grid-template-columns:1fr}.book-card{grid-template-columns:5.5rem minmax(0,1fr) minmax(10rem,13rem)}.card-cover{width:5.5rem;height:8rem}}
+    @media(max-width:900px){.catalogue-content{padding-inline:1.25rem}.catalogue-public-nav{padding-inline:1.25rem}.catalogue-public-nav nav{gap:.75rem}.catalogue-hero{margin-inline:-1.25rem;padding-inline:1.25rem}
+    .catalogue-hero{min-height:7.5rem;margin-inline:-.8rem;padding:1rem .8rem}.catalogue-hero-art{width:42%;opacity:.6}.catalogue-hero-copy{max-width:75%}.page-title{font-size:1.75rem}.page-subtitle{max-width:26rem;font-size:.82rem}.catalogue-eyebrow{font-size:.63rem}.search-and-stats{gap:.7rem;padding:.75rem 0}.catalogue-search{min-height:3.15rem}.search-submit{min-height:2.45rem;padding-inline:.75rem}.catalogue-search input{font-size:.8rem}.catalogue-stats{gap:.35rem}.stat-card{min-width:0;min-height:3.1rem;gap:.35rem;padding:.4rem}.stat-icon{width:1.3rem;height:1.3rem;font-size:1.1rem}.stat-card strong{font-size:.88rem}.stat-card span:not(.stat-icon){font-size:.58rem;white-space:normal}.category-chips-row{margin-bottom:.75rem}.category-chips-row>strong{font-size:.7rem}.category-chip{padding:.43rem .68rem;font-size:.7rem}.results-toolbar{align-items:flex-start;flex-direction:column;gap:.55rem}.results-controls{width:100%;flex-wrap:wrap}.results-controls select{flex:1;max-width:none}.results-controls label{margin-right:auto}.compact-add{order:4}.book-grid{grid-template-columns:1fr}.book-card{grid-template-columns:5.2rem minmax(0,1fr);gap:.65rem;padding:.65rem}.card-cover{width:5.2rem;height:7.6rem}.book-main h2{font-size:.9rem}.book-action-button{font-size:.68rem}.book-utilities{gap:.2rem}.utility-button{width:1.65rem;height:1.65rem}.pagination-controls{margin-bottom:1rem}}
+    @media(max-width:620px){.catalogue-public-nav{min-height:3.6rem;flex-wrap:wrap;padding:.45rem .8rem}.catalogue-public-nav nav{width:100%;flex-wrap:wrap;justify-content:space-between;gap:.45rem;padding-bottom:.35rem}.catalogue-public-nav nav a{display:inline-flex}.brand-copy small{font-size:.52rem}.workspace-action{min-height:2.45rem;padding:.45rem .65rem;font-size:.72rem}.catalogue-content{padding-inline:.8rem}.catalogue-hero{min-height:7.5rem;margin-inline:-.8rem;padding:1rem .8rem}.catalogue-hero-art{width:42%;opacity:.6}.catalogue-hero-copy{max-width:75%}.page-title{font-size:1.75rem}.page-subtitle{max-width:26rem;font-size:.82rem}.catalogue-eyebrow{font-size:.63rem}.search-and-stats{gap:.7rem;padding:.75rem 0}.catalogue-search{min-height:3.15rem}.search-submit{min-height:2.45rem;padding-inline:.75rem}.catalogue-search input{font-size:.8rem}.catalogue-stats{gap:.35rem}.stat-card{min-width:0;min-height:3.1rem;gap:.35rem;padding:.4rem}.stat-icon{width:1.3rem;height:1.3rem;font-size:1.1rem}.stat-card strong{font-size:.88rem}.stat-card span:not(.stat-icon){font-size:.58rem;white-space:normal}.category-chips-row{margin-bottom:.75rem}.category-chips-row>strong{font-size:.7rem}.category-chip{padding:.43rem .68rem;font-size:.7rem}.results-toolbar{align-items:flex-start;flex-direction:column;gap:.55rem}.results-controls{width:100%;flex-wrap:wrap}.results-controls select{flex:1;max-width:none}.results-controls label{margin-right:auto}.compact-add{order:4}.book-grid{grid-template-columns:1fr}.book-card{grid-template-columns:5.2rem minmax(0,1fr);gap:.65rem;padding:.65rem}.card-cover{width:5.2rem;height:7.6rem}.book-main h2{font-size:.9rem}.book-action-button{font-size:.68rem}.book-utilities{gap:.2rem}.utility-button{width:1.65rem;height:1.65rem}.pagination-controls{margin-bottom:1rem}}
+    @media(max-width:380px){.catalogue-hero-art{opacity:.35}.catalogue-hero-copy{max-width:88%}.catalogue-stats{grid-template-columns:1fr}.stat-card{justify-content:flex-start}.stat-card span:not(.stat-icon){white-space:nowrap}.book-card{grid-template-columns:4.5rem minmax(0,1fr);gap:.5rem}.card-cover{width:4.5rem;height:6.7rem}.book-action{flex-wrap:wrap}.book-action-button{max-width:none}}
   `]
 })
 export class BookListComponent {
+  readonly chipCategoryLimit = 6;
+  readonly filterCategoryLimit = 5;
   private readonly service = inject(CatalogueService);
   private readonly recService = inject(RecommendationService);
   private readonly router = inject(Router);
@@ -1062,6 +933,9 @@ export class BookListComponent {
 
   readonly books = signal<BookSummary[]>([]);
   readonly categories = signal<Category[]>([]);
+  readonly statistics = signal<CatalogueStatistics | null>(null);
+  readonly statisticsLoading = signal(true);
+  readonly statisticsError = signal(false);
   readonly loading = signal(false);
   readonly error = signal('');
   readonly total = signal(0);
@@ -1070,8 +944,22 @@ export class BookListComponent {
   readonly broken = signal(new Set<string>());
   readonly showDialog = signal(false);
   readonly loginRole = signal<'STUDENT' | 'FACULTY' | 'LIBRARIAN'>('STUDENT');
+  readonly signInContext = signal('');
+  readonly selectedBookForRequest = signal<BookSummary | null>(null);
+  readonly filtersOpen = signal(false);
+  readonly showAllChips = signal(false);
+  readonly showAllFilterCategories = signal(false);
+  readonly draftAvailable = signal(true);
+  readonly draftUnavailable = signal(true);
+  readonly draftYearFrom = signal<number | null>(null);
+  readonly draftYearTo = signal<number | null>(null);
+  readonly filterError = signal('');
+  readonly viewMode = signal<'grid' | 'list'>('grid');
+  readonly sortField = signal<'title' | 'publicationYear' | 'trending'>('title');
+  readonly sortDirection = signal<'asc' | 'desc'>('asc');
 
   readonly recommendedBookIds = signal<Set<string>>(new Set());
+  readonly recommendationsLoaded = signal(false);
   readonly facultyRecommendedOnly = signal(false);
   readonly selectedBookForRec = signal<RecommendableBook | null>(null);
 
@@ -1087,27 +975,42 @@ export class BookListComponent {
   category = '';
   availability = '';
 
-  private applied = { q: '', category: '', availability: '' };
+  private applied = { q: '', category: '', availability: '', yearFrom: null as number | null, yearTo: null as number | null };
   private searchRequest = 0;
+  private goToWorkspaceAfterSignIn = false;
 
   constructor() {
     this.q = this.route.snapshot.queryParamMap.get('q') || '';
     this.category = this.route.snapshot.queryParamMap.get('category') || '';
     this.availability = this.route.snapshot.queryParamMap.get('availability') || '';
+    this.draftAvailable.set(this.availability !== 'false');
+    this.draftUnavailable.set(this.availability !== 'true');
+    this.draftYearFrom.set(this.readYearParam(this.route.snapshot.queryParamMap.get('publicationYearFrom')));
+    this.draftYearTo.set(this.readYearParam(this.route.snapshot.queryParamMap.get('publicationYearTo')));
+    const sortDirection = this.route.snapshot.queryParamMap.get('direction');
+    this.sortDirection.set(sortDirection === 'desc' ? 'desc' : 'asc');
+    const sortField = this.route.snapshot.queryParamMap.get('sort');
+    this.sortField.set(sortField === 'publicationYear' || sortField === 'trending' ? sortField : 'title');
     if (this.route.snapshot.queryParamMap.get('facultyRecommended') === 'true') {
       this.facultyRecommendedOnly.set(true);
     }
-    this.applied = { q: this.q.trim(), category: this.category.trim(), availability: this.availability };
+    this.applied = { q: this.q.trim(), category: this.category.trim(), availability: this.availability, yearFrom: this.draftYearFrom(), yearTo: this.draftYearTo() };
 
     this.service.categories().subscribe({
       next: x => this.categories.set(x),
       error: () => this.error.set('Categories could not be loaded. Please try again.')
     });
 
-    this.recService.getRecommendedBookIds().subscribe({
-      next: ids => this.recommendedBookIds.set(new Set(ids)),
-      error: () => {}
-    });
+    this.loadStatistics();
+
+    if (this.auth.profile()) {
+      this.recService.getRecommendedBookIds().subscribe({
+        next: ids => { this.recommendedBookIds.set(new Set(ids)); this.recommendationsLoaded.set(true); if (this.facultyRecommendedOnly()) this.load(0); },
+        error: () => { this.recommendationsLoaded.set(true); if (this.facultyRecommendedOnly()) { this.loading.set(false); this.error.set('Faculty recommendations could not be loaded. Please try again.'); } }
+      });
+    } else {
+      this.recommendationsLoaded.set(true);
+    }
 
     this.load();
 
@@ -1115,11 +1018,22 @@ export class BookListComponent {
       const q = params.get('q') || '';
       const cat = params.get('category') || '';
       const avail = params.get('availability') || '';
-      if (q.trim() !== this.applied.q || cat.trim() !== this.applied.category || avail !== this.applied.availability) {
+      const yearFrom = this.readYearParam(params.get('publicationYearFrom'));
+      const yearTo = this.readYearParam(params.get('publicationYearTo'));
+      const sort = params.get('sort');
+      const nextSort: 'title' | 'publicationYear' | 'trending' = sort === 'publicationYear' || sort === 'trending' ? sort : 'title';
+      const direction = sort === 'trending' ? 'desc' : (params.get('direction') === 'desc' ? 'desc' : 'asc');
+      if (q.trim() !== this.applied.q || cat.trim() !== this.applied.category || avail !== this.applied.availability || yearFrom !== this.applied.yearFrom || yearTo !== this.applied.yearTo || nextSort !== this.sortField() || direction !== this.sortDirection()) {
         this.q = q;
         this.category = cat;
         this.availability = avail;
-        this.applied = { q: q.trim(), category: cat.trim(), availability: avail };
+        this.draftAvailable.set(avail !== 'false');
+        this.draftUnavailable.set(avail !== 'true');
+        this.draftYearFrom.set(yearFrom);
+        this.draftYearTo.set(yearTo);
+        this.sortField.set(nextSort);
+        this.sortDirection.set(direction);
+        this.applied = { q: q.trim(), category: cat.trim(), availability: avail, yearFrom, yearTo };
         this.load(0);
       }
     });
@@ -1127,6 +1041,15 @@ export class BookListComponent {
 
   isInsideWorkspace(): boolean {
     return this.router.url.startsWith('/workspace');
+  }
+
+  loadStatistics(): void {
+    this.statisticsLoading.set(true);
+    this.statisticsError.set(false);
+    this.service.statistics().subscribe({
+      next: summary => { this.statistics.set(summary); this.statisticsLoading.set(false); },
+      error: () => { this.statisticsLoading.set(false); this.statisticsError.set(true); },
+    });
   }
 
   bookLink(bookId: string): string[] {
@@ -1138,11 +1061,25 @@ export class BookListComponent {
       q: this.applied.q || null,
       category: this.applied.category || null,
       availability: this.applied.availability || null,
+      publicationYearFrom: this.applied.yearFrom === null ? null : String(this.applied.yearFrom),
+      publicationYearTo: this.applied.yearTo === null ? null : String(this.applied.yearTo),
+      sort: this.sortField(),
+      direction: this.sortField() === 'trending' ? null : this.sortDirection(),
+      facultyRecommended: this.facultyRecommendedOnly() ? 'true' : null,
     };
   }
 
   apply() {
-    this.applied = { q: this.q.trim(), category: this.category.trim(), availability: this.availability };
+    const from = this.draftYearFrom();
+    const to = this.draftYearTo();
+    if (from !== null && to !== null && from > to) {
+      this.filterError.set('The starting publication year must be no later than the ending year.');
+      return;
+    }
+    this.filterError.set('');
+    this.applied = { q: this.q.trim(), category: this.category.trim(), availability: this.availability, yearFrom: from, yearTo: to };
+    void this.router.navigate([], { relativeTo: this.route, queryParams: this.currentQueryParams(), queryParamsHandling: 'merge' });
+    this.filtersOpen.set(false);
     this.load(0);
   }
 
@@ -1153,6 +1090,57 @@ export class BookListComponent {
 
   toggleFacultyRecommended() {
     this.facultyRecommendedOnly.update(v => !v);
+    void this.router.navigate([], { relativeTo: this.route, queryParams: this.currentQueryParams() });
+    this.load(0);
+  }
+
+  visibleChipCategories(): Category[] { return this.showAllChips() ? this.categories() : this.categories().slice(0, this.chipCategoryLimit); }
+  visibleFilterCategories(): Category[] { return this.showAllFilterCategories() ? this.categories() : this.categories().slice(0, this.filterCategoryLimit); }
+  availableCount(): number { return this.statistics()?.availableBooks ?? 0; }
+  unavailableCount(): number { return this.statistics()?.unavailableBooks ?? 0; }
+  sortSelection(): string { return this.sortField() === 'trending' ? 'trending' : `${this.sortField()}:${this.sortDirection()}`; }
+
+  selectFilterCategory(name: string, checked: boolean): void {
+    this.category = checked ? name : this.category.toLowerCase() === name.toLowerCase() ? '' : this.category;
+  }
+
+  setAvailability(which: 'available' | 'unavailable', checked: boolean): void {
+    if (which === 'available') this.draftAvailable.set(checked);
+    else this.draftUnavailable.set(checked);
+    this.availability = this.draftAvailable() === this.draftUnavailable() ? '' : this.draftAvailable() ? 'true' : 'false';
+  }
+
+  setYearFrom(value: string): void {
+    const year = Number(value);
+    this.draftYearFrom.set(year);
+    if (this.draftYearTo() !== null && year > this.draftYearTo()!) this.draftYearTo.set(year);
+  }
+
+  setYearTo(value: string): void {
+    const year = Number(value);
+    this.draftYearTo.set(year);
+    if (this.draftYearFrom() !== null && year < this.draftYearFrom()!) this.draftYearFrom.set(year);
+  }
+
+  changeSort(value: string): void {
+    if (value === 'trending') {
+      this.sortField.set('trending');
+      this.sortDirection.set('desc');
+      void this.router.navigate([], { relativeTo: this.route, queryParams: this.currentQueryParams() });
+      this.load(0);
+      return;
+    }
+    const [field, direction] = value.split(':');
+    this.sortField.set(field === 'publicationYear' ? field : 'title');
+    this.sortDirection.set(direction === 'desc' ? 'desc' : 'asc');
+    void this.router.navigate([], { relativeTo: this.route, queryParams: this.currentQueryParams() });
+    this.load(0);
+  }
+
+  private readYearParam(value: string | null): number | null {
+    if (!value || !/^\d{4}$/.test(value)) return null;
+    const year = Number(value);
+    return Number.isFinite(year) ? year : null;
   }
 
   openRecommendModal(book: BookSummary) {
@@ -1168,17 +1156,23 @@ export class BookListComponent {
   onBookRecommended(rec: Recommendation) {
     this.recommendedBookIds.update(set => new Set(set).add(rec.bookId));
     this.selectedBookForRec.set(null);
+    if (this.facultyRecommendedOnly()) this.load(0);
   }
 
   clearFilters() {
     this.q = '';
     this.category = '';
     this.availability = '';
+    this.draftAvailable.set(true);
+    this.draftUnavailable.set(true);
+    this.draftYearFrom.set(null);
+    this.draftYearTo.set(null);
+    this.filterError.set('');
     this.facultyRecommendedOnly.set(false);
-    this.applied = { q: '', category: '', availability: '' };
+    this.applied = { q: '', category: '', availability: '', yearFrom: null, yearTo: null };
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { q: null, category: null, availability: null },
+      queryParams: { q: null, category: null, availability: null, publicationYearFrom: null, publicationYearTo: null, facultyRecommended: null },
       queryParamsHandling: 'merge',
     });
     this.load(0);
@@ -1186,17 +1180,27 @@ export class BookListComponent {
 
   load(p = 0) {
     const request = ++this.searchRequest;
+    if (this.facultyRecommendedOnly() && !this.recommendationsLoaded()) {
+      this.loading.set(true);
+      return;
+    }
+    if (this.facultyRecommendedOnly() && this.recommendedBookIds().size === 0) {
+      this.books.set([]); this.total.set(0); this.pages.set(0); this.page.set(0); this.loading.set(false); this.error.set('');
+      return;
+    }
     this.loading.set(true);
     this.error.set('');
-    this.service
-      .search(
-        {
-          q: this.applied.q,
-          category: this.applied.category,
-          available: this.applied.availability === '' ? null : this.applied.availability === 'true',
-        },
-        p
-      )
+    const filters = {
+      q: this.applied.q,
+      category: this.applied.category,
+      available: this.applied.availability === '' ? null : this.applied.availability === 'true',
+      publicationYearFrom: this.applied.yearFrom,
+      publicationYearTo: this.applied.yearTo,
+    };
+    const results = this.sortField() === 'trending'
+      ? this.service.trending(filters, p, 12)
+      : this.service.search({ ...filters, bookIds: this.facultyRecommendedOnly() ? [...this.recommendedBookIds()] : null }, p, this.sortField(), this.sortDirection());
+    results
       .pipe(
         finalize(() => {
           if (request === this.searchRequest) this.loading.set(false);
@@ -1227,14 +1231,49 @@ export class BookListComponent {
   }
 
   openSignIn() {
+    this.goToWorkspaceAfterSignIn = false;
     this.loginRole.set('STUDENT');
     this.showDialog.set(true);
   }
 
+  openWorkspace(): void {
+    if (this.auth.profile()) { void this.router.navigateByUrl('/workspace'); return; }
+    this.goToWorkspaceAfterSignIn = true;
+    this.openSignIn();
+    this.goToWorkspaceAfterSignIn = true;
+  }
+
+  requestOrSignIn(book: BookSummary): void {
+    if (this.auth.profile()) { void this.router.navigate(this.bookLink(book.id), { queryParams: this.currentQueryParams() }); return; }
+    this.goToWorkspaceAfterSignIn = false;
+    this.selectedBookForRequest.set(book);
+    this.loginRole.set('STUDENT');
+    this.signInContext.set(`You selected “${book.title}”. Sign in to review and submit the request on the book details page.`);
+    this.showDialog.set(true);
+  }
+
+  dismissSignIn(): void {
+    this.showDialog.set(false);
+    this.selectedBookForRequest.set(null);
+    this.signInContext.set('');
+    this.goToWorkspaceAfterSignIn = false;
+  }
+
   onAuthenticated(profile: UserProfile) {
     this.showDialog.set(false);
+    const selected = this.selectedBookForRequest();
+    if (selected) {
+      this.selectedBookForRequest.set(null);
+      this.signInContext.set('');
+      void this.router.navigate(this.bookLink(selected.id), { queryParams: this.currentQueryParams() });
+      return;
+    }
     if (profile.role === 'STUDENT' || profile.role === 'FACULTY') {
       this.loginRole.set(profile.role);
+    }
+    if (this.goToWorkspaceAfterSignIn) {
+      this.goToWorkspaceAfterSignIn = false;
+      void this.router.navigateByUrl('/workspace');
     }
   }
 

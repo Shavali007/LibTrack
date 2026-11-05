@@ -58,5 +58,40 @@ class CatalogueIntegrationTest {
    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].id").value(id));
   mvc.perform(get("/api/v1/books"))
    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)));
- }}
+ }
+
+ @Test void yearRangeFiltersResultsAndCatalogueStatisticsUsePersistedRecords()throws Exception{
+  var before=mvc.perform(get("/api/v1/books/statistics")).andExpect(status().isOk()).andReturn();
+  var beforeJson=mapper.readTree(before.getResponse().getContentAsString());
+  long beforeBooks=beforeJson.get("totalBooks").asLong();long beforeCategories=beforeJson.get("totalCategories").asLong();long beforeCopies=beforeJson.get("availableCopies").asLong();
+  String unique=UUID.randomUUID().toString();String category="Stats "+unique;
+  String first=book("Year range first "+unique,null).replace("Computing",category).replace("\"circulationPolicy\":\"STANDARD\"","\"circulationPolicy\":\"STANDARD\",\"publicationYear\":2020");
+  String second=book("Year range second "+unique,null).replace("Computing",category).replace("\"circulationPolicy\":\"STANDARD\"","\"circulationPolicy\":\"STANDARD\",\"publicationYear\":2024,\"numberOfCopies\":2");
+  String firstId=createBook(first);createBook(second);
+  mvc.perform(get("/api/v1/books").param("q",unique).param("publicationYearFrom","2021").param("publicationYearTo","2025"))
+   .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].publicationYear").value(2024));
+  mvc.perform(get("/api/v1/books").param("bookIds",firstId))
+   .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].id").value(firstId));
+  mvc.perform(get("/api/v1/books/statistics")).andExpect(status().isOk())
+   .andExpect(jsonPath("$.totalBooks").value(beforeBooks+2)).andExpect(jsonPath("$.totalCategories").value(beforeCategories+1))
+   .andExpect(jsonPath("$.availableCopies").value(beforeCopies+2)).andExpect(jsonPath("$.minimumPublicationYear").isNumber()).andExpect(jsonPath("$.maximumPublicationYear").isNumber());
+  mvc.perform(get("/api/v1/categories"))
+   .andExpect(status().isOk()).andExpect(jsonPath("$[?(@.name=='"+category+"')].bookCount").value(org.hamcrest.Matchers.contains(2)));
+ }
+
+ @Test void publicStatisticsCountOnlyCategoriesReferencedByActiveBooks()throws Exception{
+  var before=mvc.perform(get("/api/v1/books/statistics")).andExpect(status().isOk()).andReturn();
+  var beforeJson=mapper.readTree(before.getResponse().getContentAsString());
+  long beforeBooks=beforeJson.get("totalBooks").asLong();long beforeCategories=beforeJson.get("totalCategories").asLong();
+  String category="Active category "+UUID.randomUUID();
+  String id=createBook(book("Category statistics "+UUID.randomUUID(),null).replace("Computing",category));
+  mvc.perform(get("/api/v1/books/statistics")).andExpect(status().isOk())
+   .andExpect(jsonPath("$.totalBooks").value(beforeBooks+1)).andExpect(jsonPath("$.totalCategories").value(beforeCategories+1));
+  mvc.perform(post("/api/v1/books/"+id+"/deactivate").with(user("librarian").roles("LIBRARIAN")).with(csrf()))
+   .andExpect(status().isNoContent());
+  mvc.perform(get("/api/v1/books/statistics")).andExpect(status().isOk())
+   .andExpect(jsonPath("$.totalBooks").value(beforeBooks)).andExpect(jsonPath("$.totalCategories").value(beforeCategories));
+ }
+
+}
 

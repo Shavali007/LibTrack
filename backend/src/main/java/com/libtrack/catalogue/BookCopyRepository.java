@@ -12,6 +12,9 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, UUID> {
     List<BookCopy> findAllByBookIdOrderByCopyIdentifierAsc(UUID bookId);
     Optional<BookCopy> findByIdAndBookId(UUID id, UUID bookId);
     long countByStatus(CopyStatus status);
+
+    @Query("select count(c) from BookCopy c where c.status = com.libtrack.catalogue.CopyStatus.AVAILABLE and c.book.active = true")
+    long countAvailableCopiesForActiveBooks();
     long countByBookIdAndStatus(UUID bookId, CopyStatus status);
     List<BookCopy> findByBookIdAndStatus(UUID bookId, CopyStatus status);
     List<BookCopy> findByStatusInOrderByUpdatedAtDesc(Collection<CopyStatus> statuses);

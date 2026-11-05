@@ -1,8 +1,8 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs';
-import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './librarian-operations.service';
+import { finalize, switchMap } from 'rxjs';
+import { FinesPolicyResponse, FinePolicyUpdateRequest, HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './librarian-operations.service';
 
 @Component({
   selector: 'app-settings-manager',
@@ -21,12 +21,12 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
           </div>
           <div>
             <h1 class="settings-h1">Settings</h1>
-            <p class="settings-subtitle">Manage library details and holidays.</p>
+            <p class="settings-subtitle">Manage library details, fine policy and holidays.</p>
           </div>
         </div>
       </header>
 
-      <!-- Navigation Tabs (Only 2 tabs: Library Information & Holiday Calendar) -->
+      <!-- Navigation Tabs -->
       <nav class="settings-tabs" aria-label="Settings sections">
         <button
           type="button"
@@ -62,6 +62,16 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
             </svg>
           </span>
           <span>Holiday Calendar</span>
+        </button>
+
+        <button
+          type="button"
+          class="settings-tab-btn"
+          [class.active]="activeTab() === 'fines'"
+          (click)="setActiveTab('fines')"
+        >
+          <span class="tab-icon" aria-hidden="true">₹</span>
+          <span>Fine Policy</span>
         </button>
       </nav>
 
@@ -420,6 +430,100 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
         </div>
       }
 
+      @if (activeTab() === 'fines') {
+        @if (loadingFinePolicy()) {
+          <div class="surface-card policy-loading" role="status">Loading current fine policy…</div>
+        } @else if (finePolicyError()) {
+          <div class="alert alert-error policy-load-error" role="alert">
+            <span>{{ finePolicyError() }}</span>
+            <button type="button" class="button button-secondary button-sm" (click)="loadFinePolicy()">Retry</button>
+          </div>
+        } @else if (!finePolicy()?.configured) {
+          <section class="surface-card policy-empty-state" aria-labelledby="fine-policy-empty-title">
+            <div class="policy-empty-icon" aria-hidden="true">₹</div>
+            <h2 id="fine-policy-empty-title">No Fine Policy Configured</h2>
+            <p>Set the shared borrowing and fine terms for newly issued loans.</p>
+            <button type="button" class="button button-primary" (click)="openFinePolicyModal()">Create Fine Policy</button>
+          </section>
+        } @else if (finePolicy(); as policy) {
+          <section class="surface-card fine-policy-overview" aria-labelledby="fine-policy-title">
+            <div class="policy-overview-header">
+              <div class="policy-heading">
+                <span class="policy-heading-icon" aria-hidden="true">₹</span>
+                <div>
+                  <h2 id="fine-policy-title">Fine Policy</h2>
+                  <p>These values apply to newly issued loans. Existing loans keep their issue-time fine terms.</p>
+                </div>
+              </div>
+              <button type="button" class="button button-primary button-sm" (click)="openFinePolicyModal()">Edit Policy</button>
+            </div>
+            <div class="policy-metrics">
+              <article class="policy-metric">
+                <span class="metric-icon" aria-hidden="true">▦</span>
+                <div><p>Daily Fine Rate</p><strong>₹{{ policy.dailyFineRate | number:'1.2-2' }}</strong><small>Per book, per day after due date</small></div>
+              </article>
+              <article class="policy-metric">
+                <span class="metric-icon" aria-hidden="true">◈</span>
+                <div><p>Grace Period</p><strong>{{ policy.gracePeriodDays }} {{ policy.gracePeriodDays === 1 ? 'day' : 'days' }}</strong><small>No fine within this period</small></div>
+              </article>
+              <article class="policy-metric">
+                <span class="metric-icon" aria-hidden="true">₹</span>
+                <div><p>Maximum Fine</p><strong>₹{{ policy.maximumFinePerBook | number:'1.2-2' }}</strong><small>Per book</small></div>
+              </article>
+              <article class="policy-metric">
+                <span class="metric-icon" aria-hidden="true">◷</span>
+                <div><p>Loan Period</p><strong>{{ policy.loanPeriodDays }} {{ policy.loanPeriodDays === 1 ? 'day' : 'days' }}</strong><small>Same for Students and Faculty</small></div>
+              </article>
+            </div>
+            <p class="policy-notice" role="note"><span aria-hidden="true">ⓘ</span> New loans follow the current borrowing and fine policy. Existing loans retain their original issue-time terms.</p>
+          </section>
+        }
+      }
+
+      @if (showFinePolicyModal()) {
+        <div class="modal-backdrop policy-modal-backdrop" (click)="onPolicyBackdropClick($event)">
+          <section class="modal-card policy-modal" role="dialog" aria-modal="true" aria-labelledby="fine-policy-modal-title" (keydown.escape)="closeFinePolicyModal()" tabindex="-1">
+            <header class="policy-modal-header">
+              <div><h2 id="fine-policy-modal-title">{{ finePolicy()?.configured ? 'Edit Fine Policy' : 'Create Fine Policy' }}</h2><p>Changes apply to newly issued loans. Existing loans are unchanged.</p></div>
+              <button type="button" class="policy-modal-close" aria-label="Close fine policy editor" [disabled]="savingFinePolicy()" (click)="closeFinePolicyModal()">×</button>
+            </header>
+            <form #finePolicyForm="ngForm" (ngSubmit)="saveFinePolicy()">
+              <div class="policy-form-grid">
+                <div class="form-group">
+                  <label for="fineDailyRate" class="form-label">Daily Fine Rate (₹) <span aria-hidden="true">*</span></label>
+                  <input id="fineDailyRate" name="fineDailyRate" class="form-input" type="number" min="0" max="99999999.99" step="0.01" required [(ngModel)]="fineDailyRate" #dailyRateControl="ngModel" aria-describedby="daily-rate-help daily-rate-error" />
+                  <small id="daily-rate-help" class="muted">Charged per book for each overdue day.</small>
+                  @if (dailyRateControl.invalid && dailyRateControl.touched) { <small id="daily-rate-error" class="field-error">Enter an amount with up to two decimal places.</small> }
+                </div>
+                <div class="form-group">
+                  <label for="fineGraceDays" class="form-label">Grace Period (Days) <span aria-hidden="true">*</span></label>
+                  <input id="fineGraceDays" name="fineGraceDays" class="form-input" type="number" min="0" max="2147483647" step="1" required [(ngModel)]="fineGraceDays" #graceControl="ngModel" aria-describedby="grace-help grace-error" />
+                  <small id="grace-help" class="muted">Whole days after the due date before fines start.</small>
+                  @if (graceControl.invalid && graceControl.touched) { <small id="grace-error" class="field-error">Enter a non-negative whole number.</small> }
+                </div>
+                <div class="form-group">
+                  <label for="fineMaximum" class="form-label">Maximum Fine per Book (₹) <span aria-hidden="true">*</span></label>
+                  <input id="fineMaximum" name="fineMaximum" class="form-input" type="number" min="0" max="99999999.99" step="0.01" required [(ngModel)]="fineMaximum" #maximumControl="ngModel" aria-describedby="maximum-help maximum-error" />
+                  <small id="maximum-help" class="muted">The maximum outstanding fine for one book.</small>
+                  @if (maximumControl.invalid && maximumControl.touched) { <small id="maximum-error" class="field-error">Enter an amount with up to two decimal places.</small> }
+                </div>
+                <div class="form-group">
+                  <label for="fineLoanPeriod" class="form-label">Loan Period (Days) <span aria-hidden="true">*</span></label>
+                  <input id="fineLoanPeriod" name="fineLoanPeriod" class="form-input" type="number" min="1" max="3650" step="1" required [(ngModel)]="fineLoanPeriod" #loanPeriodControl="ngModel" aria-describedby="loan-period-help loan-period-error" />
+                  <small id="loan-period-help" class="muted">One shared duration for Students and Faculty.</small>
+                  @if (loanPeriodControl.invalid && loanPeriodControl.touched) { <small id="loan-period-error" class="field-error">Enter a whole number from 1 to 3,650.</small> }
+                </div>
+              </div>
+              @if (finePolicySaveError()) { <p class="alert alert-error" role="alert">{{ finePolicySaveError() }}</p> }
+              <footer class="modal-actions">
+                <button type="button" class="button button-secondary" [disabled]="savingFinePolicy()" (click)="closeFinePolicyModal()">Cancel</button>
+                <button type="submit" class="button button-primary" [disabled]="finePolicyForm.invalid || savingFinePolicy()">{{ savingFinePolicy() ? 'Saving…' : 'Save Changes' }}</button>
+              </footer>
+            </form>
+          </section>
+        </div>
+      }
+
       <!-- Delete Confirmation Modal -->
       @if (deletingHoliday()) {
         <div class="modal-backdrop" role="dialog" aria-modal="true">
@@ -462,7 +566,7 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
 
     .settings-page {
       width: 100%;
-      max-width: 1000px;
+      max-width: 100%;
       margin: 0;
       padding-bottom: 2.5rem;
     }
@@ -594,6 +698,30 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
+    }
+
+    .fine-policy-form .form-input {
+      width: 100%;
+      min-height: 2.65rem;
+      padding: 0.65rem 0.85rem;
+      color: #1F2421;
+      background: #FFFFFF;
+      border: 1px solid #D8D2C4;
+      border-radius: 8px;
+    }
+
+    .fine-policy-form .btn-save-changes {
+      align-self: flex-start;
+      margin-top: 0.25rem;
+    }
+
+    .policy-status-note {
+      margin: 0;
+      padding: 0.9rem 1rem;
+      border-radius: 8px;
+      color: #234238;
+      background: #F1F5EF;
+      line-height: 1.5;
     }
 
     .form-row-2 {
@@ -997,6 +1125,39 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
       font-size: 0.875rem;
     }
 
+    .policy-loading, .policy-empty-state { min-height: 15rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; text-align: center; }
+    .policy-empty-state h2 { margin: 0; font-size: var(--type-section-heading-size); }
+    .policy-empty-state p { color: var(--color-charcoal-600); margin: 0 0 0.5rem; }
+    .policy-empty-icon, .policy-heading-icon, .metric-icon { display: inline-grid; place-items: center; flex: 0 0 auto; width: 2.75rem; height: 2.75rem; border-radius: 50%; color: var(--color-primary); background: var(--color-primary-soft); font-weight: 700; }
+    .policy-load-error { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .fine-policy-overview { padding: 0; overflow: hidden; }
+    .policy-overview-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--color-line-100); }
+    .policy-heading { display: flex; align-items: center; gap: 0.9rem; min-width: 0; }
+    .policy-heading h2 { margin: 0 0 0.2rem; font-size: var(--type-section-heading-size); color: var(--color-charcoal-900); }
+    .policy-heading p { margin: 0; color: var(--color-charcoal-600); font-size: var(--type-description-size); }
+    .policy-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 1.35rem 0; }
+    .policy-metric { display: flex; align-items: flex-start; gap: 0.8rem; padding: 0.15rem 1.25rem; min-width: 0; }
+    .policy-metric + .policy-metric { border-left: 1px solid var(--color-line-100); }
+    .metric-icon { width: 2.5rem; height: 2.5rem; }
+    .policy-metric p { margin: 0 0 0.2rem; color: var(--color-charcoal-600); font-size: var(--type-description-size); }
+    .policy-metric strong { display: block; color: var(--color-charcoal-900); font-size: var(--font-size-xl); line-height: 1.3; }
+    .policy-metric small { display: block; margin-top: 0.35rem; color: var(--color-charcoal-600); font-size: var(--type-helper-size); line-height: 1.4; }
+    .policy-notice { display: flex; align-items: flex-start; gap: 0.6rem; margin: 0 1.5rem 1.25rem; padding: 0.8rem 1rem; border: 1px solid var(--color-primary-border); border-radius: var(--radius-control); background: var(--color-primary-soft); color: var(--color-primary); font-size: var(--type-description-size); }
+    .policy-modal-backdrop { z-index: 1000; overflow-y: auto; padding: 1.25rem; }
+    .policy-modal { width: min(100%, 42rem); max-height: calc(100vh - 2.5rem); overflow-y: auto; }
+    .policy-modal-header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: 1.25rem; }
+    .policy-modal-header h2 { margin: 0 0 0.3rem; font-size: var(--type-modal-title-size); color: var(--color-charcoal-900); }
+    .policy-modal-header p { margin: 0; color: var(--color-charcoal-600); font-size: var(--type-modal-desc-size); }
+    .policy-modal-close { border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-charcoal-600); font-size: 1.5rem; cursor: pointer; min-width: 2.5rem; min-height: 2.5rem; }
+    .policy-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .policy-form-grid .form-group { min-width: 0; }
+    .field-error { color: var(--color-danger-800); display: block; }
+    .policy-modal .modal-actions { margin-top: 1.5rem; }
+    .policy-modal .alert { margin: 1rem 0 0; }
+    .policy-modal button:focus-visible, .fine-policy-overview button:focus-visible { outline: 3px solid var(--color-primary-border); outline-offset: 2px; }
+    @media (max-width: 900px) { .policy-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 1.2rem; } .policy-metric:nth-child(3) { border-left: 0; } }
+    @media (max-width: 560px) { .policy-metrics, .policy-form-grid { grid-template-columns: 1fr; } .policy-metric + .policy-metric { border-left: 0; border-top: 1px solid var(--color-line-100); padding-top: 1rem; } .policy-overview-header { align-items: flex-start; flex-direction: column; } .policy-notice { margin-right: 1rem; margin-left: 1rem; } .policy-modal-backdrop { padding: 0.5rem; } .policy-modal { max-height: calc(100vh - 1rem); } }
+
     @media (max-width: 640px) {
       .form-row-2 {
         grid-template-columns: 1fr;
@@ -1018,13 +1179,23 @@ import { HolidayRecord, LibrarianOperationsService, LibraryInfoRecord } from './
 export class SettingsManagerComponent implements OnInit {
   private readonly opsService = inject(LibrarianOperationsService);
 
-  readonly activeTab = signal<'info' | 'holidays'>('info');
+  readonly activeTab = signal<'info' | 'holidays' | 'fines'>('info');
   readonly error = signal('');
   readonly notice = signal('');
 
   // Tab 1 state
   readonly loadingInfo = signal(true);
   readonly savingInfo = signal(false);
+  readonly finePolicy = signal<FinesPolicyResponse | null>(null);
+  readonly loadingFinePolicy = signal(false);
+  readonly finePolicyError = signal('');
+  readonly showFinePolicyModal = signal(false);
+  readonly savingFinePolicy = signal(false);
+  readonly finePolicySaveError = signal('');
+  fineDailyRate = '';
+  fineMaximum = '';
+  fineGraceDays = '';
+  fineLoanPeriod = '';
   libraryInfo: LibraryInfoRecord = {
     libraryName: 'VIT-AP Central Library',
     contactEmail: 'library@vitap.ac.in',
@@ -1061,13 +1232,96 @@ export class SettingsManagerComponent implements OnInit {
     this.loadLibraryInfo();
   }
 
-  setActiveTab(tab: 'info' | 'holidays'): void {
+  setActiveTab(tab: 'info' | 'holidays' | 'fines'): void {
     this.activeTab.set(tab);
     this.error.set('');
     this.notice.set('');
     if (tab === 'holidays' && !this.holidays().length && !this.loadingHolidays()) {
       this.loadHolidays();
     }
+    if (tab === 'fines' && !this.finePolicy() && !this.loadingFinePolicy()) {
+      this.loadFinePolicy();
+    }
+  }
+
+  loadFinePolicy(): void {
+    this.finePolicyError.set('');
+    this.loadingFinePolicy.set(true);
+    this.opsService.getFinesPolicy()
+      .pipe(finalize(() => this.loadingFinePolicy.set(false)))
+      .subscribe({
+        next: policy => this.setFinePolicy(policy),
+        error: () => this.finePolicyError.set('Failed to load the current fine policy.')
+      });
+  }
+
+  openFinePolicyModal(): void {
+    const policy = this.finePolicy();
+    if (policy?.configured) this.setFinePolicy(policy);
+    else {
+      this.fineDailyRate = '';
+      this.fineMaximum = '';
+      this.fineGraceDays = '';
+      this.fineLoanPeriod = '';
+    }
+    this.finePolicySaveError.set('');
+    this.showFinePolicyModal.set(true);
+  }
+
+  closeFinePolicyModal(): void {
+    if (!this.savingFinePolicy()) this.showFinePolicyModal.set(false);
+  }
+
+  onPolicyBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeFinePolicyModal();
+  }
+
+  saveFinePolicy(): void {
+    if (this.savingFinePolicy()) return;
+    this.finePolicySaveError.set('');
+    const moneyPattern = /^(?:\d{1,8})(?:\.\d{1,2})?$/;
+    const wholeNumberPattern = /^(?:0|[1-9]\d*)$/;
+    if (!moneyPattern.test(this.fineDailyRate) || Number(this.fineDailyRate) > 99999999.99) {
+      this.finePolicySaveError.set('Daily fine rate must be a non-negative amount with at most two decimal places.');
+      return;
+    }
+    if (!moneyPattern.test(this.fineMaximum) || Number(this.fineMaximum) > 99999999.99) {
+      this.finePolicySaveError.set('Maximum fine must be a non-negative amount with at most two decimal places.');
+      return;
+    }
+    if (!wholeNumberPattern.test(this.fineGraceDays) || Number(this.fineGraceDays) > 2147483647) {
+      this.finePolicySaveError.set('Grace period must be a non-negative whole number of days.');
+      return;
+    }
+    if (!/^[1-9]\d*$/.test(this.fineLoanPeriod) || Number(this.fineLoanPeriod) > 3650) {
+      this.finePolicySaveError.set('Loan period must be a whole number from 1 to 3,650 days.');
+      return;
+    }
+    const payload: FinePolicyUpdateRequest = {
+      dailyFineRate: Number(this.fineDailyRate),
+      maximumFinePerBook: Number(this.fineMaximum),
+      gracePeriodDays: Number(this.fineGraceDays),
+      loanPeriodDays: Number(this.fineLoanPeriod)
+    };
+    this.savingFinePolicy.set(true);
+    this.opsService.updateFinePolicy(payload)
+      .pipe(switchMap(() => this.opsService.getFinesPolicy()), finalize(() => this.savingFinePolicy.set(false)))
+      .subscribe({
+        next: policy => {
+          this.setFinePolicy(policy);
+          this.notice.set('Fine policy saved. The changes apply to newly issued loans.');
+          this.showFinePolicyModal.set(false);
+        },
+        error: err => this.finePolicySaveError.set(err?.error?.message || 'Failed to save the fine policy. Your edits are still here; try again.')
+      });
+  }
+
+  private setFinePolicy(policy: FinesPolicyResponse): void {
+    this.finePolicy.set(policy);
+    this.fineDailyRate = policy.dailyFineRate.toFixed(2);
+    this.fineMaximum = policy.maximumFinePerBook.toFixed(2);
+    this.fineGraceDays = String(policy.gracePeriodDays);
+    this.fineLoanPeriod = String(policy.loanPeriodDays);
   }
 
   loadLibraryInfo(): void {

@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.libtrack.auth.UserAccount;
 import com.libtrack.auth.UserAccountRepository;
+import com.libtrack.fines.FinePolicy;
 
 @Service
 public class SystemSettingService {
     private static final Set<String> POSITIVE_INTEGER_KEYS = Set.of(
-            "loan.period.student.days",
-            "loan.period.faculty.days",
+            FinePolicy.LOAN_PERIOD_KEY,
             "loan.renewal.limit",
             "loan.renewal.extension.days",
             "loan.max.active.student",
@@ -53,6 +53,11 @@ public class SystemSettingService {
     }
 
     @Transactional(readOnly = true)
+    public boolean hasSetting(String key) {
+        return settingRepository.existsById(key);
+    }
+
+    @Transactional(readOnly = true)
     public LibraryInfoRecord getLibraryInfo() {
         return new LibraryInfoRecord(
                 getSetting("library.name", "VIT-AP Central Library"),
@@ -82,22 +87,37 @@ public class SystemSettingService {
         UserAccount librarian = accountRepository.findById(librarianId)
                 .orElseThrow(() -> new IllegalArgumentException("Librarian account not found"));
 
-        validateSettingValue(key, value);
+        String normalizedValue = validateAndNormalizeSettingValue(key, value);
 
         Instant now = Instant.now(clock);
         SystemSetting setting = settingRepository.findById(key)
-                .orElseGet(() -> new SystemSetting(key, value.trim(), now, librarian));
+                .orElseGet(() -> new SystemSetting(key, normalizedValue, now, librarian));
 
-        setting.update(value.trim(), now, librarian);
+        setting.update(normalizedValue, now, librarian);
         setting = settingRepository.save(setting);
         return toRecord(setting);
     }
 
-    private void validateSettingValue(String key, String value) {
+    @PreAuthorize("hasRole('LIBRARIAN')")
+    @Transactional
+    public void updateFinePolicy(FinePolicy policy, UUID librarianId) {
+        updateSetting(FinePolicy.DAILY_RATE_KEY, policy.dailyRate().toPlainString(), librarianId);
+        updateSetting(FinePolicy.MAXIMUM_FINE_KEY, policy.maximumFine().toPlainString(), librarianId);
+        updateSetting(FinePolicy.GRACE_PERIOD_KEY, Integer.toString(policy.gracePeriodDays()), librarianId);
+        updateSetting(FinePolicy.LOAN_PERIOD_KEY, Integer.toString(policy.loanPeriodDays()), librarianId);
+    }
+
+    private String validateAndNormalizeSettingValue(String key, String value) {
+        if (Set.of("loan.period.student.days", "loan.period.faculty.days").contains(key)) {
+            throw new IllegalArgumentException("Student and Faculty loan periods are now managed through one shared Loan Period setting.");
+        }
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("Setting value cannot be blank");
         }
         String trimmed = value.trim();
+        if (Set.of(FinePolicy.DAILY_RATE_KEY, FinePolicy.MAXIMUM_FINE_KEY, FinePolicy.GRACE_PERIOD_KEY, FinePolicy.LOAN_PERIOD_KEY).contains(key)) {
+            return FinePolicy.normalizeSetting(key, trimmed);
+        }
         if (POSITIVE_INTEGER_KEYS.contains(key)) {
             try {
                 int parsed = Integer.parseInt(trimmed);
@@ -107,16 +127,8 @@ public class SystemSettingService {
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Setting " + key + " must be a valid positive whole number.");
             }
-        } else if ("fine.grace.period.days".equals(key)) {
-            try {
-                int parsed = Integer.parseInt(trimmed);
-                if (parsed < 0) {
-                    throw new IllegalArgumentException("Grace period cannot be negative.");
-                }
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Grace period must be an integer.");
-            }
         }
+        return trimmed;
     }
 
     private SettingRecord toRecord(SystemSetting s) {

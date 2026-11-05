@@ -332,6 +332,108 @@ class RenewalPolicyAndSemesterAllowanceIntegrationTest {
         assertEquals("21 days", renewal.get("extensionPeriod").asText());
     }
 
+    @Test
+    void overdueLoanRenewalIsRejectedWith409AndClearMessage() throws Exception {
+        UserAccount student = member(AccountRole.STUDENT);
+        MockHttpSession studentSession = login(student);
+
+        String b = book(CirculationPolicy.STANDARD);
+        String c = copy(b);
+        String r = submit(studentSession, b);
+        approve(r);
+        String loanId = issue(r, c);
+
+        // Advance past due date
+        LocalDate today = LocalDate.now(clock);
+        Loan loan = loans.findById(UUID.fromString(loanId)).orElseThrow();
+        // Set due date to 2 days ago
+        org.springframework.test.util.ReflectionTestUtils.setField(loan, "dueDate", today.minusDays(2));
+        loans.saveAndFlush(loan);
+
+        // Verify /api/v1/loans/mine reports renewalEligible as false and overdue as true
+        MvcResult listRes = mvc.perform(get("/api/v1/loans/mine").session(studentSession)).andReturn();
+        assertEquals(200, listRes.getResponse().getStatus());
+        JsonNode listJson = mapper.readTree(listRes.getResponse().getContentAsString()).get("content");
+        JsonNode myLoan = listJson.get(0);
+        assertTrue(myLoan.get("overdue").asBoolean());
+        assertFalse(myLoan.get("renewalEligible").asBoolean());
+
+        // Attempt renewal -> must fail with 409 Conflict and clear message
+        MvcResult renewRes = mvc.perform(post("/api/v1/loans/" + loanId + "/renew")
+                        .session(studentSession)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andReturn();
+
+        assertEquals(409, renewRes.getResponse().getStatus());
+        String content = renewRes.getResponse().getContentAsString();
+        assertTrue(content.contains("Renewal is unavailable because this loan has passed its due date. Please return the book to the circulation desk."));
+    }
+
+    @Test
+    void renewalOnExactDueDateSucceeds() throws Exception {
+        UserAccount student = member(AccountRole.STUDENT);
+        MockHttpSession studentSession = login(student);
+
+        String b = book(CirculationPolicy.STANDARD);
+        String c = copy(b);
+        String r = submit(studentSession, b);
+        approve(r);
+        String loanId = issue(r, c);
+
+        // Set due date to today
+        LocalDate today = LocalDate.now(clock);
+        Loan loan = loans.findById(UUID.fromString(loanId)).orElseThrow();
+        org.springframework.test.util.ReflectionTestUtils.setField(loan, "dueDate", today);
+        loans.saveAndFlush(loan);
+
+        // Verify /api/v1/loans/mine reports renewalEligible as true and overdue as false
+        MvcResult listRes = mvc.perform(get("/api/v1/loans/mine").session(studentSession)).andReturn();
+        assertEquals(200, listRes.getResponse().getStatus());
+        JsonNode listJson = mapper.readTree(listRes.getResponse().getContentAsString()).get("content");
+        JsonNode myLoan = listJson.get(0);
+        assertFalse(myLoan.get("overdue").asBoolean());
+        assertTrue(myLoan.get("renewalEligible").asBoolean());
+
+        // Renew on due date itself succeeds
+        MvcResult renewRes = mvc.perform(post("/api/v1/loans/" + loanId + "/renew")
+                        .session(studentSession)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andReturn();
+
+        assertEquals(200, renewRes.getResponse().getStatus());
+        JsonNode json = mapper.readTree(renewRes.getResponse().getContentAsString());
+        assertEquals(1, json.get("renewalCount").asInt());
+    }
+
+    @Test
+    void facultyFollowsIdenticalRenewalAndOverdueRestrictions() throws Exception {
+        UserAccount faculty = member(AccountRole.FACULTY);
+        MockHttpSession facultySession = login(faculty);
+
+        String b = book(CirculationPolicy.STANDARD);
+        String c = copy(b);
+        String r = submit(facultySession, b);
+        approve(r);
+        String loanId = issue(r, c);
+
+        LocalDate today = LocalDate.now(clock);
+        Loan loan = loans.findById(UUID.fromString(loanId)).orElseThrow();
+        org.springframework.test.util.ReflectionTestUtils.setField(loan, "dueDate", today.minusDays(1));
+        loans.saveAndFlush(loan);
+
+        // Faculty renewal on overdue loan rejected with 409
+        MvcResult renewRes = mvc.perform(post("/api/v1/loans/" + loanId + "/renew")
+                        .session(facultySession)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andReturn();
+
+        assertEquals(409, renewRes.getResponse().getStatus());
+        assertTrue(renewRes.getResponse().getContentAsString().contains("Renewal is unavailable because this loan has passed its due date."));
+    }
+
     // --- Helpers ---
 
     private UserAccount member(AccountRole role) {

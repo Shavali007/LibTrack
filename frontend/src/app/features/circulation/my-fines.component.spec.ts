@@ -26,6 +26,7 @@ describe('MyFinesComponent', () => {
         loanStatus: 'ACTIVE',
         dailyRate: 10.0,
         maxFine: 500.0,
+        gracePeriodDays: 0,
         overdueDays: 3,
         fineAmount: 30.0,
         status: 'UNPAID',
@@ -54,6 +55,8 @@ describe('MyFinesComponent', () => {
     expect(text).toContain('Clean Architecture');
     expect(text).toContain('CP-1001');
     expect(text).toContain('3 day(s)');
+    expect(text).toContain('Terms Applied to This Loan');
+    expect(text).toContain('Maximum ₹500.00 · 0 grace day(s)');
     expect(text).toContain('₹30.00');
     expect(text).toContain('UNPAID');
     expect(text).toContain('Pay at Circulation Desk');

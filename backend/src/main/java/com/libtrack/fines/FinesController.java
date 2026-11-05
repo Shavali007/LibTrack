@@ -31,11 +31,13 @@ import jakarta.validation.Valid;
 @PreAuthorize("hasRole('LIBRARIAN')")
 public class FinesController {
     private final FineService fineService;
+    private final FinePolicyService finePolicyService;
     private final LoanRepository loanRepository;
     private final Clock clock;
 
-    public FinesController(FineService fineService, LoanRepository loanRepository, Clock clock) {
+    public FinesController(FineService fineService, FinePolicyService finePolicyService, LoanRepository loanRepository, Clock clock) {
         this.fineService = fineService;
+        this.finePolicyService = finePolicyService;
         this.loanRepository = loanRepository;
         this.clock = clock;
     }
@@ -61,6 +63,9 @@ public class FinesController {
 
     @GetMapping("/policy")
     public ResponseEntity<FinesPolicyResponse> getPolicy() {
+        FinePolicy policy = finePolicyService.currentPolicy();
+        boolean configured = finePolicyService.isConfigured();
+        boolean monetaryFinesEnabled = configured && policy.monetaryFinesEnabled();
         LocalDate today = LocalDate.now(clock);
         List<Loan> overdueEntities = loanRepository.findOverdueLoans(LoanStatus.ACTIVE, today);
         List<OverdueLoanItem> overdueLoans = new ArrayList<>();
@@ -89,10 +94,15 @@ public class FinesController {
         }
 
         FinesPolicyResponse response = new FinesPolicyResponse(
-                "UNCONFIGURED",
-                "Institutional Monetary Fines Policy",
-                "Automated financial penalties and payment gateway integrations are currently unconfigured by university policy. Overdue items are audited administratively to preserve compliance without creating unauthorized ledger balances.",
-                false,
+                !configured ? "UNCONFIGURED" : monetaryFinesEnabled ? "ACTIVE" : "DISABLED",
+                "Current Fine Policy",
+                configured ? policy.description() : "No borrowing and fine policy is currently configured.",
+                monetaryFinesEnabled,
+                policy.dailyRate(),
+                policy.maximumFine(),
+                policy.gracePeriodDays(),
+                policy.loanPeriodDays(),
+                configured,
                 overdueLoans.size(),
                 overdueLoans
         );

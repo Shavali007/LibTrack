@@ -373,10 +373,23 @@ describe('BookEditorComponent digital edition management', () => {
     http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/v1/books/book-1').flush({ ...book, hasDigitalEdition: true });
     http.expectOne('/api/v1/books/book-1/digital-edition').flush(edition);
+    http.expectOne('/api/v1/books/book-1/chapters').flush([
+      { id: 'ch-1', digitalEditionId: 'de-1', chapterNumber: 1, title: 'Introduction', startPage: 1, endPage: 20, isManuallyEdited: false, createdAt: '2026-03-01T12:00:00Z', updatedAt: '2026-03-01T12:00:00Z' }
+    ]);
     fixture.detectChanges();
   });
 
   afterEach(() => http.verify());
+
+  it('renders attached digital edition and chapter management table', () => {
+    expect(fixture.nativeElement.querySelector('.digital-editor-card')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('PDF Attached');
+    expect(fixture.nativeElement.textContent).toContain('course-text.pdf');
+    expect(fixture.nativeElement.textContent).toContain('1.0 MB');
+    expect(fixture.nativeElement.textContent).toContain('Chapter Navigation & Indexing');
+    expect(fixture.nativeElement.textContent).toContain('Introduction');
+    expect(fixture.nativeElement.textContent).toContain('pp. 1–20');
+  });
 
   it('renders attached digital edition and allows deletion with confirmation without touching copies', () => {
     expect(fixture.nativeElement.querySelector('.digital-editor-card')).not.toBeNull();

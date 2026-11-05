@@ -6,15 +6,22 @@ import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController @RequestMapping("/api/v1")
 public class CirculationController {
  private final BorrowingService borrowing;
- public CirculationController(BorrowingService borrowing){this.borrowing=borrowing;}
+ private final LoanReceiptService loanReceiptService;
+ public CirculationController(BorrowingService borrowing, LoanReceiptService loanReceiptService){
+     this.borrowing=borrowing;
+     this.loanReceiptService=loanReceiptService;
+ }
  private static UUID accountId(Authentication authentication){return ((AccountUserDetails)authentication.getPrincipal()).getId();}
  @PostMapping("/borrow-requests") public ResponseEntity<BorrowRequestResponse> submit(@Valid @RequestBody BorrowRequestCreate body,Authentication auth){return ResponseEntity.status(HttpStatus.CREATED).body(borrowing.submit(accountId(auth),body));}
  @GetMapping("/borrow-requests/mine") public PageResponse<BorrowRequestResponse> mineRequests(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size,Authentication auth){return borrowing.mineRequests(accountId(auth),page,size);}
@@ -74,4 +81,32 @@ public class CirculationController {
  @PostMapping("/holidays") public ResponseEntity<LibraryHolidayResponse> addHoliday(@Valid @RequestBody LibraryHolidayInput body,Authentication auth){return ResponseEntity.status(HttpStatus.CREATED).body(borrowing.addHoliday(accountId(auth),body));}
  @PutMapping("/holidays/{holidayId}") public ResponseEntity<LibraryHolidayResponse> updateHoliday(@PathVariable UUID holidayId,@Valid @RequestBody LibraryHolidayInput body,Authentication auth){return ResponseEntity.ok(borrowing.updateHoliday(holidayId,accountId(auth),body));}
  @DeleteMapping("/holidays/{holidayId}") public ResponseEntity<Void> deleteHoliday(@PathVariable UUID holidayId){borrowing.deleteHoliday(holidayId);return ResponseEntity.noContent().build();}
+
+ @GetMapping("/loans/{loanId}/receipt")
+ @PreAuthorize("hasAnyRole('STUDENT','FACULTY','LIBRARIAN')")
+ public ResponseEntity<LoanReceiptResponse> getLoanReceipt(
+     @PathVariable UUID loanId,
+     Authentication auth
+ ) {
+   boolean isLibrarian = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_LIBRARIAN"));
+   return ResponseEntity.ok(loanReceiptService.getReceiptResponse(loanId, accountId(auth), isLibrarian));
+ }
+
+ @GetMapping("/loans/{loanId}/receipt/pdf")
+ @PreAuthorize("hasAnyRole('STUDENT','FACULTY','LIBRARIAN')")
+ public ResponseEntity<byte[]> getLoanReceiptPdf(
+     @PathVariable UUID loanId,
+     Authentication auth
+ ) {
+   boolean isLibrarian = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_LIBRARIAN"));
+   byte[] pdfBytes = loanReceiptService.generateReceiptPdf(loanId, accountId(auth), isLibrarian);
+   LoanReceipt receipt = loanReceiptService.getReceiptForLoan(loanId, accountId(auth), isLibrarian);
+   String filename = "receipt-" + receipt.getReceiptNumber() + ".pdf";
+
+   return ResponseEntity.ok()
+       .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
+       .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+       .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+       .body(pdfBytes);
+ }
 }

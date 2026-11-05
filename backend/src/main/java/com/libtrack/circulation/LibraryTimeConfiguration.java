@@ -6,5 +6,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 @Configuration
 public class LibraryTimeConfiguration {
- @Bean Clock libraryClock(@Value("${libtrack.library-zone:UTC}") String zone){return Clock.system(ZoneId.of(zone));}
+    @Bean
+    Clock libraryClock(@Value("${libtrack.library-zone:Asia/Kolkata}") String zone) {
+        return Clock.system(ZoneId.of(zone));
+    }
 }

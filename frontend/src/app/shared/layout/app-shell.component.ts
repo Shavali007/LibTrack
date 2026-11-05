@@ -14,12 +14,12 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
   imports: [RouterLink, RouterLinkActive, RouterOutlet, FormsModule, CommonModule],
   template: `
     <a class="skip-link" href="#main-content">Skip to main content</a>
-    <div class="app-frame">
+    <div class="app-frame" [class.reader-mode]="isReaderRoute()">
       <!-- Fixed Dark Emerald Left Sidebar matching Reference (width: ~293px) -->
       <aside class="sidebar" aria-label="Application navigation">
         <!-- Logo / Brand Lockup Card matching IMAGE 1 -->
         <div class="brand-card">
-          <a class="brand-lockup" routerLink="/workspace" aria-label="LibTrack home">
+          <a class="brand-lockup" routerLink="/" aria-label="LibTrack public home">
             <span class="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" class="brand-svg">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -209,8 +209,9 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
               </span>
               <span>Settings</span>
             </a>
-          } @else {
-            <!-- Student / Faculty Navigation -->
+          } @else if (auth.profile()?.role === 'FACULTY') {
+            <!-- Faculty Navigation (8 items: No Reservations) -->
+            <!-- 1. Dashboard -->
             <a class="nav-link" routerLink="/workspace" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -220,6 +221,8 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
               </span>
               <span>Dashboard</span>
             </a>
+
+            <!-- 2. Books & Catalogue -->
             <a class="nav-link" routerLink="/workspace/books" routerLinkActive="active" ariaCurrentWhenActive="page">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -229,24 +232,33 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
               </span>
               <span>Books & Catalogue</span>
             </a>
+
+            <!-- 3. Borrow Requests -->
             <a class="nav-link" routerLink="/workspace/my/requests" routerLinkActive="active" ariaCurrentWhenActive="page">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                   <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
                 </svg>
               </span>
               <span>Borrow Requests</span>
             </a>
+
+            <!-- 4. My Books -->
             <a class="nav-link" routerLink="/workspace/my/borrowings" routerLinkActive="active" ariaCurrentWhenActive="page">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="17 1 21 5 17 9"></polyline>
-                  <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
                 </svg>
               </span>
               <span>My Books</span>
             </a>
+
+            <!-- 5. My Wishlist -->
             <a class="nav-link" routerLink="/workspace/wishlist" routerLinkActive="active" ariaCurrentWhenActive="page">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -255,19 +267,8 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
               </span>
               <span>My Wishlist</span>
             </a>
-            @if (auth.profile()?.role === 'STUDENT') {
-              <a class="nav-link" routerLink="/workspace/my/reservations" routerLinkActive="active" ariaCurrentWhenActive="page">
-                <span class="nav-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                  </svg>
-                </span>
-                <span>Reservations</span>
-              </a>
-            }
+
+            <!-- 6. Recommendations -->
             <a class="nav-link" routerLink="/workspace/recommendations" routerLinkActive="active" ariaCurrentWhenActive="page">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -277,6 +278,8 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
               </span>
               <span>Recommendations</span>
             </a>
+
+            <!-- 7. Library Policies -->
             <a class="nav-link" routerLink="/workspace/library-policies" routerLinkActive="active" ariaCurrentWhenActive="page">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -286,7 +289,142 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
               </span>
               <span>Library Policies</span>
             </a>
-            <a class="nav-link" [routerLink]="auth.profile()?.role === 'LIBRARIAN' ? '/workspace/librarian/notifications' : '/workspace/notifications'" routerLinkActive="active" ariaCurrentWhenActive="page">
+
+            <!-- 8. Fines -->
+            <a class="nav-link" routerLink="/workspace/my/fines" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 3h12"></path>
+                  <path d="M6 8h12"></path>
+                  <path d="m6 13 8.5 8"></path>
+                  <path d="M6 13h3a4 4 0 0 0 0-8"></path>
+                </svg>
+              </span>
+              <span>Fines</span>
+            </a>
+
+            <!-- 9. Notifications -->
+            <a class="nav-link" routerLink="/workspace/notifications" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+              </span>
+              <span>Notifications</span>
+              @if (unreadCount() > 0) {
+                <span class="sidebar-badge-count">{{ unreadCount() }}</span>
+              }
+            </a>
+          } @else {
+            <!-- Student Navigation (9 items in hierarchy) -->
+            <!-- 1. Dashboard -->
+            <a class="nav-link" routerLink="/workspace" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+              </span>
+              <span>Dashboard</span>
+            </a>
+
+            <!-- 2. Books & Catalogue -->
+            <a class="nav-link" routerLink="/workspace/books" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+              </span>
+              <span>Books & Catalogue</span>
+            </a>
+
+            <!-- 3. Borrow Requests -->
+            <a class="nav-link" routerLink="/workspace/my/requests" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+              </span>
+              <span>Borrow Requests</span>
+            </a>
+
+            <!-- 4. My Books -->
+            <a class="nav-link" routerLink="/workspace/my/borrowings" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+              </span>
+              <span>My Books</span>
+            </a>
+
+            <!-- 5. My Wishlist -->
+            <a class="nav-link" routerLink="/workspace/wishlist" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </span>
+              <span>My Wishlist</span>
+            </a>
+
+            <!-- 6. Reservations (Student Only) -->
+            <a class="nav-link" routerLink="/workspace/my/reservations" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </span>
+              <span>Reservations</span>
+            </a>
+
+            <!-- 7. Recommendations -->
+            <a class="nav-link" routerLink="/workspace/recommendations" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                  <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                </svg>
+              </span>
+              <span>Recommendations</span>
+            </a>
+
+            <!-- 8. Library Policies -->
+            <a class="nav-link" routerLink="/workspace/library-policies" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+              </span>
+              <span>Library Policies</span>
+            </a>
+
+            <!-- 9. Fines -->
+            <a class="nav-link" routerLink="/workspace/my/fines" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 3h12"></path>
+                  <path d="M6 8h12"></path>
+                  <path d="m6 13 8.5 8"></path>
+                  <path d="M6 13h3a4 4 0 0 0 0-8"></path>
+                </svg>
+              </span>
+              <span>Fines</span>
+            </a>
+
+            <!-- 10. Notifications -->
+            <a class="nav-link" routerLink="/workspace/notifications" routerLinkActive="active" ariaCurrentWhenActive="page">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -343,6 +481,20 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
 
           <!-- Right Area: Notifications & User Profile -->
           <div class="topbar-right">
+            <!-- Global Home Button -->
+            <a
+              routerLink="/"
+              class="topbar-home-btn"
+              aria-label="Home"
+              title="Return to Public Home"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="home-icon" aria-hidden="true">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+              <span class="home-text">Home</span>
+            </a>
+
             <!-- Notification Bell Quick Access Dropdown -->
             <div class="topbar-bell-menu">
               <button
@@ -575,6 +727,7 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
       padding: 0.95rem 1.15rem;
       margin: 0.15rem 0.25rem 1.5rem;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      flex-shrink: 0;
     }
     .brand-lockup {
       display: flex;
@@ -616,6 +769,7 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
       flex-direction: column;
       gap: 0.35rem;
       flex: 1;
+      flex-shrink: 0;
     }
 
     .nav-link {
@@ -784,6 +938,7 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
       background: rgba(0, 47, 38, 0.65);
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: #FFFFFF;
+      flex-shrink: 0;
     }
     .bottom-icon svg {
       width: 1.85rem;
@@ -900,7 +1055,50 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
     .topbar-right {
       display: flex;
       align-items: center;
-      gap: 1.5rem;
+      gap: 1.25rem;
+    }
+
+    /* Global Home Pill Button */
+    .topbar-home-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      height: 2.4rem;
+      min-height: 2.4rem;
+      padding: 0 0.95rem;
+      border-radius: 9999px;
+      background: #FAF9F6;
+      border: 1px solid #E5E8E2;
+      color: #003D30;
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      line-height: 1;
+      text-decoration: none;
+      box-sizing: border-box;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .topbar-home-btn:hover {
+      background: #EAF2EF;
+      border-color: #C2D6CF;
+      color: #002B22;
+    }
+    .topbar-home-btn:focus-visible {
+      outline: 2px solid #003D30;
+      outline-offset: 2px;
+    }
+    .topbar-home-btn .home-icon {
+      width: 1.15rem;
+      height: 1.15rem;
+      flex-shrink: 0;
+    }
+    .topbar-home-btn .home-text {
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
     }
 
     .topbar-bell-btn {
@@ -1205,18 +1403,73 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
         width: 60px;
         padding: 0.85rem 0.4rem;
       }
-      .brand-copy, .nav-link span:not(.nav-icon), .sidebar-bottom-card, .user-text {
-        display: none;
+      .brand-card {
+        padding: 0.5rem;
+        margin: 0.15rem 0 1.25rem;
+        display: flex;
+        justify-content: center;
+      }
+      .brand-lockup {
+        justify-content: center;
+      }
+      .brand-copy, .nav-link span:not(.nav-icon), .sidebar-bottom-card, .user-text, .sidebar-badge-count, .notification-dot, .nav-group-label, .nav-chevron, .nav-sub-items {
+        display: none !important;
+      }
+      .nav-link {
+        justify-content: center;
+        padding: 0.6rem 0;
       }
       .workspace {
         margin-left: 60px;
       }
       .topbar {
         padding: 0 1rem;
+        gap: 0.85rem;
+      }
+      .topbar-right {
+        gap: 0.85rem;
       }
       .main-content {
         padding: 1.25rem 1rem 2rem;
       }
+    }
+    @media (max-width: 640px) {
+      .topbar {
+        gap: 0.5rem;
+      }
+      .topbar-right {
+        gap: 0.5rem;
+      }
+      .topbar-home-btn {
+        width: 2.4rem;
+        padding: 0;
+        border-radius: 50%;
+      }
+      .topbar-home-btn .home-text {
+        display: none;
+      }
+    }
+    /* Immersive Reader Workspace Mode */
+    .app-frame.reader-mode .sidebar {
+      display: none !important;
+    }
+    .app-frame.reader-mode .workspace {
+      margin-left: 0 !important;
+      width: 100vw !important;
+      min-height: 100vh !important;
+      height: 100vh !important;
+      overflow: hidden !important;
+      background: transparent !important;
+    }
+    .app-frame.reader-mode .topbar {
+      display: none !important;
+    }
+    .app-frame.reader-mode .main-content {
+      padding: 0 !important;
+      max-width: 100% !important;
+      height: 100vh !important;
+      overflow: hidden !important;
+      background: transparent !important;
     }
   `]
 })
@@ -1235,6 +1488,7 @@ export class AppShellComponent implements OnInit {
   readonly dropdownNotifications = signal<NotificationItem[]>([]);
   readonly pendingRequestsCount = signal(0);
   readonly membersExpanded = signal(true);
+  readonly isReaderRoute = signal(false);
   searchQuery = '';
 
   get unreadCount() {
@@ -1344,13 +1598,15 @@ export class AppShellComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.isReaderRoute.set(this.router.url.includes('/read'));
     this.loadUnreadNotifications();
     if (this.auth.profile()?.role === 'LIBRARIAN') {
       this.loadPendingRequestsCount();
     }
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd)
-    ).subscribe(() => {
+    ).subscribe((event) => {
+      this.isReaderRoute.set(event.urlAfterRedirects.includes('/read') || this.router.url.includes('/read'));
       this.loadUnreadNotifications();
       if (this.auth.profile()?.role === 'LIBRARIAN') {
         this.loadPendingRequestsCount();

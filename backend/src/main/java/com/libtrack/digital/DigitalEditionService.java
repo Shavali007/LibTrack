@@ -20,15 +20,18 @@ public class DigitalEditionService {
     private final BookRepository books;
     private final UserAccountRepository accounts;
     private final DigitalEditionStorageService storageService;
+    private final DigitalEditionChapterService chapterService;
 
     public DigitalEditionService(DigitalEditionRepository digitalEditions,
                                  BookRepository books,
                                  UserAccountRepository accounts,
-                                 DigitalEditionStorageService storageService) {
+                                 DigitalEditionStorageService storageService,
+                                 DigitalEditionChapterService chapterService) {
         this.digitalEditions = digitalEditions;
         this.books = books;
         this.accounts = accounts;
         this.storageService = storageService;
+        this.chapterService = chapterService;
     }
 
     @Transactional(readOnly = true)
@@ -73,6 +76,12 @@ public class DigitalEditionService {
             // Cleanup old file after successful DB persistence
             if (oldStorageKey != null && !oldStorageKey.equals(metadata.storageKey())) {
                 storageService.delete(oldStorageKey);
+            }
+
+            try {
+                chapterService.indexChaptersForEdition(saved, false);
+            } catch (Exception e) {
+                // Do not fail upload if chapter extraction encounters an issue
             }
 
             return toResponse(saved);

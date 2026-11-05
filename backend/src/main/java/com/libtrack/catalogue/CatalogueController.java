@@ -29,9 +29,28 @@ public class CatalogueController {
             @RequestParam(required = false) String q, @RequestParam(required = false) String title,
             @RequestParam(required = false) String author, @RequestParam(required = false) String isbn,
             @RequestParam(required = false) String category, @RequestParam(required = false) Boolean available,
+            @RequestParam(required = false) Integer publicationYearFrom,
+            @RequestParam(required = false) Integer publicationYearTo,
+            @RequestParam(required = false) List<UUID> bookIds,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "title") String sort, @RequestParam(defaultValue = "asc") String direction) {
-        return catalogue.search(q, title, author, isbn, category, available, page, size, sort, direction);
+        return catalogue.search(q, title, author, isbn, category, available, publicationYearFrom, publicationYearTo, bookIds, page, size, sort, direction);
+    }
+
+    @GetMapping("/books/statistics")
+    public CatalogueStatisticsResponse statistics() { return catalogue.statistics(); }
+
+    @GetMapping("/books/trending")
+    public PageResponse<TrendingBookResponse> trending(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Boolean available,
+            @RequestParam(required = false) Integer publicationYearFrom,
+            @RequestParam(required = false) Integer publicationYearTo,
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "4") int limit) {
+        return catalogue.trending(q, category, available, publicationYearFrom, publicationYearTo, days, page, limit);
     }
 
     @GetMapping("/books/{bookId}")

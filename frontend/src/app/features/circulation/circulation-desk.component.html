@@ -336,73 +336,94 @@
                     </span>
                   </td>
 
-                  <!-- Action: Return Split Button / Dropdown -->
+                  <!-- Action: Return Split Button / Dropdown + Receipt Download -->
                   <td class="td-action">
-                    <div class="action-dropdown-wrap">
+                    <div class="action-cell-group">
+                      <div class="action-dropdown-wrap">
+                        <button
+                          type="button"
+                          class="btn-return-action"
+                          (click)="toggleActionDropdown(loan.id, $event)"
+                          [attr.aria-expanded]="openDropdownLoanId() === loan.id"
+                          aria-label="Return options"
+                        >
+                          <span class="btn-return-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                              <polyline points="1 4 1 10 7 10"></polyline>
+                              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                            </svg>
+                          </span>
+                          <span>Return</span>
+                          <span class="dropdown-caret" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                              <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                          </span>
+                        </button>
+
+                        <!-- Dropdown Menu -->
+                        @if (openDropdownLoanId() === loan.id) {
+                          <div class="dropdown-menu" role="menu" (click)="$event.stopPropagation()">
+                            <button
+                              type="button"
+                              class="dropdown-item item-good"
+                              (click)="initiateReturn(loan, 'GOOD')"
+                              role="menuitem"
+                            >
+                              <span class="item-icon-dot dot-good"></span>
+                              <div class="item-text-wrap">
+                                <span class="item-title">Good</span>
+                                <span class="item-desc">Return to available inventory</span>
+                              </div>
+                            </button>
+
+                            <button
+                              type="button"
+                              class="dropdown-item item-damaged"
+                              (click)="initiateReturn(loan, 'DAMAGED')"
+                              role="menuitem"
+                            >
+                              <span class="item-icon-dot dot-damaged"></span>
+                              <div class="item-text-wrap">
+                                <span class="item-title">Damaged</span>
+                                <span class="item-desc">Quarantine physical copy</span>
+                              </div>
+                            </button>
+
+                            <button
+                              type="button"
+                              class="dropdown-item item-lost"
+                              (click)="initiateReturn(loan, 'LOST')"
+                              role="menuitem"
+                            >
+                              <span class="item-icon-dot dot-lost"></span>
+                              <div class="item-text-wrap">
+                                <span class="item-title">Lost</span>
+                                <span class="item-desc">Keep physical copy unavailable</span>
+                              </div>
+                            </button>
+                          </div>
+                        }
+                      </div>
+
                       <button
                         type="button"
-                        class="btn-return-action"
-                        (click)="toggleActionDropdown(loan.id, $event)"
-                        [attr.aria-expanded]="openDropdownLoanId() === loan.id"
-                        aria-label="Return options"
+                        class="btn-receipt-action"
+                        (click)="downloadReceipt(loan)"
+                        [disabled]="downloadingReceiptId() === loan.id"
+                        title="Download Book Issue Receipt PDF"
+                        aria-label="Download receipt"
                       >
-                        <span class="btn-return-icon" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                            <polyline points="1 4 1 10 7 10"></polyline>
-                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        <span class="btn-receipt-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
                           </svg>
                         </span>
-                        <span>Return</span>
-                        <span class="dropdown-caret" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                          </svg>
-                        </span>
+                        <span>{{ downloadingReceiptId() === loan.id ? '…' : 'Receipt' }}</span>
                       </button>
-
-                      <!-- Dropdown Menu -->
-                      @if (openDropdownLoanId() === loan.id) {
-                        <div class="dropdown-menu" role="menu" (click)="$event.stopPropagation()">
-                          <button
-                            type="button"
-                            class="dropdown-item item-good"
-                            (click)="initiateReturn(loan, 'GOOD')"
-                            role="menuitem"
-                          >
-                            <span class="item-icon-dot dot-good"></span>
-                            <div class="item-text-wrap">
-                              <span class="item-title">Good</span>
-                              <span class="item-desc">Return to available inventory</span>
-                            </div>
-                          </button>
-
-                          <button
-                            type="button"
-                            class="dropdown-item item-damaged"
-                            (click)="initiateReturn(loan, 'DAMAGED')"
-                            role="menuitem"
-                          >
-                            <span class="item-icon-dot dot-damaged"></span>
-                            <div class="item-text-wrap">
-                              <span class="item-title">Damaged</span>
-                              <span class="item-desc">Quarantine physical copy</span>
-                            </div>
-                          </button>
-
-                          <button
-                            type="button"
-                            class="dropdown-item item-lost"
-                            (click)="initiateReturn(loan, 'LOST')"
-                            role="menuitem"
-                          >
-                            <span class="item-icon-dot dot-lost"></span>
-                            <div class="item-text-wrap">
-                              <span class="item-title">Lost</span>
-                              <span class="item-desc">Keep physical copy unavailable</span>
-                            </div>
-                          </button>
-                        </div>
-                      }
                     </div>
                   </td>
                 </tr>
@@ -717,22 +738,43 @@
                     <span class="note-text" [title]="h.returnNote || ''">{{ h.returnNote || '—' }}</span>
                   </td>
 
-                  <!-- Action: Edit Button -->
+                  <!-- Action: Edit Button + Receipt Download -->
                   <td class="td-action-btn">
-                    <button
-                      type="button"
-                      class="btn-edit"
-                      (click)="openEditModal(h)"
-                      title="Edit condition"
-                    >
-                      <span class="btn-edit-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M12 20h9"></path>
-                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                        </svg>
-                      </span>
-                      <span>Edit</span>
-                    </button>
+                    <div class="history-actions-wrap">
+                      <button
+                        type="button"
+                        class="btn-edit"
+                        (click)="openEditModal(h)"
+                        title="Edit condition"
+                      >
+                        <span class="btn-edit-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                          </svg>
+                        </span>
+                        <span>Edit</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="btn-receipt-action"
+                        (click)="downloadReceipt(h)"
+                        [disabled]="downloadingReceiptId() === h.id"
+                        title="Download Book Issue Receipt PDF"
+                        aria-label="Download receipt"
+                      >
+                        <span class="btn-receipt-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                          </svg>
+                        </span>
+                        <span>{{ downloadingReceiptId() === h.id ? '…' : 'Receipt' }}</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               }

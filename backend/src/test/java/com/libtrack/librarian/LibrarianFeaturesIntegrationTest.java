@@ -207,13 +207,20 @@ class LibrarianFeaturesIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
 
-        mvc.perform(put("/api/v1/librarian/settings/loan.period.student.days")
+        mvc.perform(put("/api/v1/librarian/settings/loan.period.days")
                 .with(user(new com.libtrack.auth.AccountUserDetails(librarian)))
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":\"21\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.value").value("21"));
+
+        mvc.perform(put("/api/v1/librarian/settings/loan.period.student.days")
+                .with(user(new com.libtrack.auth.AccountUserDetails(librarian)))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"value\":\"30\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

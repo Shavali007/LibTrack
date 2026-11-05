@@ -193,7 +193,8 @@ describe('CirculationDeskComponent', () => {
         number: 0,
         size: 10
       })),
-      getCirculationStats: vi.fn().mockReturnValue(of(mockStats))
+      getCirculationStats: vi.fn().mockReturnValue(of(mockStats)),
+      downloadLoanReceipt: vi.fn().mockReturnValue(of(new Blob(['test pdf'], { type: 'application/pdf' })))
     };
 
     await TestBed.configureTestingModule({
@@ -528,5 +529,11 @@ describe('CirculationDeskComponent', () => {
     component.setActiveTab('history');
     expect(() => component.exportHistory()).not.toThrow();
     clickSpy.mockRestore();
+  });
+
+  it('downloads book issue receipt when requested', () => {
+    component.downloadReceipt(mockActiveLoans[0]);
+    expect(mockBorrowingService.downloadLoanReceipt).toHaveBeenCalledWith('loan-1');
+    expect(component.notice()).toContain('Receipt for "Physical Science" (Copy: EFDC94DF-7E0D-4DE5) downloaded.');
   });
 });

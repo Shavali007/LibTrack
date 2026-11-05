@@ -9,10 +9,15 @@ describe('FinesViewerComponent', () => {
 
   const mockOpsService: Partial<LibrarianOperationsService> = {
     getFinesPolicy: () => of({
-      status: 'UNCONFIGURED',
-      policyTitle: 'Institutional Monetary Fines Policy',
-      policyDescription: 'No automated monetary fines are enabled by university charter.',
-      monetaryFinesEnabled: false,
+      status: 'ACTIVE',
+      policyTitle: 'Current Fine Policy',
+      policyDescription: 'Overdue loans accrue ₹10 per day after a 0 day grace period, capped at ₹500 per book.',
+      monetaryFinesEnabled: true,
+      dailyFineRate: 10,
+      maximumFinePerBook: 500,
+      gracePeriodDays: 0,
+      loanPeriodDays: 21,
+      configured: true,
       overdueLoansCount: 0,
       overdueLoans: []
     })
@@ -30,11 +35,13 @@ describe('FinesViewerComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renders official unconfigured policy notice and compliance status', () => {
+  it('renders API-provided fine policy values and manual payment guidance', () => {
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Institutional Monetary Fines Policy');
-    expect(text).toContain('UNCONFIGURED');
-    expect(text).toContain('No unauthorized ledger debiting');
-    expect(text).toContain('Perfect Circulation Compliance');
+    expect(text).toContain('Current Fine Policy');
+    expect(text).toContain('Policy: ACTIVE');
+    expect(text).toContain('Daily overdue fine: ₹10.00 per day');
+    expect(text).toContain('Maximum fine per book: ₹500.00');
+    expect(text).toContain('Grace period: 0 day(s)');
+    expect(text).toContain('Manual full payment at the circulation desk');
   });
 });

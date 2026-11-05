@@ -6,6 +6,7 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.data.jpa.domain.Specification;
@@ -14,7 +15,8 @@ final class BookSpecifications {
     private static final char LIKE_ESCAPE = '\\';
     private BookSpecifications() {}
 
-    static Specification<Book> search(String q, String title, String author, String isbn, String category, Boolean available) {
+    static Specification<Book> search(String q, String title, String author, String isbn, String category, Boolean available,
+                                      Integer publicationYearFrom, Integer publicationYearTo, Collection<java.util.UUID> bookIds) {
         return (Root<Book> root, CriteriaQuery<?> query, CriteriaBuilder cb) -> {
             query.distinct(true);
             List<Predicate> filters = new ArrayList<>();
@@ -23,6 +25,9 @@ final class BookSpecifications {
             addTextFilter(filters, root, cb, query, author, null, "author");
             addTextFilter(filters, root, cb, query, isbn, "isbn", null);
             addTextFilter(filters, root, cb, query, category, null, "category");
+            if (publicationYearFrom != null) filters.add(cb.greaterThanOrEqualTo(root.get("publicationYear"), publicationYearFrom));
+            if (publicationYearTo != null) filters.add(cb.lessThanOrEqualTo(root.get("publicationYear"), publicationYearTo));
+            if (bookIds != null) filters.add(bookIds.isEmpty() ? cb.disjunction() : root.get("id").in(bookIds));
             if (q != null && !q.isBlank()) {
                 String match = pattern(q);
                 Predicate fields = cb.or(cb.like(cb.lower(root.get("title")), match, LIKE_ESCAPE),

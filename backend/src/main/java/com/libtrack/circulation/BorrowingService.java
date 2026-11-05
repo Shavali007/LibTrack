@@ -9,10 +9,11 @@ import com.libtrack.catalogue.BookRepository;
 import com.libtrack.catalogue.CirculationPolicy;
 import com.libtrack.catalogue.CopyStatus;
 import com.libtrack.catalogue.PageResponse;
+import com.libtrack.fines.FinePolicy;
+import com.libtrack.fines.FinePolicyService;
 import com.libtrack.fines.FineService;
 import com.libtrack.reservation.ReservationService;
 import com.libtrack.settings.SystemSettingService;
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -38,8 +39,8 @@ import com.libtrack.notifications.NotificationService;
 @Service
 public class BorrowingService {
  private static final int MAX_PAGE_SIZE=100;
- private final UserAccountRepository accounts;private final BookRepository books;private final BorrowRequestRepository requests;private final BorrowRequestEventRepository requestEvents;private final LoanRepository loans;private final LoanEventRepository loanEvents;private final CirculationCopyRepository copies;private final LibraryHolidayRepository holidays;private final DueDateService dueDates;private final FineService fines;private final SystemSettingService settings;private final ReservationService reservations;private final AcademicSemesterService semesterService;private final UserSemesterRenewalRepository userSemesterRenewals;private final NotificationService notificationService;private final Clock clock;
- public BorrowingService(UserAccountRepository accounts,BookRepository books,BorrowRequestRepository requests,BorrowRequestEventRepository requestEvents,LoanRepository loans,LoanEventRepository loanEvents,CirculationCopyRepository copies,LibraryHolidayRepository holidays,DueDateService dueDates,FineService fines,SystemSettingService settings,ReservationService reservations,AcademicSemesterService semesterService,UserSemesterRenewalRepository userSemesterRenewals,NotificationService notificationService,Clock clock){this.accounts=accounts;this.books=books;this.requests=requests;this.requestEvents=requestEvents;this.loans=loans;this.loanEvents=loanEvents;this.copies=copies;this.holidays=holidays;this.dueDates=dueDates;this.fines=fines;this.settings=settings;this.reservations=reservations;this.semesterService=semesterService;this.userSemesterRenewals=userSemesterRenewals;this.notificationService=notificationService;this.clock=clock;}
+ private final UserAccountRepository accounts;private final BookRepository books;private final BorrowRequestRepository requests;private final BorrowRequestEventRepository requestEvents;private final LoanRepository loans;private final LoanEventRepository loanEvents;private final CirculationCopyRepository copies;private final LibraryHolidayRepository holidays;private final DueDateService dueDates;private final FineService fines;private final SystemSettingService settings;private final FinePolicyService finePolicyService;private final ReservationService reservations;private final AcademicSemesterService semesterService;private final UserSemesterRenewalRepository userSemesterRenewals;private final NotificationService notificationService;private final LoanReceiptService loanReceiptService;private final Clock clock;
+ public BorrowingService(UserAccountRepository accounts,BookRepository books,BorrowRequestRepository requests,BorrowRequestEventRepository requestEvents,LoanRepository loans,LoanEventRepository loanEvents,CirculationCopyRepository copies,LibraryHolidayRepository holidays,DueDateService dueDates,FineService fines,SystemSettingService settings,FinePolicyService finePolicyService,ReservationService reservations,AcademicSemesterService semesterService,UserSemesterRenewalRepository userSemesterRenewals,NotificationService notificationService,LoanReceiptService loanReceiptService,Clock clock){this.accounts=accounts;this.books=books;this.requests=requests;this.requestEvents=requestEvents;this.loans=loans;this.loanEvents=loanEvents;this.copies=copies;this.holidays=holidays;this.dueDates=dueDates;this.fines=fines;this.settings=settings;this.finePolicyService=finePolicyService;this.reservations=reservations;this.semesterService=semesterService;this.userSemesterRenewals=userSemesterRenewals;this.notificationService=notificationService;this.loanReceiptService=loanReceiptService;this.clock=clock;}
 
  @PreAuthorize("hasAnyRole('STUDENT','FACULTY')") @Transactional
  public BorrowRequestResponse submit(UUID borrowerId,BorrowRequestCreate input){
@@ -142,26 +143,20 @@ public class BorrowingService {
   if(!copy.getBook().getId().equals(book.getId()))throw new CirculationConflictException("The selected copy does not belong to the requested book.");
   if(copy.getStatus()!=CopyStatus.AVAILABLE)throw new CirculationConflictException("The selected physical copy is no longer available.");
   if(loans.existsByCopy_IdAndStatus(copy.getId(),LoanStatus.ACTIVE))throw new CirculationConflictException("The selected copy already has an active loan.");
-  int loanDays;
-  if(borrower.getRole()==AccountRole.FACULTY){
-   loanDays=parseInt(settings.getSetting("loan.period.faculty.days","30"),30);
-  }else{
-   loanDays=parseInt(settings.getSetting("loan.period.student.days","21"),21);
-  }
-  if(loanDays<=0){
-   loanDays=(borrower.getRole()==AccountRole.FACULTY)?30:21;
-  }
+  FinePolicy finePolicy=finePolicyService.currentPolicy();
+  int loanDays=finePolicy.loanPeriodDays();
   LocalDate issueDate=today();
   LocalDate dueDate=dueDates.calculateDueDate(issueDate,loanDays);
-  BigDecimal dailyFineRate=parseDecimal(settings.getSetting("fine.daily.rate","10"),BigDecimal.valueOf(10.00));
-  BigDecimal maxFineAmount=parseDecimal(settings.getSetting("fine.max.limit","500"),BigDecimal.valueOf(500.00));
-  int gracePeriod=parseInt(settings.getSetting("fine.grace.period.days","0"),0);
+  var dailyFineRate=finePolicy.dailyRate();
+  var maxFineAmount=finePolicy.maximumFine();
+  int gracePeriod=finePolicy.gracePeriodDays();
   copy.update(copy.getCopyIdentifier(),copy.getLocation(),CopyStatus.ON_LOAN);
   copies.saveAndFlush(copy);
   request.markIssued();
   Instant now=clock.instant();
   Loan loan=new Loan(request,copy,librarian,issueDate,dueDate,dailyFineRate,maxFineAmount,gracePeriod);
   try{loan=loans.saveAndFlush(loan);}catch(DataIntegrityViolationException ex){throw new CirculationConflictException("The selected copy was issued by another transaction.");}
+  loanReceiptService.getOrCreateReceipt(loan,librarian);
   requestEvents.save(new BorrowRequestEvent(request,BorrowRequestEventType.ISSUED,librarian,clean(input.note()),now));
   loanEvents.save(new LoanEvent(loan,LoanEventType.ISSUED,librarian,issueDate,null,dueDate,CopyStatus.ON_LOAN.name(),clean(input.note()),now));
   reservations.markCompletedForBorrowRequest(requestId);
@@ -382,6 +377,9 @@ public class BorrowingService {
 
   Loan loan=loans.findByIdForUpdate(loanId).orElseThrow(CirculationNotFoundException::new);
   if(!loan.getBorrower().getId().equals(borrowerId))throw new CirculationNotFoundException();
+  if(loan.getDueDate().isBefore(today())){
+   throw new CirculationConflictException("Renewal is unavailable because this loan has passed its due date. Please return the book to the circulation desk.");
+  }
   if(!renewalEligible(loan,borrowerId,semester.getSemesterCode()))throw new CirculationConflictException("This loan is not eligible for an online renewal.");
   BookCopy copy=copies.findByIdForUpdate(loan.getCopy().getId()).orElseThrow(CirculationNotFoundException::new);
   if(copy.getStatus()!=CopyStatus.ON_LOAN)throw new CirculationConflictException("The copy status does not match the active loan.");
@@ -521,7 +519,9 @@ return loanResponse(loan);}
           e.getEventType(),
           e.getActor().getEmail(),
           e.getOccurredAt(),
-          e.getEffectiveDate(),
+          (e.getEventType() == LoanEventType.ISSUED && e.getOccurredAt() != null)
+              ? LocalDate.ofInstant(e.getOccurredAt(), clock.getZone())
+              : e.getEffectiveDate(),
           e.getPreviousDueDate(),
           e.getNewDueDate(),
           e.getCopyStatus(),
@@ -570,6 +570,10 @@ return loanResponse(loan);}
       ? loan.getCopy().getStatus().name()
       : null;
 
+  LocalDate effectiveIssueDate = loan.getCreatedAt() != null
+      ? LocalDate.ofInstant(loan.getCreatedAt(), clock.getZone())
+      : loan.getIssueDate();
+
   return new LoanResponse(
       loan.getId(),
       loan.getRequest().getId(),
@@ -579,7 +583,7 @@ return loanResponse(loan);}
       loan.getCopy().getCopyIdentifier(),
       loan.getBorrower().getEmail(),
       loan.getStatus(),
-      loan.getIssueDate(),
+      effectiveIssueDate,
       loan.getDueDate(),
       loan.getActualReturnDate(),
       loan.getRenewalCount(),
@@ -596,7 +600,7 @@ return loanResponse(loan);}
   );
  }
  private LibraryHolidayResponse holidayResponse(LibraryHoliday holiday){return LibraryHolidayResponse.from(holiday);}
- private boolean renewalEligible(Loan loan,UUID borrowerId,String semesterCode){return loan.getStatus()==LoanStatus.ACTIVE&&loan.getRenewalCount()<1&&loan.getCopy().getStatus()==CopyStatus.ON_LOAN&&loan.getCopy().getBook().getCirculationPolicy()==CirculationPolicy.STANDARD&&!userSemesterRenewals.existsByUser_IdAndSemesterCode(borrowerId,semesterCode);}
+ private boolean renewalEligible(Loan loan,UUID borrowerId,String semesterCode){return loan.getStatus()==LoanStatus.ACTIVE&&loan.getRenewalCount()<1&&loan.getCopy().getStatus()==CopyStatus.ON_LOAN&&loan.getCopy().getBook().getCirculationPolicy()==CirculationPolicy.STANDARD&&!loan.getDueDate().isBefore(today())&&!userSemesterRenewals.existsByUser_IdAndSemesterCode(borrowerId,semesterCode);}
  private UserAccount member(UUID id){UserAccount a=accounts.findByIdAndEnabledTrue(id).orElseThrow(CirculationNotFoundException::new);if(a.getRole()!=AccountRole.STUDENT&&a.getRole()!=AccountRole.FACULTY)throw new CirculationNotFoundException();return a;}
  private UserAccount librarian(UUID id){UserAccount a=accounts.findByIdAndEnabledTrue(id).orElseThrow(CirculationNotFoundException::new);if(a.getRole()!=AccountRole.LIBRARIAN)throw new CirculationNotFoundException();return a;}
  private static void ensureCirculating(Book book){if(book.getCirculationPolicy()!=CirculationPolicy.STANDARD)throw new CirculationConflictException("This material is not eligible for standard take-home circulation.");}
@@ -604,7 +608,6 @@ return loanResponse(loan);}
  private static String clean(String value){return value==null||value.isBlank()?null:value.strip();}
  private static void validPage(int page,int size){if(page<0)throw new IllegalArgumentException("Page must be zero or greater.");if(size<1||size>MAX_PAGE_SIZE)throw new IllegalArgumentException("Page size must be between 1 and 100.");}
  private static <T> PageResponse<T> page(Page<?> source,List<T> content){return new PageResponse<>(content,source.getNumber(),source.getSize(),source.getTotalElements(),source.getTotalPages());}
- private static BigDecimal parseDecimal(String value,BigDecimal fallback){if(value==null)return fallback;try{return new BigDecimal(value.trim());}catch(Exception e){return fallback;}}
  private static int parseInt(String value,int fallback){if(value==null)return fallback;try{return Integer.parseInt(value.trim());}catch(Exception e){return fallback;}}
 
  private int getBorrowingLimit(UserAccount account) {

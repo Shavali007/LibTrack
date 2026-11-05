@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import com.libtrack.catalogue.TrendingBookActivityProjection;
 import jakarta.persistence.LockModeType;
 
 public interface LoanRepository extends JpaRepository<Loan, UUID>, JpaSpecificationExecutor<Loan> {
@@ -70,6 +71,11 @@ public interface LoanRepository extends JpaRepository<Loan, UUID>, JpaSpecificat
     @Query("select l.copy.book.id as bookId, l.copy.book.title as title, l.copy.book.isbn as isbn, count(l) as loanCount " +
            "from Loan l group by l.copy.book.id, l.copy.book.title, l.copy.book.isbn order by count(l) desc")
     List<TopBorrowedBookProjection> findTopBorrowedBooks(Pageable pageable);
+
+    @Query("select l.copy.book.id as bookId, count(l) as activityCount " +
+           "from Loan l where l.issueDate >= :cutoff and l.copy.book.active = true " +
+           "group by l.copy.book.id")
+    List<TrendingBookActivityProjection> countIssuedBooksSince(@Param("cutoff") LocalDate cutoff);
 
     @Query("select l from Loan l join fetch l.copy c join fetch c.book join fetch l.borrower order by l.createdAt desc")
     List<Loan> findRecentLoans(Pageable pageable);

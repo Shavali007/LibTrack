@@ -28,14 +28,14 @@ import { LibrarianOperationsService, FinePolicyDto } from '../librarian-operatio
           </div>
         </div>
 
-        <div class="fixed-policy-pill" aria-label="Policy status: Fixed Policy">
+        <div class="fixed-policy-pill" [attr.aria-label]="'Current policy status: ' + (policy()?.status ?? 'loading')">
           <span class="lock-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
           </span>
-          <span>Fixed Policy</span>
+          <span>Current policy{{ policy()?.status ? ' · ' + policy()?.status : '' }}</span>
         </div>
       </header>
 
@@ -61,7 +61,7 @@ import { LibrarianOperationsService, FinePolicyDto } from '../librarian-operatio
                   </span>
                   <span>Overdue fine (per day)</span>
                 </td>
-                <td class="td-val highlight-val">{{ policy()?.overdueFinePerDay ?? '₹10' }}</td>
+                <td class="td-val highlight-val">{{ policy()?.overdueFinePerDay ?? '—' }}</td>
               </tr>
               <tr>
                 <td class="td-rule">
@@ -74,7 +74,7 @@ import { LibrarianOperationsService, FinePolicyDto } from '../librarian-operatio
                   </span>
                   <span>Maximum fine (per book)</span>
                 </td>
-                <td class="td-val highlight-val">{{ policy()?.maxFinePerBook ?? '₹500' }}</td>
+                <td class="td-val highlight-val">{{ policy()?.maxFinePerBook ?? '—' }}</td>
               </tr>
               <tr>
                 <td class="td-rule">
@@ -86,7 +86,7 @@ import { LibrarianOperationsService, FinePolicyDto } from '../librarian-operatio
                   </span>
                   <span>Grace period</span>
                 </td>
-                <td class="td-val">{{ policy()?.gracePeriod ?? '0 days' }}</td>
+                <td class="td-val">{{ policy()?.gracePeriod ?? '—' }}</td>
               </tr>
               <tr>
                 <td class="td-rule">
@@ -98,7 +98,7 @@ import { LibrarianOperationsService, FinePolicyDto } from '../librarian-operatio
                   </span>
                   <span>Payment</span>
                 </td>
-                <td class="td-val">{{ policy()?.payment ?? 'Full payment only' }}</td>
+                <td class="td-val">{{ policy()?.payment ?? '—' }}</td>
               </tr>
               <tr>
                 <td class="td-rule">
@@ -111,12 +111,13 @@ import { LibrarianOperationsService, FinePolicyDto } from '../librarian-operatio
                   </span>
                   <span>Lost / damaged books</span>
                 </td>
-                <td class="td-val">{{ policy()?.lostDamagedBooks ?? 'To be recorded and handled by the librarian' }}</td>
+                <td class="td-val">{{ policy()?.lostDamagedBooks ?? '—' }}</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
+      <p class="policy-note">{{ policy()?.policyDescription ?? 'Loading the current fine policy…' }} Current policy values apply to newly issued loans; existing loans retain the policy snapshot recorded when they were issued.</p>
     </div>
   `,
   styles: [`
@@ -224,6 +225,13 @@ import { LibrarianOperationsService, FinePolicyDto } from '../librarian-operatio
       padding: 0.45rem 0.9rem;
       border-radius: 8px;
       white-space: nowrap;
+    }
+
+    .policy-note {
+      margin: 1rem 0 0;
+      color: #5A625D;
+      font-size: 0.875rem;
+      line-height: 1.6;
     }
 
     .lock-icon svg {
