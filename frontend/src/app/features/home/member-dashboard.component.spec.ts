@@ -146,6 +146,16 @@ describe('MemberDashboardComponent', () => {
     expect(el.textContent).not.toContain('mahammad.23mic7248@vitapstudent.ac.in');
   });
 
+  it('renders welcome banner with reference mockup visual asset and accessible quote', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const banner = el.querySelector('.welcome-banner');
+    expect(banner).not.toBeNull();
+    const bannerAsset = el.querySelector('.banner-right-asset') as HTMLImageElement;
+    expect(bannerAsset).not.toBeNull();
+    expect(bannerAsset.getAttribute('src')).toBe('/assets/banner-student-right.png');
+    expect(el.textContent).toContain('A library is not just a place to read, but a place to grow.');
+  });
+
   it('renders all four KPI cards with backend values matching schema', () => {
     const el = fixture.nativeElement as HTMLElement;
     const cards = el.querySelectorAll('.stat-card');
@@ -212,8 +222,8 @@ describe('MemberDashboardComponent', () => {
 
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('.welcome-eyebrow')?.textContent).toContain('FACULTY WORKSPACE');
-    expect(el.querySelector('.welcome-title')?.textContent).toContain('Welcome, Dr. Smith!');
-    expect(el.querySelector('.welcome-subtitle')?.textContent).toContain('Explore resources, support student learning');
+    expect(el.querySelector('.welcome-title')?.textContent).toContain('Welcome back, Professor!');
+    expect(el.querySelector('.welcome-subtitle')?.textContent).toContain('Manage your academic recommendations, support students and explore library resources.');
     expect(el.textContent).not.toContain('dr.smith@vitap.ac.in');
   });
 });

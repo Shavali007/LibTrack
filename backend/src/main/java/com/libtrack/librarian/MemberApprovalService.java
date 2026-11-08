@@ -88,7 +88,8 @@ public class MemberApprovalService {
                         a.getReviewedAt(),
                         a.getReviewedByAccountId() != null ? reviewerNames.get(a.getReviewedByAccountId()) : null,
                         a.getRejectionReason(),
-                        a.getLibrarianRemarks()
+                        a.getLibrarianRemarks(),
+                        a.getDepartment()
                 )
         ).toList();
 
@@ -143,7 +144,8 @@ public class MemberApprovalService {
                 reviewerName,
                 account.getRejectionReason(),
                 account.getLibrarianRemarks(),
-                auditItems
+                auditItems,
+                account.getDepartment()
         );
     }
 

@@ -35,9 +35,11 @@ import { FinesPolicyComponent } from './features/librarian/policies/fines-policy
 import { MembershipPolicyComponent } from './features/librarian/policies/membership-policy.component';
 import { UsagePolicyComponent } from './features/librarian/policies/usage-policy.component';
 import { BookRecommendationsComponent } from './features/recommendations/book-recommendations.component';
+import { FacultyProfileComponent } from './features/recommendations/faculty-profile.component';
 import { RecommendBookPageComponent } from './features/recommendations/recommend-book-page.component';
 import { MyReservationsComponent } from './features/reservations/my-reservations.component';
 import { MyWishlistComponent } from './features/wishlist/my-wishlist.component';
+import { MemberSettingsComponent } from './features/settings/member-settings.component';
 
 export const routes: Routes = [
   { path: '', component: PublicLandingComponent, pathMatch: 'full' },
@@ -53,6 +55,7 @@ export const routes: Routes = [
     { path: 'books/:bookId/read', component: PdfReaderComponent },
     { path: 'books/:bookId', component: BookDetailComponent },
     { path: 'recommendations', component: BookRecommendationsComponent },
+    { path: 'recommendations/faculty/:facultyId', component: FacultyProfileComponent },
     { path: 'recommendations/new', component: RecommendBookPageComponent },
     { path: 'librarian/books/new', component: BookEditorComponent, canMatch: [librarianGuard] },
     { path: 'librarian/books/:bookId/edit', component: BookEditorComponent, canMatch: [librarianGuard] },
@@ -92,6 +95,8 @@ export const routes: Routes = [
     { path: 'my/notifications', redirectTo: '/workspace/notifications', pathMatch: 'full' },
     { path: 'my/fines', component: MyFinesComponent, canMatch: [memberGuard] },
     { path: 'my/feedback', component: MemberFeedbackComponent, canMatch: [memberGuard] },
+    { path: 'settings', component: MemberSettingsComponent },
+    { path: 'my/settings', redirectTo: '/workspace/settings', pathMatch: 'full' },
     { path: '', component: HomeComponent, pathMatch: 'full' },
   ]},
   { path: '**', redirectTo: '' },

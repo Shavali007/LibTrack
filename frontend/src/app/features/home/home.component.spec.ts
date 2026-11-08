@@ -51,7 +51,7 @@ describe('HomeComponent role-aware dashboards', () => {
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('FACULTY WORKSPACE');
-    expect(text).toContain('Welcome, Dr. Alan!');
+    expect(text).toContain('Welcome back, Professor!');
     expect(text).not.toContain('faculty@vitap.ac.in');
     expect(fixture.nativeElement.querySelector('app-member-dashboard')).not.toBeNull();
   });

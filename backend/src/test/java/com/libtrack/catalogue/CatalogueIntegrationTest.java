@@ -93,5 +93,49 @@ class CatalogueIntegrationTest {
    .andExpect(jsonPath("$.totalBooks").value(beforeBooks)).andExpect(jsonPath("$.totalCategories").value(beforeCategories));
  }
 
+ @Autowired private com.libtrack.review.BookReviewRepository reviewRepository;
+ @Autowired private com.libtrack.auth.UserAccountRepository accountRepository;
+ @Autowired private org.springframework.security.crypto.password.PasswordEncoder encoder;
+ @Autowired private BookRepository bookRepository;
+
+ @Test void topRatedSortingOrdersBooksByAverageRatingAndReviewCount() throws Exception {
+  String suffix = UUID.randomUUID().toString().substring(0, 8);
+  var user1 = accountRepository.saveAndFlush(
+          com.libtrack.auth.UserAccount.initialLibrarian("u1-" + suffix + "@vitap.ac.in", encoder.encode("pass123!"))
+  );
+  var user2 = accountRepository.saveAndFlush(
+          com.libtrack.auth.UserAccount.initialLibrarian("u2-" + suffix + "@vitap.ac.in", encoder.encode("pass123!"))
+  );
+
+  String cat = "RatedCat " + suffix;
+  String idUnrated = createBook(book("Book Unrated " + suffix, null).replace("Computing", cat));
+  String idAvg3 = createBook(book("Book ThreeStar " + suffix, null).replace("Computing", cat));
+  String idAvg5One = createBook(book("Book FiveStarOne " + suffix, null).replace("Computing", cat));
+  String idAvg5Two = createBook(book("Book FiveStarTwo " + suffix, null).replace("Computing", cat));
+
+  var bAvg3 = bookRepository.findById(UUID.fromString(idAvg3)).orElseThrow();
+  var bAvg5One = bookRepository.findById(UUID.fromString(idAvg5One)).orElseThrow();
+  var bAvg5Two = bookRepository.findById(UUID.fromString(idAvg5Two)).orElseThrow();
+
+  reviewRepository.saveAndFlush(new com.libtrack.review.BookReview(bAvg3, user1, 3, "Ok"));
+  reviewRepository.saveAndFlush(new com.libtrack.review.BookReview(bAvg5One, user1, 5, "Great"));
+  reviewRepository.saveAndFlush(new com.libtrack.review.BookReview(bAvg5Two, user1, 5, "Superb"));
+  reviewRepository.saveAndFlush(new com.libtrack.review.BookReview(bAvg5Two, user2, 5, "Excellent"));
+
+  mvc.perform(get("/api/v1/books").param("category", cat).param("sort", "topRated").param("direction", "desc"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.content[0].id").value(idAvg5Two))
+          .andExpect(jsonPath("$.content[1].id").value(idAvg5One))
+          .andExpect(jsonPath("$.content[2].id").value(idAvg3))
+          .andExpect(jsonPath("$.content[3].id").value(idUnrated));
+
+  mvc.perform(get("/api/v1/books").param("category", cat).param("sort", "rating").param("direction", "desc"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.content[0].id").value(idAvg5Two))
+          .andExpect(jsonPath("$.content[1].id").value(idAvg5One))
+          .andExpect(jsonPath("$.content[2].id").value(idAvg3))
+          .andExpect(jsonPath("$.content[3].id").value(idUnrated));
+ }
+
 }
 

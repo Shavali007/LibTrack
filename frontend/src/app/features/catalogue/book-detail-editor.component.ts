@@ -6,7 +6,7 @@ import { finalize } from 'rxjs';
 import { AuthService, UserProfile } from '../auth/auth.service';
 import { SignInDialogComponent } from '../auth/sign-in-dialog.component';
 import { BookDetail, BookWrite, CatalogueService, Chapter, ChapterCreateRequest, ChapterUpdateRequest, DigitalEdition, InventorySummary } from './catalogue.service';
-import { BorrowingService } from '../circulation/borrowing.service';
+import { BorrowingEligibility, BorrowingService } from '../circulation/borrowing.service';
 import { ToastService } from '../../shared/layout/toast.component';
 import { RecommendationService, Recommendation } from '../recommendations/recommendation.service';
 import { RecommendModalComponent } from '../recommendations/recommend-modal.component';
@@ -131,6 +131,10 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
 
             <div class="hero-specs-grid">
               <div class="spec-item">
+                <span class="spec-label">Department</span>
+                <span class="spec-value highlight-green">{{ b.department || "General" }}</span>
+              </div>
+              <div class="spec-item">
                 <span class="spec-label">Available Copies</span>
                 <span class="spec-value highlight-green">{{ b.availableCopies }} Copies Available</span>
               </div>
@@ -217,14 +221,39 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
             <div class="actions">
               @if (b.availableCopies > 0) {
                 @if (auth.profile()?.role === 'STUDENT' || auth.profile()?.role === 'FACULTY') {
-                  <button
-                    class="button button-primary btn-hero-action"
-                    type="button"
-                    (click)="requestBook()"
-                    [disabled]="pending() || !b.active || b.circulationPolicy !== 'STANDARD'"
-                  >
-                    {{ pending() ? 'Submitting…' : 'Request this book' }}
-                  </button>
+                  @if (borrowingEligibility() && !borrowingEligibility()!.eligible) {
+                    <div class="active-borrowing-box" role="status">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                      </svg>
+                      <span>{{ borrowingEligibility()!.reason }}</span>
+                    </div>
+                    <button
+                      class="button button-primary btn-hero-action btn-disabled-action"
+                      type="button"
+                      disabled
+                      [title]="borrowingEligibility()!.reason || 'Borrowing not currently available'"
+                    >
+                      @if (borrowingEligibility()!.hasActiveLoan) {
+                        Active Loan in Progress
+                      } @else if (borrowingEligibility()!.hasActiveRequest) {
+                        Request {{ borrowingEligibility()!.activeRequestStatus === 'APPROVED' ? 'Approved — Awaiting Pick-up' : 'Pending Review' }}
+                      } @else {
+                        Borrowing Limit Reached
+                      }
+                    </button>
+                  } @else {
+                    <button
+                      class="button button-primary btn-hero-action"
+                      type="button"
+                      (click)="requestBook()"
+                      [disabled]="pending() || !b.active || b.circulationPolicy !== 'STANDARD'"
+                    >
+                      {{ pending() ? 'Submitting…' : 'Request this book' }}
+                    </button>
+                  }
                 } @else if (!auth.profile()) {
                   <button
                     class="button button-primary btn-hero-action"
@@ -466,6 +495,10 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
             <h2 class="section-heading">Book Details</h2>
 
             <div class="details-list">
+              <div class="detail-row">
+                <span class="detail-label">Department</span>
+                <span class="detail-value">{{ b.department || "General" }}</span>
+              </div>
               <div class="detail-row">
                 <span class="detail-label">Language</span>
                 <span class="detail-value">English</span>
@@ -884,6 +917,33 @@ function validCopyQuantity(control: AbstractControl): ValidationErrors | null {
       font-size: 0.85rem;
       font-weight: 600;
       border-radius: 7px;
+    }
+    .active-borrowing-box {
+      background: #FEF3C7;
+      border: 1px solid #FDE68A;
+      color: #92400E;
+      border-radius: 7px;
+      padding: 0.55rem 0.8rem;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.45rem;
+      margin-bottom: 0.45rem;
+      text-align: left;
+    }
+    .active-borrowing-box svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .btn-disabled-action {
+      opacity: 0.75;
+      cursor: not-allowed !important;
+      background: #E2E8F0 !important;
+      color: #475569 !important;
+      border-color: #CBD5E1 !important;
     }
     .btn-reserve-action {
       background: #003D30;
@@ -1537,6 +1597,7 @@ export class BookDetailComponent {
   readonly reviewSummary = signal<ReviewSummary | null>(null);
   readonly reviewEligibility = signal<ReviewEligibility | null>(null);
   readonly activeReservation = signal<ReservationItem | null>(null);
+  readonly borrowingEligibility = signal<BorrowingEligibility | null>(null);
 
   readonly activeTab = signal<'details' | 'digital' | 'reviews'>('details');
   readonly inWishlist = computed(() => this.wishlistService.isInWishlist(this.id));
@@ -1569,10 +1630,16 @@ export class BookDetailComponent {
     }
     this.reload();
 
+    let initialProfileEffect = true;
     effect(() => {
       const profile = this.auth.profile();
+      if (initialProfileEffect) {
+        initialProfileEffect = false;
+        return;
+      }
       if (profile && this.id) {
         this.checkReviewEligibility();
+        this.checkBorrowingEligibility();
       }
     });
   }
@@ -1614,6 +1681,7 @@ export class BookDetailComponent {
     this.loadReviewSummary();
     this.loadReviews(0);
     this.checkReviewEligibility();
+    this.checkBorrowingEligibility();
     if (this.auth.profile() && this.id) {
       this.wishlistService.checkStatus([this.id]).subscribe({ error: () => {} });
     }
@@ -1861,6 +1929,18 @@ export class BookDetailComponent {
     }
   }
 
+  checkBorrowingEligibility(): void {
+    const role = this.auth.profile()?.role;
+    if ((role === 'STUDENT' || role === 'FACULTY') && this.id) {
+      this.borrowing.checkEligibility(this.id).subscribe({
+        next: (el) => this.borrowingEligibility.set(el),
+        error: () => this.borrowingEligibility.set(null)
+      });
+    } else {
+      this.borrowingEligibility.set(null);
+    }
+  }
+
   requestBook(): void {
     const role = this.auth.profile()?.role;
     if (!role) {
@@ -1880,11 +1960,20 @@ export class BookDetailComponent {
       next: () => {
         this.notice.set('Request submitted. Track its review in My requests.');
         this.toast.show('Request submitted. Track its review in My requests.', 'success');
+        this.borrowingEligibility.set({
+          eligible: false,
+          hasActiveLoan: false,
+          hasActiveRequest: true,
+          activeRequestStatus: 'PENDING',
+          hasReturnedHistory: this.borrowingEligibility()?.hasReturnedHistory ?? false,
+          reason: 'You already have a pending borrowing request for this book awaiting review.'
+        });
       },
       error: (e) => {
         const message = e.error?.message || (e.status === 409 ? 'This book is no longer eligible or available under library policies.' : 'Your request could not be submitted. Please try again.');
         this.error.set(message);
         this.toast.show(message, 'error');
+        this.checkBorrowingEligibility();
       }
     });
   }
@@ -2191,7 +2280,7 @@ export class BookDetailComponent {
   }
 </section>
 }@if(error()){<p class="alert alert-error" role="alert">{{error()}}</p>}@if(loading()){<div class="loading-state" role="status">Loading record…</div>}@else{<form class="editor surface-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-<div class="field"><label for="title">Title <span class="required-mark">*</span></label><input id="title" formControlName="title" maxlength="240" required [attr.aria-invalid]="invalid('title')" aria-describedby="title-help"><p id="title-help" class="field-hint">Use the title printed on this edition.</p></div><div class="field"><label for="authors">Author names <span class="required-mark">*</span></label><input id="authors" formControlName="authors" required aria-describedby="authors-help"><p id="authors-help" class="field-hint">Separate multiple names with commas.</p></div><div class="field"><label for="categories">Categories <span class="required-mark">*</span></label><input id="categories" formControlName="categories" required aria-describedby="categories-help"><p id="categories-help" class="field-hint">Separate categories with commas.</p></div>@if(!editing){<div class="two-col"><div class="field"><label for="numberOfCopies">Number of copies <span class="required-mark">*</span></label><input id="numberOfCopies" type="number" formControlName="numberOfCopies" min="1" max="500" step="1" required (input)="clearFieldError('numberOfCopies')" [attr.aria-invalid]="!!fieldMessage('numberOfCopies')" [attr.aria-describedby]="fieldMessage('numberOfCopies') ? 'number-of-copies-error' : 'number-of-copies-help'"><p id="number-of-copies-help" class="field-hint">Create between 1 and 500 physical copies with this book record.</p>@if(fieldMessage('numberOfCopies')){<p id="number-of-copies-error" class="field-error" role="alert">{{fieldMessage('numberOfCopies')}}</p>}</div><div class="field"><label for="initialLocation">Shelf / location</label><input id="initialLocation" formControlName="location" maxlength="120" placeholder="e.g. A-12, Science Stacks" autocomplete="off"><p class="field-hint">Optional shelf or room location for the initial copies.</p></div></div>}<div class="two-col"><div class="field"><label for="isbn">ISBN</label><input id="isbn" formControlName="isbn" maxlength="17" autocomplete="off" [attr.aria-invalid]="!!fieldMessage('isbn')" [attr.aria-describedby]="fieldMessage('isbn') ? 'isbn-error' : 'isbn-help'" (input)="clearFieldError('isbn')"><p id="isbn-help" class="field-hint">ISBN-10 or ISBN-13; checksum validated on save.</p>@if(fieldMessage('isbn')){<p id="isbn-error" class="field-error" role="alert">{{fieldMessage('isbn')}}</p>}</div><div class="field"><label for="publicationYear">Publication year</label><input id="publicationYear" type="number" formControlName="publicationYear" min="1000" [max]="year" [attr.aria-invalid]="!!fieldMessage('publicationYear')" [attr.aria-describedby]="fieldMessage('publicationYear') ? 'publication-year-error' : null" (input)="clearFieldError('publicationYear')">@if(fieldMessage('publicationYear')){<p id="publication-year-error" class="field-error" role="alert">{{fieldMessage('publicationYear')}}</p>}</div></div><div class="two-col"><div class="field"><label for="publisher">Publisher</label><input id="publisher" formControlName="publisher" maxlength="200"></div><div class="field"><label for="coverImageUrl">Cover image URL</label><input id="coverImageUrl" type="url" formControlName="coverImageUrl" maxlength="2048" placeholder="https://…" [attr.aria-invalid]="!!fieldMessage('coverImageUrl')" [attr.aria-describedby]="fieldMessage('coverImageUrl') ? 'cover-url-error' : 'cover-url-help'" (input)="clearFieldError('coverImageUrl')"><p id="cover-url-help" class="field-hint">Optional. Use an absolute HTTP or HTTPS image URL.</p>@if(fieldMessage('coverImageUrl')){<p id="cover-url-error" class="field-error" role="alert">{{fieldMessage('coverImageUrl')}}</p>}</div></div><div class="field"><label for="description">Description</label><textarea id="description" rows="5" formControlName="description" maxlength="4000"></textarea></div><div class="field"><label for="circulationPolicy">Catalogue circulation policy</label><select id="circulationPolicy" formControlName="circulationPolicy"><option value="STANDARD">Standard circulation</option><option value="REFERENCE_ONLY">Reference only</option><option value="SERIAL_RESTRICTED">Serial material · restricted</option><option value="APPROVED_OVERNIGHT_EXCEPTION">Approved overnight exception</option></select><p class="field-hint">This is catalogue metadata; circulation rules are not yet enforced.</p></div><div class="actions"><button class="button button-primary" type="submit" [disabled]="form.invalid||pending()">{{pending()?'Saving…':(editing?'Save changes':'Create book')}}</button><a class="button button-secondary" routerLink="/books">Cancel</a></div></form>}
+<div class="field"><label for="title">Title <span class="required-mark">*</span></label><input id="title" formControlName="title" maxlength="240" required [attr.aria-invalid]="invalid('title')" aria-describedby="title-help"><p id="title-help" class="field-hint">Use the title printed on this edition.</p></div><div class="field"><label for="authors">Author names <span class="required-mark">*</span></label><input id="authors" formControlName="authors" required aria-describedby="authors-help"><p id="authors-help" class="field-hint">Separate multiple names with commas.</p></div><div class="field"><label for="categories">Categories <span class="required-mark">*</span></label><input id="categories" formControlName="categories" required aria-describedby="categories-help"><p id="categories-help" class="field-hint">Separate categories with commas.</p></div><div class="field"><label for="department">Department <span class="required-mark">*</span></label><select id="department" formControlName="department" required [attr.aria-invalid]="invalid('department')" aria-describedby="department-help"><option value="" disabled>Select Department</option><option value="Computer Science and Engineering">Computer Science and Engineering</option><option value="Electronics and Communication Engineering">Electronics and Communication Engineering</option><option value="Electrical and Electronics Engineering">Electrical and Electronics Engineering</option><option value="Mechanical Engineering">Mechanical Engineering</option></select><p id="department-help" class="field-hint">Select the academic department for this book.</p>@if(invalid('department')){<p id="department-error" class="field-error" role="alert">Please select an official department.</p>}</div>@if(!editing){<div class="two-col"><div class="field"><label for="numberOfCopies">Number of copies <span class="required-mark">*</span></label><input id="numberOfCopies" type="number" formControlName="numberOfCopies" min="1" max="500" step="1" required (input)="clearFieldError('numberOfCopies')" [attr.aria-invalid]="!!fieldMessage('numberOfCopies')" [attr.aria-describedby]="fieldMessage('numberOfCopies') ? 'number-of-copies-error' : 'number-of-copies-help'"><p id="number-of-copies-help" class="field-hint">Create between 1 and 500 physical copies with this book record.</p>@if(fieldMessage('numberOfCopies')){<p id="number-of-copies-error" class="field-error" role="alert">{{fieldMessage('numberOfCopies')}}</p>}</div><div class="field"><label for="initialLocation">Shelf / location</label><input id="initialLocation" formControlName="location" maxlength="120" placeholder="e.g. A-12, Science Stacks" autocomplete="off"><p class="field-hint">Optional shelf or room location for the initial copies.</p></div></div>}<div class="two-col"><div class="field"><label for="isbn">ISBN</label><input id="isbn" formControlName="isbn" maxlength="17" autocomplete="off" [attr.aria-invalid]="!!fieldMessage('isbn')" [attr.aria-describedby]="fieldMessage('isbn') ? 'isbn-error' : 'isbn-help'" (input)="clearFieldError('isbn')"><p id="isbn-help" class="field-hint">ISBN-10 or ISBN-13; checksum validated on save.</p>@if(fieldMessage('isbn')){<p id="isbn-error" class="field-error" role="alert">{{fieldMessage('isbn')}}</p>}</div><div class="field"><label for="publicationYear">Publication year</label><input id="publicationYear" type="number" formControlName="publicationYear" min="1000" [max]="year" [attr.aria-invalid]="!!fieldMessage('publicationYear')" [attr.aria-describedby]="fieldMessage('publicationYear') ? 'publication-year-error' : null" (input)="clearFieldError('publicationYear')">@if(fieldMessage('publicationYear')){<p id="publication-year-error" class="field-error" role="alert">{{fieldMessage('publicationYear')}}</p>}</div></div><div class="two-col"><div class="field"><label for="publisher">Publisher</label><input id="publisher" formControlName="publisher" maxlength="200"></div><div class="field"><label for="coverImageUrl">Cover image URL</label><input id="coverImageUrl" type="url" formControlName="coverImageUrl" maxlength="2048" placeholder="https://…" [attr.aria-invalid]="!!fieldMessage('coverImageUrl')" [attr.aria-describedby]="fieldMessage('coverImageUrl') ? 'cover-url-error' : 'cover-url-help'" (input)="clearFieldError('coverImageUrl')"><p id="cover-url-help" class="field-hint">Optional. Use an absolute HTTP or HTTPS image URL.</p>@if(fieldMessage('coverImageUrl')){<p id="cover-url-error" class="field-error" role="alert">{{fieldMessage('coverImageUrl')}}</p>}</div></div><div class="field"><label for="description">Description</label><textarea id="description" rows="5" formControlName="description" maxlength="4000"></textarea></div><div class="field"><label for="circulationPolicy">Catalogue circulation policy</label><select id="circulationPolicy" formControlName="circulationPolicy"><option value="STANDARD">Standard circulation</option><option value="REFERENCE_ONLY">Reference only</option><option value="SERIAL_RESTRICTED">Serial material · restricted</option><option value="APPROVED_OVERNIGHT_EXCEPTION">Approved overnight exception</option></select><p class="field-hint">This is catalogue metadata; circulation rules are not yet enforced.</p></div><div class="actions"><button class="button button-primary" type="submit" [disabled]="form.invalid||pending()">{{pending()?'Saving…':(editing?'Save changes':'Create book')}}</button><a class="button button-secondary" routerLink="/books">Cancel</a></div></form>}
 `,styles:[`:host{display:block}.page-heading{margin-bottom:1.3rem}.page-heading h1{margin-bottom:.4rem}.page-heading p{margin-bottom:0}.editor{display:grid;max-width:52rem;gap:1rem;padding:clamp(1rem,3vw,2rem)}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}textarea{resize:vertical}.inventory-summary{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.inventory-summary-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.inventory-summary-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.inventory-summary-heading .eyebrow{margin:0 0 .2rem}.inventory-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem;margin:1rem 0}.inventory-counts div{padding:.7rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.inventory-counts dt{color:var(--color-charcoal-600);font-size:.8rem}.inventory-counts dd{margin:.2rem 0 0;color:var(--color-forest-950);font-weight:700;font-size:1.2rem}.actions{display:flex;gap:.65rem;margin-top:.35rem}.reconcile-panel{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--color-line-200)}.reconcile-panel h3{margin:0 0 .3rem;font-size:1.05rem}.reconcile-form{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(12rem,1.5fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.preview-box{display:flex;gap:.5rem;align-items:center;padding:.65rem .9rem;margin-bottom:1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}.preview-add{color:var(--color-forest-900);font-weight:600}.preview-remove{color:#991b1b;font-weight:600}.reconcile-actions{display:flex;gap:.65rem}.digital-editor-card{max-width:52rem;margin-bottom:1rem;padding:1rem 1.2rem}.digital-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.digital-editor-heading h2{margin:0;font:600 1.2rem var(--font-serif)}.digital-editor-heading .eyebrow{margin:0 0 .2rem}.current-edition-box{margin:1rem 0;padding:.8rem 1rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100)}.edition-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.6rem;margin:0 0 .8rem}.edition-meta-grid dt{color:var(--color-charcoal-600);font-size:.78rem}.edition-meta-grid dd{margin:.1rem 0 0;font-weight:600;font-size:.9rem;color:var(--color-forest-950)}.edition-actions{display:flex;gap:.6rem}.digital-manage-panel{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--color-line-200)}.digital-manage-panel h3{margin:0 0 .3rem;font-size:1.05rem}.digital-form-fields{display:grid;grid-template-columns:minmax(12rem,1.5fr) minmax(10rem,1fr);gap:1rem;margin:1rem 0 .7rem;align-items:end}.digital-button-row{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin-top:1rem}.confirm-box{display:flex;align-items:center;gap:.65rem;padding:.4rem .8rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control);background:var(--color-ivory-100);font-size:.85rem}.chapters-panel{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--color-line-200)}.chapters-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.5rem}.chapters-heading h3{margin:0 0 .2rem;font-size:1.05rem}.chapter-top-actions{display:flex;gap:.5rem;flex-shrink:0}.reprocess-option-row{margin-bottom:.8rem;font-size:.82rem;color:var(--color-charcoal-700)}.checkbox-label{display:inline-flex;align-items:center;gap:.45rem;cursor:pointer}.chapter-form-card{background:var(--color-ivory-100);border:1px solid var(--color-line-200);border-radius:var(--radius-control);padding:1rem;margin-bottom:1rem}.chapter-form-card h4{margin:0 0 .8rem;font-size:.95rem;color:var(--color-forest-950)}.chapter-form-grid{display:grid;grid-template-columns:80px 1fr 100px 100px;gap:.75rem;margin-bottom:.75rem}.chapter-form-actions{display:flex;gap:.5rem;margin-top:.6rem}.chapters-table-wrapper{overflow-x:auto;margin-top:.6rem;border:1px solid var(--color-line-200);border-radius:var(--radius-control)}.chapters-table{width:100%;border-collapse:collapse;font-size:.85rem;background:#ffffff}.chapters-table th{background:var(--color-ivory-100);padding:.55rem .75rem;text-align:left;font-weight:600;color:var(--color-charcoal-700);border-bottom:1px solid var(--color-line-200);font-size:.8rem}.chapters-table td{padding:.6rem .75rem;border-bottom:1px solid var(--color-line-200);color:var(--color-charcoal-800)}.chapters-table tr:last-child td{border-bottom:none}.badge-manual{display:inline-block;font-size:.72rem;font-weight:600;background:rgba(147,51,234,.1);color:#7e22ce;padding:.15rem .45rem;border-radius:4px}.badge-auto{display:inline-block;font-size:.72rem;font-weight:600;background:rgba(16,185,129,.1);color:#047857;padding:.15rem .45rem;border-radius:4px}.button-xs{padding:.25rem .5rem;font-size:.75rem}.button-sm{padding:.35rem .7rem;font-size:.82rem}.empty-chapters-box{padding:1.2rem;background:var(--color-ivory-100);border:1px dashed var(--color-line-200);border-radius:var(--radius-control);text-align:center;margin-top:.6rem}@media(max-width:600px){.two-col{grid-template-columns:1fr}.reconcile-form{grid-template-columns:1fr}.digital-form-fields{grid-template-columns:1fr}.chapter-form-grid{grid-template-columns:1fr}.actions>*{flex:1}}`]} )
 export class BookEditorComponent {
  private readonly fb=inject(NonNullableFormBuilder);readonly service=inject(CatalogueService);private readonly route=inject(ActivatedRoute);private readonly router=inject(Router);readonly year=new Date().getFullYear();readonly id=this.route.snapshot.paramMap.get('bookId');readonly editing=!!this.id;readonly loading=signal(!!this.id);readonly pending=signal(false);readonly error=signal('');readonly inventory=signal<InventorySummary|null>(null);readonly inventoryLoadFailed=signal(false);readonly serverFieldErrors=signal<Record<string,string>>({});
@@ -2199,8 +2288,8 @@ export class BookEditorComponent {
  readonly digitalEdition=signal<DigitalEdition|null>(null);readonly loadingDigital=signal<boolean>(false);readonly digitalBusy=signal<boolean>(false);readonly digitalNotice=signal<string>('');readonly digitalError=signal<string>('');readonly selectedFile=signal<File|null>(null);readonly editionLabelInput=signal<string>('');readonly confirmingDelete=signal<boolean>(false);
  readonly chapters=signal<Chapter[]>([]);readonly loadingChapters=signal<boolean>(false);readonly chapterError=signal<string>('');readonly chapterNotice=signal<string>('');readonly chapterBusy=signal<boolean>(false);readonly editingChapterId=signal<string|null>(null);readonly chapterNumberInput=signal<string>('');readonly chapterTitleInput=signal<string>('');readonly chapterStartPageInput=signal<string>('');readonly chapterEndPageInput=signal<string>('');readonly chapterContentInput=signal<string>('');readonly deletingChapter=signal<Chapter|null>(null);readonly overwriteManualOnReprocess=signal<boolean>(false);
  readonly targetDiff=computed(()=>{const t=this.reconcileTarget();const cur=this.inventory()?.totalCopies;if(t===null||cur===undefined)return null;return t-cur});
- readonly form=this.fb.group({title:['',[Validators.required,Validators.maxLength(240)]],authors:['',[Validators.required]],categories:['',[Validators.required]],numberOfCopies:['1',[Validators.required,Validators.min(1),Validators.max(500),validCopyQuantity]],isbn:['',[Validators.maxLength(17),validIsbn]],publisher:[''],publicationYear:['',[validPublicationYear]],coverImageUrl:['',[Validators.maxLength(2048),validCoverImageUrl]],description:[''],circulationPolicy:['STANDARD' as 'STANDARD'|'REFERENCE_ONLY'|'SERIAL_RESTRICTED'|'APPROVED_OVERNIGHT_EXCEPTION',[Validators.required]],location:['',[Validators.maxLength(120)]]});
- constructor(){if(this.id){this.service.get(this.id).subscribe({next:b=>{this.inventory.set(b);this.reconcileTarget.set(b.totalCopies);this.form.patchValue({title:b.title,authors:b.authors.join(', '),categories:b.categories.join(', '),isbn:b.isbn||'',publisher:b.publisher||'',publicationYear:b.publicationYear?.toString()||'',coverImageUrl:b.coverImageUrl||'',description:b.description||'',circulationPolicy:b.circulationPolicy});this.loading.set(false)},error:()=>{this.inventoryLoadFailed.set(true);this.loading.set(false);this.error.set('The book record or inventory summary could not be loaded.')}});this.loadDigitalEdition();}}
+ readonly form=this.fb.group({title:['',[Validators.required,Validators.maxLength(240)]],authors:['',[Validators.required]],categories:['',[Validators.required]],department:['',[Validators.required]],numberOfCopies:['1',[Validators.required,Validators.min(1),Validators.max(500),validCopyQuantity]],isbn:['',[Validators.maxLength(17),validIsbn]],publisher:[''],publicationYear:['',[validPublicationYear]],coverImageUrl:['',[Validators.maxLength(2048),validCoverImageUrl]],description:[''],circulationPolicy:['STANDARD' as 'STANDARD'|'REFERENCE_ONLY'|'SERIAL_RESTRICTED'|'APPROVED_OVERNIGHT_EXCEPTION',[Validators.required]],location:['',[Validators.maxLength(120)]]});
+ constructor(){if(this.id){this.service.get(this.id).subscribe({next:b=>{this.inventory.set(b);this.reconcileTarget.set(b.totalCopies);this.form.patchValue({title:b.title,authors:b.authors.join(', '),categories:b.categories.join(', '),department:b.department||'',isbn:b.isbn||'',publisher:b.publisher||'',publicationYear:b.publicationYear?.toString()||'',coverImageUrl:b.coverImageUrl||'',description:b.description||'',circulationPolicy:b.circulationPolicy});this.loading.set(false)},error:()=>{this.inventoryLoadFailed.set(true);this.loading.set(false);this.error.set('The book record or inventory summary could not be loaded.')}});this.loadDigitalEdition();}}
  formatBytes(bytes:number):string{if(!bytes||bytes<=0)return '0 B';const units=['B','KB','MB','GB'];const i=Math.floor(Math.log(bytes)/Math.log(1024));return `${(bytes/Math.pow(1024,i)).toFixed(1)} ${units[i]}`;}
  loadDigitalEdition():void{if(!this.id)return;this.loadingDigital.set(true);this.service.getDigitalEdition(this.id).pipe(finalize(()=>this.loadingDigital.set(false))).subscribe({next:ed=>{this.digitalEdition.set(ed);this.editionLabelInput.set(ed.editionLabel||'');this.loadChapters();},error:()=>{this.digitalEdition.set(null);this.chapters.set([]);}});}
  loadChapters():void{if(!this.id)return;this.loadingChapters.set(true);this.service.getChapters(this.id).pipe(finalize(()=>this.loadingChapters.set(false))).subscribe({next:chs=>this.chapters.set(chs),error:()=>this.chapters.set([])});}
@@ -2213,7 +2302,7 @@ export class BookEditorComponent {
  onFileSelected(event:Event):void{const input=event.target as HTMLInputElement;if(input.files&&input.files.length>0){const file=input.files[0];if(!file.name.toLowerCase().endsWith('.pdf')){this.digitalError.set('Only PDF files (.pdf) are supported.');this.selectedFile.set(null);return;}if(file.size>25*1024*1024){this.digitalError.set('File size exceeds the 25 MB limit.');this.selectedFile.set(null);return;}this.digitalError.set('');this.selectedFile.set(file);}else{this.selectedFile.set(null);}}
  uploadOrReplace(isReplace:boolean):void{const file=this.selectedFile();if(!file||!this.id||this.digitalBusy())return;this.digitalBusy.set(true);this.digitalError.set('');this.digitalNotice.set('');const call=isReplace?this.service.replaceDigitalEdition(this.id,file,this.editionLabelInput().trim()||undefined):this.service.uploadDigitalEdition(this.id,file,this.editionLabelInput().trim()||undefined);call.pipe(finalize(()=>this.digitalBusy.set(false))).subscribe({next:ed=>{this.digitalEdition.set(ed);this.selectedFile.set(null);this.digitalNotice.set(isReplace?'Digital edition replaced successfully.':'Digital edition uploaded successfully.');this.loadChapters();},error:err=>{if(err instanceof HttpErrorResponse&&err.error?.message){this.digitalError.set(err.error.message);}else{this.digitalError.set('Failed to upload digital edition. Please ensure the file is a valid PDF under 25MB.');}}});}
  deleteEdition():void{if(!this.id||this.digitalBusy())return;this.digitalBusy.set(true);this.digitalError.set('');this.digitalNotice.set('');this.service.deleteDigitalEdition(this.id).pipe(finalize(()=>{this.digitalBusy.set(false);this.confirmingDelete.set(false);})).subscribe({next:()=>{this.digitalEdition.set(null);this.selectedFile.set(null);this.editionLabelInput.set('');this.chapters.set([]);this.digitalNotice.set('Digital edition removed successfully. Physical copies and inventory remain unchanged.');},error:()=>this.digitalError.set('Failed to remove digital edition. Please try again.')});}
- invalid(name:'title'){const c=this.form.controls[name];return c.invalid&&c.touched}
+ invalid(name:'title'|'authors'|'categories'|'department'){const c=this.form.controls[name];return c.invalid&&c.touched}
  fieldMessage(field:'isbn'|'publicationYear'|'coverImageUrl'|'numberOfCopies'):string|null {
    const control=this.form.controls[field];
    if(field==='numberOfCopies'&&control.hasError('invalidCopyQuantity'))return 'Enter a whole number from 1 to 500.';
@@ -2271,5 +2360,5 @@ export class BookEditorComponent {
    }
    this.error.set('The security token could not be obtained. Sign in again and retry the save.');
  }
- submit(){if(this.form.invalid||this.pending()){this.form.markAllAsTouched();return}const v=this.form.getRawValue();const payload:BookWrite={title:v.title.trim(),authors:v.authors.split(',').map(x=>x.trim()).filter(Boolean),categories:v.categories.split(',').map(x=>x.trim()).filter(Boolean),isbn:v.isbn.trim()||null,publisher:v.publisher.trim()||null,publicationYear:v.publicationYear?Number(v.publicationYear):null,coverImageUrl:v.coverImageUrl.trim()||null,description:v.description.trim()||null,circulationPolicy:v.circulationPolicy};if(!payload.authors.length||!payload.categories.length){this.error.set('Enter at least one author and one category.');return}this.pending.set(true);this.error.set('');this.serverFieldErrors.set({});const call=this.id?this.service.update(this.id,payload):this.service.create({...payload,numberOfCopies:Number(v.numberOfCopies),location:v.location?.trim()||null});call.pipe(finalize(()=>this.pending.set(false))).subscribe({next:b=>void this.router.navigate(['/books',b.id]),error:e=>this.reportSaveError(e)})}
+ submit(){if(this.form.invalid||this.pending()){this.form.markAllAsTouched();return}const v=this.form.getRawValue();const payload:BookWrite={title:v.title.trim(),department:v.department,authors:v.authors.split(',').map(x=>x.trim()).filter(Boolean),categories:v.categories.split(',').map(x=>x.trim()).filter(Boolean),isbn:v.isbn.trim()||null,publisher:v.publisher.trim()||null,publicationYear:v.publicationYear?Number(v.publicationYear):null,coverImageUrl:v.coverImageUrl.trim()||null,description:v.description.trim()||null,circulationPolicy:v.circulationPolicy};if(!payload.authors.length||!payload.categories.length){this.error.set('Enter at least one author and one category.');return}this.pending.set(true);this.error.set('');this.serverFieldErrors.set({});const call=this.id?this.service.update(this.id,payload):this.service.create({...payload,numberOfCopies:Number(v.numberOfCopies),location:v.location?.trim()||null});call.pipe(finalize(()=>this.pending.set(false))).subscribe({next:b=>void this.router.navigate(['/books',b.id]),error:e=>this.reportSaveError(e)})}
 }

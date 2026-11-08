@@ -41,6 +41,7 @@ public class NotificationService {
     private final BookReservationRepository reservationRepository;
     private final BorrowRequestRepository borrowRequestRepository;
     private final FineRepository fineRepository;
+    private final UserNotificationPreferenceRepository preferenceRepository;
     private final Clock clock;
 
     public NotificationService(NotificationRepository notificationRepository,
@@ -50,6 +51,7 @@ public class NotificationService {
                                BookReservationRepository reservationRepository,
                                BorrowRequestRepository borrowRequestRepository,
                                FineRepository fineRepository,
+                               UserNotificationPreferenceRepository preferenceRepository,
                                Clock clock) {
         this.notificationRepository = notificationRepository;
         this.accountRepository = accountRepository;
@@ -58,6 +60,7 @@ public class NotificationService {
         this.reservationRepository = reservationRepository;
         this.borrowRequestRepository = borrowRequestRepository;
         this.fineRepository = fineRepository;
+        this.preferenceRepository = preferenceRepository;
         this.clock = clock;
     }
 
@@ -170,6 +173,10 @@ public class NotificationService {
             return Optional.empty();
         }
 
+        if (recipientAccountId != null && !isNotificationAllowed(recipientAccountId, category)) {
+            return Optional.empty();
+        }
+
         UserAccount recipient = null;
         if (recipientAccountId != null) {
             recipient = accountRepository.findById(recipientAccountId).orElse(null);
@@ -194,6 +201,38 @@ public class NotificationService {
         );
 
         return Optional.of(notificationRepository.save(notification));
+    }
+
+    public boolean isNotificationAllowed(UUID userId, String category) {
+        if (userId == null || category == null || category.isBlank() || preferenceRepository == null) {
+            return true;
+        }
+        String cat = category.trim().toUpperCase();
+        if ("SECURITY".equals(cat) || "ACCOUNT".equals(cat) || "AUTH".equals(cat) || "VERIFICATION".equals(cat)) {
+            return true;
+        }
+        return preferenceRepository.findByUserAccountId(userId)
+                .map(pref -> {
+                    if (cat.contains("BORROW") || "LOAN".equals(cat) || cat.contains("BOOK_ISSUED")) {
+                        return pref.isBorrowRequestUpdates();
+                    } else if (cat.contains("DUE") || cat.contains("REMINDER")) {
+                        return pref.isLoanDueReminders();
+                    } else if (cat.contains("OVERDUE") || cat.contains("FINE")) {
+                        return pref.isOverdueFineAlerts();
+                    } else if (cat.contains("RECOMMEND")) {
+                        return pref.isBookRecommendations();
+                    } else if (cat.contains("DEPT") || cat.contains("DEPARTMENT")) {
+                        return pref.isDepartmentBookArrivals();
+                    } else if (cat.contains("WISHLIST")) {
+                        return pref.isWishlistBookAlerts();
+                    } else if (cat.contains("NEW_BOOK") || cat.contains("CATALOGUE") || cat.contains("ARRIVAL")) {
+                        return pref.isNewBookArrivals();
+                    } else if (cat.contains("ANNOUNCE")) {
+                        return pref.isLibraryAnnouncements();
+                    }
+                    return true;
+                })
+                .orElse(true);
     }
 
     @Transactional
@@ -278,6 +317,9 @@ public class NotificationService {
 
     @Transactional
     public NotificationRecord sendSystemNotification(UUID recipientAccountId, String title, String message, String category) {
+        if (recipientAccountId != null && !isNotificationAllowed(recipientAccountId, category)) {
+            return null;
+        }
         UserAccount recipient = accountRepository.findById(recipientAccountId).orElse(null);
         Instant now = Instant.now(clock);
         AppNotification notification = new AppNotification(
@@ -352,6 +394,7 @@ public class NotificationService {
                             authors.isBlank() ? "Unknown Author" : authors,
                             subjects.isBlank() ? "General" : subjects,
                             book.getCoverImageUrl(),
+                            null,
                             loan.getId(),
                             displayCode,
                             loan.getDueDate(),
@@ -389,6 +432,7 @@ public class NotificationService {
                             authors.isBlank() ? "Unknown Author" : authors,
                             subjects.isBlank() ? "General" : subjects,
                             book.getCoverImageUrl(),
+                            null,
                             null,
                             null,
                             null,
@@ -433,6 +477,7 @@ public class NotificationService {
                             null,
                             null,
                             null,
+                            null,
                             req.getBorrower() != null ? req.getBorrower().getDisplayName() : null,
                             req.getBorrower() != null ? req.getBorrower().getEmail() : null,
                             req.getStatus().name(),
@@ -453,6 +498,7 @@ public class NotificationService {
                             authors,
                             book != null ? book.getCategories().stream().map(c -> c.getName()).collect(Collectors.joining(", ")) : null,
                             book != null ? book.getCoverImageUrl() : null,
+                            null,
                             loan != null ? loan.getId() : null,
                             loan != null ? "LN-" + loan.getId().toString().substring(0, 8).toUpperCase() : null,
                             loan != null ? loan.getDueDate() : null,
@@ -475,12 +521,14 @@ public class NotificationService {
                     String subjects = book.getCategories().stream()
                             .map(c -> c.getName())
                             .collect(Collectors.joining(", "));
+                    UUID primaryCategoryId = book.getCategories().isEmpty() ? null : book.getCategories().iterator().next().getId();
                     return new NotificationMetadata(
                             book.getId(),
                             book.getTitle(),
                             authors.isBlank() ? "Unknown Author" : authors,
                             subjects.isBlank() ? "General" : subjects,
                             book.getCoverImageUrl(),
+                            primaryCategoryId,
                             null,
                             null,
                             null,
@@ -499,6 +547,7 @@ public class NotificationService {
                 return accountRepository.findById(entityId).map(acc -> {
                     String alert = "Membership status: " + acc.getApprovalStatus().name();
                     return new NotificationMetadata(
+                            null,
                             null,
                             null,
                             null,

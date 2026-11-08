@@ -140,7 +140,8 @@ class DisplayNameGenerationIntegrationTest {
                                 "email", studentEmail,
                                 "role", "STUDENT",
                                 "password", "SecurePass1!",
-                                "confirmPassword", "SecurePass1!"
+                                "confirmPassword", "SecurePass1!",
+                                "department", "Computer Science and Engineering"
                         ))))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));

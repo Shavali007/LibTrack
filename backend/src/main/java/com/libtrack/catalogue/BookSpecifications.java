@@ -2,6 +2,7 @@ package com.libtrack.catalogue;
 
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
@@ -17,14 +18,74 @@ final class BookSpecifications {
 
     static Specification<Book> search(String q, String title, String author, String isbn, String category, Boolean available,
                                       Integer publicationYearFrom, Integer publicationYearTo, Collection<java.util.UUID> bookIds) {
+        return search(q, title, author, isbn, category, null, available, publicationYearFrom, publicationYearTo, bookIds, null, null);
+    }
+
+    static Specification<Book> search(String q, String title, String author, String isbn, String category, Boolean available,
+                                      Integer publicationYearFrom, Integer publicationYearTo, Collection<java.util.UUID> bookIds,
+                                      String sortField, String direction) {
+        return search(q, title, author, isbn, category, null, available, publicationYearFrom, publicationYearTo, bookIds, sortField, direction);
+    }
+
+    static Specification<Book> search(String q, String title, String author, String isbn, String category, String department, Boolean available,
+                                      Integer publicationYearFrom, Integer publicationYearTo, Collection<java.util.UUID> bookIds,
+                                      String sortField, String direction) {
         return (Root<Book> root, CriteriaQuery<?> query, CriteriaBuilder cb) -> {
-            query.distinct(true);
+            boolean isRatingSort = "rating".equalsIgnoreCase(sortField) || "topRated".equalsIgnoreCase(sortField) || "top-rated".equalsIgnoreCase(sortField);
+            if (!isRatingSort) {
+                query.distinct(true);
+            } else {
+                query.distinct(false);
+                if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                    Subquery<Double> avgSub = query.subquery(Double.class);
+                    Root<com.libtrack.review.BookReview> revAvg = avgSub.from(com.libtrack.review.BookReview.class);
+                    avgSub.select(cb.avg(revAvg.get("rating")));
+                    avgSub.where(cb.equal(revAvg.get("book"), root));
+
+                    Subquery<Long> countSub = query.subquery(Long.class);
+                    Root<com.libtrack.review.BookReview> revCount = countSub.from(com.libtrack.review.BookReview.class);
+                    countSub.select(cb.count(revCount));
+                    countSub.where(cb.equal(revCount.get("book"), root));
+
+                    Expression<Integer> hasRating = cb.selectCase()
+                            .when(cb.isNotNull(avgSub), 1)
+                            .otherwise(0)
+                            .as(Integer.class);
+
+                    boolean isAsc = "asc".equalsIgnoreCase(direction);
+                    if (isAsc) {
+                        query.orderBy(
+                                cb.desc(hasRating),
+                                cb.asc(avgSub),
+                                cb.asc(countSub),
+                                cb.asc(root.get("title")),
+                                cb.asc(root.get("id"))
+                        );
+                    } else {
+                        query.orderBy(
+                                cb.desc(hasRating),
+                                cb.desc(avgSub),
+                                cb.desc(countSub),
+                                cb.asc(root.get("title")),
+                                cb.asc(root.get("id"))
+                        );
+                    }
+                }
+            }
             List<Predicate> filters = new ArrayList<>();
             filters.add(cb.isTrue(root.get("active")));
             addTextFilter(filters, root, cb, query, title, "title", null);
             addTextFilter(filters, root, cb, query, author, null, "author");
             addTextFilter(filters, root, cb, query, isbn, "isbn", null);
             addTextFilter(filters, root, cb, query, category, null, "category");
+            if (department != null && !department.isBlank()) {
+                String canonical = com.libtrack.auth.Department.canonicalize(department);
+                if (canonical != null) {
+                    filters.add(cb.equal(root.get("department"), canonical));
+                } else {
+                    filters.add(cb.like(cb.lower(root.get("department")), pattern(department), LIKE_ESCAPE));
+                }
+            }
             if (publicationYearFrom != null) filters.add(cb.greaterThanOrEqualTo(root.get("publicationYear"), publicationYearFrom));
             if (publicationYearTo != null) filters.add(cb.lessThanOrEqualTo(root.get("publicationYear"), publicationYearTo));
             if (bookIds != null) filters.add(bookIds.isEmpty() ? cb.disjunction() : root.get("id").in(bookIds));

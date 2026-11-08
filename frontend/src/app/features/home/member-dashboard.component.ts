@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { forkJoin, of } from 'rxjs';
+import { of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { AuthService } from '../auth/auth.service';
 import { BorrowingService, LoanRecord } from '../circulation/borrowing.service';
@@ -27,17 +27,22 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       <div class="welcome-left">
         <span class="welcome-eyebrow">{{ isFaculty ? 'FACULTY WORKSPACE' : 'STUDENT WORKSPACE' }} &bull; {{ formattedDate }}</span>
         <h1 class="welcome-title">
-          Welcome, {{ username }}!
+          {{ isFaculty ? 'Welcome back, Professor!' : 'Welcome, ' + username + '!' }}
         </h1>
         <p class="welcome-subtitle">
           {{ welcomeSubtitle }}
         </p>
       </div>
 
-      <!-- Right photographic plant & books asset pinned to right bottom -->
-      <div class="welcome-asset-wrap" aria-hidden="true">
-        <img src="/assets/banner-plant-books.png" alt="" class="banner-plant-img" />
+      <!-- Right section matching reference mockup visual asset with quote card, translucent finish, and plant -->
+      <div class="welcome-banner-right" aria-hidden="true">
+        <img src="/assets/banner-student-right.png" alt="" class="banner-right-asset" />
       </div>
+
+      <!-- Accessible quote text for assistive technology -->
+      <blockquote class="sr-only">
+        &ldquo;A library is not just a place to read, but a place to grow.&rdquo;
+      </blockquote>
     </section>
 
     <!-- Four KPI Cards (Active Loans, Due Soon, Reservations, My Requests) -->
@@ -208,8 +213,17 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
                     </div>
                   }
                 </div>
-                <strong class="rec-title">{{ rec.bookTitle }}</strong>
-                <span class="rec-author">{{ formatAuthors(rec.bookAuthors) }}</span>
+                <div class="rec-info-wrap">
+                  <div class="rec-text-group">
+                    <strong class="rec-title">{{ rec.bookTitle }}</strong>
+                    <span class="rec-author">{{ formatAuthors(rec.bookAuthors) }}</span>
+                  </div>
+                  @if (rec.bookCategories && rec.bookCategories.length) {
+                    <div class="rec-tag-row">
+                      <span class="rec-category-tag">{{ rec.bookCategories[0] }}</span>
+                    </div>
+                  }
+                </div>
               </a>
             }
           </div>
@@ -236,21 +250,22 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       border: 0;
     }
 
-    /* Welcome Banner - Exact dimensions and styling from Librarian Dashboard */
+    /* Welcome Banner - Exact match to reference mockup visual treatment */
     .welcome-banner {
       display: flex;
       align-items: center;
-      min-height: 195px;
-      height: clamp(185px, 22vh, 215px);
+      justify-content: space-between;
+      min-height: 185px;
+      height: clamp(185px, 20vh, 205px);
       border-radius: var(--radius-panel, 12px);
       margin-bottom: 1.25rem;
-      background: #EFF1E6 url('/assets/banner-right.png') no-repeat right bottom / auto 100%;
+      background-color: #EDF1E3;
       border: 1px solid #E5E8DE;
       position: relative;
       overflow: hidden;
       box-shadow: 0 1px 6px rgba(40, 30, 10, 0.03);
       flex-shrink: 0;
-      padding: 2rem 2.5rem;
+      padding: 1.75rem 2.5rem;
       box-sizing: border-box;
     }
 
@@ -259,7 +274,9 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       flex-direction: column;
       justify-content: center;
       z-index: 2;
-      max-width: 580px;
+      max-width: 480px;
+      flex: 1;
+      min-width: 0;
     }
 
     .welcome-eyebrow {
@@ -274,11 +291,11 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
 
     .welcome-title {
       font-family: var(--font-serif);
-      font-size: clamp(2.3rem, 2.9vw, 2.85rem);
+      font-size: clamp(2.1rem, 2.7vw, 2.75rem);
       font-weight: 700;
       color: #112A20;
       margin: 0;
-      line-height: 1.1;
+      line-height: 1.15;
       display: flex;
       align-items: center;
       gap: 0.65rem;
@@ -291,24 +308,29 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       line-height: 1.45;
     }
 
-    .welcome-asset-wrap {
+    /* Right visual asset: Contains reference quote card with translucent glass finish, soft shadow, books, and plant */
+    .welcome-banner-right {
       position: absolute;
       right: 0;
+      top: 0;
       bottom: 0;
       height: 100%;
       z-index: 1;
       pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
     }
 
-    .banner-plant-img {
+    .banner-right-asset {
       height: 100%;
-      max-height: 215px;
-      object-fit: contain;
-      object-position: bottom right;
+      width: auto;
+      object-fit: cover;
+      object-position: right center;
       display: block;
     }
 
-    /* 4-Card Statistics Grid - Exact dimensions and styling from Librarian Dashboard */
+    /* 4-Card Statistics Grid */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -403,12 +425,13 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       opacity: 0.4;
     }
 
-    /* Bottom Section - Exact 2-column grid from Librarian Dashboard */
+    /* Bottom Section - Balanced 2-column layout giving ample room to Recommendations */
     .dashboard-grid-bottom {
       display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
       gap: 1.25rem;
       flex: 1;
+      align-items: stretch;
     }
 
     .bottom-panel {
@@ -419,7 +442,6 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       display: flex;
       flex-direction: column;
       min-height: 350px;
-      height: clamp(340px, 40vh, 390px);
       box-shadow: 0 1px 4px rgba(10, 30, 20, 0.02);
       box-sizing: border-box;
       overflow: hidden;
@@ -429,7 +451,7 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 0.85rem;
+      margin-bottom: 1rem;
       padding-bottom: 0;
       flex-shrink: 0;
     }
@@ -504,7 +526,7 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       margin: auto 0;
     }
 
-    /* My Borrowed Books List */
+    /* My Borrowed Books List - Compact, clear, with slightly enlarged covers */
     .borrowed-books-list {
       display: flex;
       flex-direction: column;
@@ -518,7 +540,7 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
-      padding: 0.65rem 0;
+      padding: 0.75rem 0;
       border-bottom: 1px solid #F1F4F1;
     }
 
@@ -529,29 +551,30 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
     .borrowed-book-left {
       display: flex;
       align-items: center;
-      gap: 0.85rem;
+      gap: 0.9rem;
       min-width: 0;
       flex: 1;
     }
 
     .borrowed-book-cover {
-      width: 44px;
-      height: 56px;
-      object-fit: cover;
-      border-radius: 4px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+      width: 48px;
+      height: 64px;
+      object-fit: contain;
+      background: #F8F9FA;
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
       flex-shrink: 0;
     }
 
     .borrowed-book-cover-fallback {
-      width: 44px;
-      height: 56px;
-      border-radius: 4px;
+      width: 48px;
+      height: 64px;
+      border-radius: 6px;
       background: #112A20;
       color: #EAF2EF;
       display: grid;
       place-items: center;
-      font-size: 0.75rem;
+      font-size: 0.8rem;
       font-weight: 700;
       flex-shrink: 0;
       text-transform: uppercase;
@@ -564,20 +587,20 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
     }
 
     .borrowed-book-title {
-      font-size: 0.92rem;
-      font-weight: 700;
+      font-size: 0.94rem;
+      font-weight: 600;
       color: #112A20;
       margin: 0;
-      line-height: 1.25;
+      line-height: 1.3;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .borrowed-book-copy {
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: #64748B;
-      margin: 0.2rem 0 0;
+      margin: 0.25rem 0 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -586,7 +609,7 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
     .days-left-badge {
       font-size: 0.78rem;
       font-weight: 600;
-      padding: 0.3rem 0.75rem;
+      padding: 0.35rem 0.8rem;
       border-radius: 9999px;
       flex-shrink: 0;
       white-space: nowrap;
@@ -607,77 +630,84 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       color: #B91C1C;
     }
 
-    /* Recommended for You Grid (4 book cards) */
+    /* Recommended for You Grid - 3 spacious cards, large covers, balanced internal height */
     .recommendations-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 0.65rem;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.85rem;
       flex: 1;
       align-items: stretch;
-      overflow-x: auto;
     }
 
     .rec-card {
       border: 1px solid #ECEAE3;
-      border-radius: 8px;
-      padding: 0.75rem 0.45rem;
+      border-radius: 12px;
+      padding: 1.05rem 0.85rem 0.95rem;
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
       background: #FFFFFF;
       text-decoration: none;
-      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      transition: all 0.2s ease;
       min-width: 0;
+      box-sizing: border-box;
+      box-shadow: 0 1px 4px rgba(10, 30, 20, 0.02);
     }
 
     .rec-card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-      border-color: #D8D4C8;
+      box-shadow: 0 6px 16px rgba(0, 61, 48, 0.06);
+      border-color: #C2D6CF;
     }
 
     .rec-cover-wrap {
-      width: 72px;
-      height: 104px;
-      margin-bottom: 0.55rem;
+      width: 100px;
+      height: 140px;
+      margin-bottom: 0.8rem;
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #F8F9FA;
     }
 
     .rec-cover-img {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       border-radius: 4px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       display: block;
     }
 
     .rec-cover-fallback {
       width: 100%;
       height: 100%;
-      border-radius: 4px;
+      border-radius: 6px;
       background: linear-gradient(135deg, #112A20 0%, #1E3A2F 100%);
       color: #EAF2EF;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 0.35rem;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+      padding: 0.5rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       box-sizing: border-box;
     }
 
     .rec-fallback-initials {
-      font-size: 0.95rem;
+      font-size: 1.15rem;
       font-weight: 700;
       letter-spacing: 0.05em;
     }
 
     .rec-fallback-tag {
-      font-size: 0.65rem;
-      opacity: 0.75;
-      margin-top: 0.2rem;
+      font-size: 0.7rem;
+      opacity: 0.8;
+      margin-top: 0.35rem;
       text-transform: uppercase;
       max-width: 100%;
       overflow: hidden;
@@ -685,30 +715,78 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       white-space: nowrap;
     }
 
+    .rec-info-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+      flex: 1;
+      justify-content: space-between;
+    }
+
+    .rec-text-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+    }
+
     .rec-title {
-      font-size: 0.82rem;
+      font-size: 0.88rem;
       font-weight: 700;
       color: #112A20;
       margin: 0;
-      line-height: 1.25;
+      line-height: 1.3;
       width: 100%;
+      text-align: center;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
 
     .rec-author {
-      font-size: 0.74rem;
+      font-size: 0.78rem;
       color: #64748B;
       margin: 0.25rem 0 0;
-      line-height: 1.2;
+      line-height: 1.25;
       width: 100%;
+      text-align: center;
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
     }
 
-    /* Responsive matching Librarian Dashboard */
+    .rec-tag-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.7rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .rec-category-tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #003D30;
+      background: #EAF2EF;
+      border: 1px solid #C2D6CF;
+      border-radius: 9999px;
+      padding: 0.15rem 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 960px) {
+      .welcome-banner-right {
+        opacity: 0.35;
+      }
+    }
+
     @media (max-width: 1024px) {
       .stats-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -717,8 +795,7 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
         grid-template-columns: 1fr;
       }
       .bottom-panel {
-        height: auto;
-        min-height: 320px;
+        min-height: auto;
       }
     }
 
@@ -726,13 +803,16 @@ import { FacultyRecommendationGroup, RecommendationService } from '../recommenda
       .welcome-banner {
         padding: 1.5rem 1.25rem;
         height: auto;
-        min-height: 180px;
+        min-height: 175px;
+      }
+      .welcome-banner-right {
+        opacity: 0.25;
       }
       .stats-grid {
         grid-template-columns: 1fr;
       }
       .recommendations-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr;
       }
     }
   `]
@@ -773,7 +853,7 @@ export class MemberDashboardComponent implements OnInit {
 
   get welcomeSubtitle(): string {
     if (this.isFaculty) {
-      return 'Explore resources, support student learning, and shape academic discovery.';
+      return 'Manage your academic recommendations, support students and explore library resources.';
     }
     return 'Explore, borrow and discover books that shape your learning journey.';
   }
@@ -839,7 +919,7 @@ export class MemberDashboardComponent implements OnInit {
         this.myRequestsCount.set(page.totalElements !== undefined ? page.totalElements : page.content.length);
       });
 
-    // 4. Load recommendations
+    // 4. Load recommendations (display top 3 for optimal cover size and readability)
     this.loadingRecs.set(true);
     this.recommendationService.getFacultyRecommendationsForStudents()
       .pipe(
@@ -847,7 +927,7 @@ export class MemberDashboardComponent implements OnInit {
         finalize(() => this.loadingRecs.set(false))
       )
       .subscribe((groups) => {
-        this.recommendations.set(groups.slice(0, 4));
+        this.recommendations.set(groups.slice(0, 3));
       });
   }
 

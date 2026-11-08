@@ -279,10 +279,11 @@
 
 .search-icon {
   position: absolute;
-  left: 0.75rem;
+  left: 0.85rem;
   color: #9CA3AF;
   display: flex;
   pointer-events: none;
+  z-index: 2;
 }
 
 .search-icon svg {
@@ -291,7 +292,8 @@
 }
 
 .toolbar-search-input {
-  padding: 0.45rem 0.85rem 0.45rem 2.25rem;
+  padding: 0.45rem 1rem 0.45rem 2.65rem !important;
+  box-sizing: border-box;
   font-size: 0.84375rem;
   border: 1px solid #D5DCD8;
   border-radius: 8px;
@@ -787,6 +789,18 @@
   font-size: 0.75rem;
   color: #6B7280;
   margin-top: 1px;
+}
+
+.borrower-dept {
+  font-size: 0.72rem;
+  color: #1B4332;
+  background: #E8F5E9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: 2px;
+  font-weight: 500;
+  width: fit-content;
 }
 
 /* Role Pills */

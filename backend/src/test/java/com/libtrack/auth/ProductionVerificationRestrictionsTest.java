@@ -61,7 +61,8 @@ class ProductionVerificationRestrictionsTest {
                         "email", email,
                         "role", "FACULTY",
                         "password", "SecurePass1!",
-                        "confirmPassword", "SecurePass1!"
+                        "confirmPassword", "SecurePass1!",
+                        "department", "Computer Science and Engineering"
                 ))))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"))
@@ -87,7 +88,8 @@ class ProductionVerificationRestrictionsTest {
                         "email", email,
                         "role", "STUDENT",
                         "password", "SecurePass1!",
-                        "confirmPassword", "SecurePass1!"
+                        "confirmPassword", "SecurePass1!",
+                        "department", "Computer Science and Engineering"
                 ))))
                 .andExpect(status().isAccepted());
 
@@ -116,7 +118,8 @@ class ProductionVerificationRestrictionsTest {
                         "email", email,
                         "role", "STUDENT",
                         "password", "SecurePass1!",
-                        "confirmPassword", "SecurePass1!"
+                        "confirmPassword", "SecurePass1!",
+                        "department", "Computer Science and Engineering"
                 ))))
                 .andExpect(status().isAccepted());
 
@@ -149,7 +152,8 @@ class ProductionVerificationRestrictionsTest {
                         "email", email,
                         "role", "STUDENT",
                         "password", "SecurePass1!",
-                        "confirmPassword", "SecurePass1!"
+                        "confirmPassword", "SecurePass1!",
+                        "department", "Computer Science and Engineering"
                 ))))
                 .andExpect(status().isAccepted());
 
@@ -184,7 +188,8 @@ class ProductionVerificationRestrictionsTest {
                         "email", email,
                         "role", "STUDENT",
                         "password", "SecurePass1!",
-                        "confirmPassword", "SecurePass1!"
+                        "confirmPassword", "SecurePass1!",
+                        "department", "Computer Science and Engineering"
                 ))))
                 .andExpect(status().isAccepted());
 
@@ -198,7 +203,8 @@ class ProductionVerificationRestrictionsTest {
                         "email", email,
                         "role", "STUDENT",
                         "password", "SecurePass1!",
-                        "confirmPassword", "SecurePass1!"
+                        "confirmPassword", "SecurePass1!",
+                        "department", "Computer Science and Engineering"
                 ))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
@@ -213,7 +219,8 @@ class ProductionVerificationRestrictionsTest {
                         "email", "another.23bce1004@vitapstudent.ac.in",
                         "role", "STUDENT",
                         "password", "SecurePass1!",
-                        "confirmPassword", "SecurePass1!"
+                        "confirmPassword", "SecurePass1!",
+                        "department", "Computer Science and Engineering"
                 ))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));

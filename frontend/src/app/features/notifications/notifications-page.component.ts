@@ -5,6 +5,8 @@ import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import { NotificationClientService, NotificationItem } from './notification.service';
 import { AuthService } from '../auth/auth.service';
+import { CatalogueService } from '../catalogue/catalogue.service';
+import { ToastService } from '../../shared/layout/toast.component';
 
 @Component({
   selector: 'app-notifications-page',
@@ -17,6 +19,8 @@ export class NotificationsPageComponent implements OnInit {
   readonly notifService = inject(NotificationClientService);
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly catalogueService = inject(CatalogueService);
+  private readonly toastService = inject(ToastService);
 
   readonly notifications = signal<NotificationItem[]>([]);
   readonly selectedNotification = signal<NotificationItem | null>(null);
@@ -176,6 +180,31 @@ export class NotificationsPageComponent implements OnInit {
   }
 
   navigateToEntity(item: NotificationItem): void {
+    const bookId = item.relatedEntityType === 'BOOK'
+      ? (item.relatedEntityId || item.metadata?.bookId)
+      : (item.metadata?.bookId || (item.actionRoute?.startsWith('/workspace/books/') ? item.actionRoute.replace('/workspace/books/', '') : null));
+
+    if (bookId) {
+      this.pendingAction.set(true);
+      this.catalogueService.get(bookId)
+        .pipe(finalize(() => this.pendingAction.set(false)))
+        .subscribe({
+          next: (b) => {
+            if (b && b.active) {
+              void this.router.navigate(['/workspace/books', bookId]);
+            } else {
+              this.errorMessage.set('This book is currently unavailable in the library catalogue.');
+              this.toastService.show('This book is currently unavailable in the library catalogue.', 'warning');
+            }
+          },
+          error: () => {
+            this.errorMessage.set('This book is currently unavailable in the library catalogue.');
+            this.toastService.show('This book is currently unavailable in the library catalogue.', 'warning');
+          }
+        });
+      return;
+    }
+
     if (item.actionRoute) {
       void this.router.navigateByUrl(item.actionRoute);
       return;
@@ -190,8 +219,6 @@ export class NotificationsPageComponent implements OnInit {
       void this.router.navigate(['/workspace/my/requests']);
     } else if (type === 'FINE') {
       void this.router.navigate(['/workspace/my/fines']);
-    } else if (type === 'BOOK' && item.metadata?.bookId) {
-      void this.router.navigate(['/workspace/books', item.metadata.bookId]);
     } else if (type === 'MEMBER_REQUEST') {
       void this.router.navigate(['/workspace/librarian/member-requests']);
     }

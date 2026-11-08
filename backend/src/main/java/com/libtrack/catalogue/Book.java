@@ -39,6 +39,8 @@ public class Book {
     @Enumerated(EnumType.STRING)
     @Column(name = "circulation_policy", nullable = false, length = 40)
     private CirculationPolicy circulationPolicy;
+    @Column(length = 100)
+    private String department;
     @Column(nullable = false)
     private boolean active = true;
     @ManyToMany
@@ -56,15 +58,24 @@ public class Book {
 
     protected Book() {}
     public Book(String title, String isbn, String description, String publisher, Integer publicationYear, String coverImageUrl,
-                CirculationPolicy circulationPolicy, Set<Author> authors, Set<Category> categories) {
-        update(title, isbn, description, publisher, publicationYear, coverImageUrl, circulationPolicy, authors, categories);
+                CirculationPolicy circulationPolicy, String department, Set<Author> authors, Set<Category> categories) {
+        update(title, isbn, description, publisher, publicationYear, coverImageUrl, circulationPolicy, department, authors, categories);
         active = true;
+    }
+    public Book(String title, String isbn, String description, String publisher, Integer publicationYear, String coverImageUrl,
+                CirculationPolicy circulationPolicy, Set<Author> authors, Set<Category> categories) {
+        this(title, isbn, description, publisher, publicationYear, coverImageUrl, circulationPolicy, "Computer Science and Engineering", authors, categories);
+    }
+    public void update(String title, String isbn, String description, String publisher, Integer publicationYear, String coverImageUrl,
+                       CirculationPolicy circulationPolicy, String department, Set<Author> authors, Set<Category> categories) {
+        this.title = title; this.isbn = isbn; this.description = description; this.publisher = publisher;
+        this.publicationYear = publicationYear; this.coverImageUrl = coverImageUrl; this.circulationPolicy = circulationPolicy;
+        this.department = department != null && !department.isBlank() ? department.strip() : this.department;
+        this.authors = new LinkedHashSet<>(authors); this.categories = new LinkedHashSet<>(categories);
     }
     public void update(String title, String isbn, String description, String publisher, Integer publicationYear, String coverImageUrl,
                        CirculationPolicy circulationPolicy, Set<Author> authors, Set<Category> categories) {
-        this.title = title; this.isbn = isbn; this.description = description; this.publisher = publisher;
-        this.publicationYear = publicationYear; this.coverImageUrl = coverImageUrl; this.circulationPolicy = circulationPolicy;
-        this.authors = new LinkedHashSet<>(authors); this.categories = new LinkedHashSet<>(categories);
+        update(title, isbn, description, publisher, publicationYear, coverImageUrl, circulationPolicy, this.department, authors, categories);
     }
     public void deactivate() { active = false; }
     @PrePersist void onCreate() { Instant now = Instant.now(); createdAt = now; updatedAt = now; }
@@ -77,6 +88,8 @@ public class Book {
     public Integer getPublicationYear() { return publicationYear; }
     public String getCoverImageUrl() { return coverImageUrl; }
     public CirculationPolicy getCirculationPolicy() { return circulationPolicy; }
+    public String getDepartment() { return department; }
+    public void setDepartment(String department) { this.department = department; }
     public boolean isActive() { return active; }
     public Set<Author> getAuthors() { return authors; }
     public Set<Category> getCategories() { return categories; }

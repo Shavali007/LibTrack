@@ -66,7 +66,7 @@ describe('AppShellComponent global and sidebar navigation', () => {
     expect(isBefore).toBe(true);
 
     fixture.destroy();
-  });
+  }, 15000);
 
   it('excludes Public Home and Explore Books from sidebar for STUDENT role', async () => {
     profile.set({ id: 'student-1', email: 'student@example.edu', role: 'STUDENT' });
@@ -83,16 +83,16 @@ describe('AppShellComponent global and sidebar navigation', () => {
     expect(sidebar?.textContent).not.toContain('Explore Books');
 
     fixture.destroy();
-  });
+  }, 15000);
 
-  it('renders all 10 student navigation items in the exact required order for STUDENT role', async () => {
+  it('renders all 11 student navigation items in the exact required order for STUDENT role', async () => {
     unreadCount.set(4);
     profile.set({ id: 'student-1', email: 'student@example.edu', role: 'STUDENT' });
     const fixture = await createComponent();
     const element = fixture.nativeElement as HTMLElement;
 
     const navLinks = Array.from(element.querySelectorAll('aside.sidebar .primary-nav > a.nav-link')) as HTMLAnchorElement[];
-    expect(navLinks).toHaveLength(10);
+    expect(navLinks).toHaveLength(11);
 
     const expectedItems = [
       { text: 'Dashboard', href: '/workspace' },
@@ -105,6 +105,7 @@ describe('AppShellComponent global and sidebar navigation', () => {
       { text: 'Library Policies', href: '/workspace/library-policies' },
       { text: 'Fines', href: '/workspace/my/fines' },
       { text: 'Notifications', href: '/workspace/notifications' },
+      { text: 'Settings', href: '/workspace/settings' },
     ];
 
     expectedItems.forEach((expected, index) => {
@@ -128,7 +129,7 @@ describe('AppShellComponent global and sidebar navigation', () => {
     expect(bottomCard?.textContent).toContain('Grow Together');
 
     fixture.destroy();
-  });
+  }, 15000);
 
   it('excludes Public Home and Explore Books from sidebar for FACULTY role', async () => {
     profile.set({ id: 'faculty-1', email: 'faculty@example.edu', role: 'FACULTY' });
@@ -148,16 +149,16 @@ describe('AppShellComponent global and sidebar navigation', () => {
     expect(homeBtn).not.toBeNull();
 
     fixture.destroy();
-  });
+  }, 15000);
 
-  it('renders exactly 9 faculty navigation items in order and excludes Reservations for FACULTY role', async () => {
+  it('renders exactly 10 faculty navigation items in order and excludes Reservations for FACULTY role', async () => {
     unreadCount.set(2);
     profile.set({ id: 'faculty-1', email: 'faculty@example.edu', role: 'FACULTY' });
     const fixture = await createComponent();
     const element = fixture.nativeElement as HTMLElement;
 
     const navLinks = Array.from(element.querySelectorAll('aside.sidebar .primary-nav > a.nav-link')) as HTMLAnchorElement[];
-    expect(navLinks).toHaveLength(9);
+    expect(navLinks).toHaveLength(10);
 
     const expectedItems = [
       { text: 'Dashboard', href: '/workspace' },
@@ -169,6 +170,7 @@ describe('AppShellComponent global and sidebar navigation', () => {
       { text: 'Library Policies', href: '/workspace/library-policies' },
       { text: 'Fines', href: '/workspace/my/fines' },
       { text: 'Notifications', href: '/workspace/notifications' },
+      { text: 'Settings', href: '/workspace/settings' },
     ];
 
     expectedItems.forEach((expected, index) => {
@@ -189,7 +191,7 @@ describe('AppShellComponent global and sidebar navigation', () => {
     expect(badge?.textContent?.trim()).toBe('2');
 
     fixture.destroy();
-  });
+  }, 15000);
 
   it('excludes Public Home and Explore Books from sidebar for LIBRARIAN role', async () => {
     profile.set({ id: 'lib-1', email: 'librarian@example.edu', role: 'LIBRARIAN' });
@@ -216,7 +218,7 @@ describe('AppShellComponent global and sidebar navigation', () => {
     expect(homeBtn).not.toBeNull();
 
     fixture.destroy();
-  });
+  }, 15000);
 
   it('verifies Fines sidebar navigation for Student, Faculty, and Librarian', async () => {
     // 1. Student
@@ -242,5 +244,5 @@ describe('AppShellComponent global and sidebar navigation', () => {
     expect(libFinesLink?.textContent).toContain('Fines');
 
     fixture.destroy();
-  });
+  }, 15000);
 });

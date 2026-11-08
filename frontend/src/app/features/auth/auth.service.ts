@@ -5,6 +5,16 @@ import { Observable, switchMap, tap } from 'rxjs';
 export type AccountRole = 'STUDENT' | 'FACULTY' | 'LIBRARIAN';
 export type ProvisionableRole = 'STUDENT' | 'FACULTY';
 export type RegistrationRole = 'STUDENT' | 'FACULTY';
+
+export const OFFICIAL_DEPARTMENTS = [
+  'Computer Science and Engineering',
+  'Electronics and Communication Engineering',
+  'Electrical and Electronics Engineering',
+  'Mechanical Engineering',
+] as const;
+
+export type OfficialDepartment = typeof OFFICIAL_DEPARTMENTS[number];
+
 export interface RegistrationResponse { status: string; message: string; }
 export interface RegistrationRequest {
   username?: string;
@@ -14,6 +24,7 @@ export interface RegistrationRequest {
   password: string;
   confirmPassword?: string;
   role: RegistrationRole;
+  department?: string;
 }
 
 export interface UserProfile {
@@ -21,6 +32,7 @@ export interface UserProfile {
   email: string;
   role: AccountRole;
   displayName?: string;
+  department?: string;
 }
 
 export interface ProvisionAccountRequest {
@@ -72,6 +84,13 @@ export class AuthService {
   forgotPassword(email: string): Observable<{ message: string }> {
     return this.csrfHeaders().pipe(
       switchMap((headers) => this.http.post<{ message: string }>(`${this.api}/forgot-password`, { email }, { headers })),
+    );
+  }
+
+  validateResetToken(token: string): Observable<{ valid: boolean; status: string; message: string }> {
+    return this.http.get<{ valid: boolean; status: string; message: string }>(
+      `${this.api}/reset-password/validate`,
+      { params: { token } }
     );
   }
 

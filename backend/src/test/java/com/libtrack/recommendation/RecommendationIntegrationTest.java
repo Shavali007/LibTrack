@@ -416,4 +416,178 @@ class RecommendationIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0]").value(book1.getId().toString()));
     }
+
+    @Test
+    void facultyDirectoryIncludesFacultyWithZeroRecommendationsAndSupportsSearch() throws Exception {
+        // Initially, faculty1 and faculty2 both have 0 recommendations
+        mvc.perform(get("/api/v1/recommendations/faculty-directory")
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '" + faculty1.getId() + "')].recommendationCount").value(0))
+                .andExpect(jsonPath("$[?(@.id == '" + faculty2.getId() + "')].recommendationCount").value(0));
+
+        // faculty1 recommends book1
+        mvc.perform(post("/api/v1/recommendations")
+                        .with(user(new AccountUserDetails(faculty1)))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CreateRecommendationRequest(book1.getId(), "Must read"))))
+                .andExpect(status().isCreated());
+
+        // Now faculty directory has faculty1 with count 1 and faculty2 with count 0
+        mvc.perform(get("/api/v1/recommendations/faculty-directory")
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '" + faculty1.getId() + "')].recommendationCount").value(1))
+                .andExpect(jsonPath("$[?(@.id == '" + faculty2.getId() + "')].recommendationCount").value(0));
+
+        // Search by name partial match
+        mvc.perform(get("/api/v1/recommendations/faculty-directory?q=" + faculty2.getDisplayName())
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '" + faculty2.getId() + "')].displayName").value(faculty2.getDisplayName()));
+
+        // Search by employee ID
+        mvc.perform(get("/api/v1/recommendations/faculty-directory?q=" + faculty1.getInstitutionalId())
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '" + faculty1.getId() + "')].displayName").value(faculty1.getDisplayName()));
+
+        // Filter by Department
+        mvc.perform(get("/api/v1/recommendations/faculty-directory")
+                        .param("department", "Computer Science")
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '" + faculty1.getId() + "')]").exists())
+                .andExpect(jsonPath("$[?(@.id == '" + faculty2.getId() + "')]").exists());
+    }
+
+    @Test
+    void facultyDetailsReturnsCorrectBooksAndHandlesZeroRecommendations() throws Exception {
+        // Faculty 2 has 0 recommendations
+        mvc.perform(get("/api/v1/recommendations/faculty/" + faculty2.getId())
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("Prof. Anil Kumar"))
+                .andExpect(jsonPath("$.recommendationCount").value(0))
+                .andExpect(jsonPath("$.books.length()").value(0));
+
+        // Faculty 1 recommends book 1
+        mvc.perform(post("/api/v1/recommendations")
+                        .with(user(new AccountUserDetails(faculty1)))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CreateRecommendationRequest(book1.getId(), "Recommended Clean Code"))))
+                .andExpect(status().isCreated());
+
+        mvc.perform(get("/api/v1/recommendations/faculty/" + faculty1.getId())
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("Dr. Rao Manmadha"))
+                .andExpect(jsonPath("$.recommendationCount").value(1))
+                .andExpect(jsonPath("$.books[0].title").value("Clean Code"))
+                .andExpect(jsonPath("$.books[0].message").value("Recommended Clean Code"));
+    }
+
+    @Test
+    void facultyDetailsErrorHandlingForNonexistentOrInvalidFaculty() throws Exception {
+        // Nonexistent faculty ID
+        mvc.perform(get("/api/v1/recommendations/faculty/" + UUID.randomUUID())
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RECOMMENDATION_NOT_FOUND"));
+
+        // Non-faculty account requested (student account)
+        mvc.perform(get("/api/v1/recommendations/faculty/" + student2.getId())
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("User is not a faculty member."));
+
+        // Invalid UUID string
+        mvc.perform(get("/api/v1/recommendations/faculty/not-a-valid-uuid")
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_ARGUMENT"));
+
+        // Unauthenticated access
+        mvc.perform(get("/api/v1/recommendations/faculty/" + faculty1.getId()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void topRecommendedBooksAndRecentlyRecommendedEndpointsWork() throws Exception {
+        // Book 1 recommended by both faculty 1 and faculty 2 (distinct faculty = 2)
+        mvc.perform(post("/api/v1/recommendations")
+                        .with(user(new AccountUserDetails(faculty1)))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CreateRecommendationRequest(book1.getId(), "Rec 1"))))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/v1/recommendations")
+                        .with(user(new AccountUserDetails(faculty2)))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CreateRecommendationRequest(book1.getId(), "Rec 2"))))
+                .andExpect(status().isCreated());
+
+        // Book 2 recommended only by faculty 1 (distinct faculty = 1)
+        mvc.perform(post("/api/v1/recommendations")
+                        .with(user(new AccountUserDetails(faculty1)))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CreateRecommendationRequest(book2.getId(), "Rec 3"))))
+                .andExpect(status().isCreated());
+
+        // Top recommended: Book 1 should be #1 (distinct faculty = 2), Book 2 should be #2 (distinct faculty = 1)
+        mvc.perform(get("/api/v1/recommendations/top?limit=5")
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].title").value("Clean Code"))
+                .andExpect(jsonPath("$[0].distinctFacultyCount").value(2))
+                .andExpect(jsonPath("$[1].title").value("Effective Java"))
+                .andExpect(jsonPath("$[1].distinctFacultyCount").value(1));
+
+        // Recently recommended: should return 3 recs ordered by createdAt DESC
+        mvc.perform(get("/api/v1/recommendations/recent?limit=5")
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].bookTitle").value("Effective Java"));
+    }
+
+    @Test
+    void studentInterestsAndPersonalizedRecommendations() throws Exception {
+        // Faculty 1 recommends book 1 (Category: Computer Science)
+        mvc.perform(post("/api/v1/recommendations")
+                        .with(user(new AccountUserDetails(faculty1)))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CreateRecommendationRequest(book1.getId(), "For CS students"))))
+                .andExpect(status().isCreated());
+
+        // Update student interests
+        StudentInterestsRequest interestReq = new StudentInterestsRequest(java.util.List.of("Computer Science", "Software Engineering"));
+        mvc.perform(put("/api/v1/recommendations/interests")
+                        .with(user(new AccountUserDetails(student1)))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(interestReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories.length()").value(2));
+
+        // Get student interests
+        mvc.perform(get("/api/v1/recommendations/interests")
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[0]").value("Computer Science"));
+
+        // Get personalized recommendations
+        mvc.perform(get("/api/v1/recommendations/personalized")
+                        .with(user(new AccountUserDetails(student1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].title").value("Clean Code"));
+    }
 }

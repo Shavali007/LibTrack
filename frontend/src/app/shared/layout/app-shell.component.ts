@@ -7,11 +7,14 @@ import { AuthService } from '../../features/auth/auth.service';
 import { LibrarianOperationsService } from '../../features/librarian/librarian-operations.service';
 import { MemberRequestsService } from '../../features/librarian/member-requests.service';
 import { NotificationClientService, NotificationItem } from '../../features/notifications/notification.service';
+import { CatalogueService } from '../../features/catalogue/catalogue.service';
+import { ToastService } from './toast.component';
+import { UserProfileDropdownComponent } from './user-profile-dropdown.component';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, FormsModule, CommonModule],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, FormsModule, CommonModule, UserProfileDropdownComponent],
   template: `
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="app-frame" [class.reader-mode]="isReaderRoute()">
@@ -316,6 +319,16 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
                 <span class="sidebar-badge-count">{{ unreadCount() }}</span>
               }
             </a>
+            <!-- Settings -->
+            <a class="nav-link" routerLink="/workspace/settings" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </span>
+              <span>Settings</span>
+            </a>
           } @else {
             <!-- Student Navigation (9 items in hierarchy) -->
             <!-- 1. Dashboard -->
@@ -435,6 +448,16 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
               @if (unreadCount() > 0) {
                 <span class="sidebar-badge-count">{{ unreadCount() }}</span>
               }
+            </a>
+            <!-- Settings -->
+            <a class="nav-link" routerLink="/workspace/settings" routerLinkActive="active" ariaCurrentWhenActive="page">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </span>
+              <span>Settings</span>
             </a>
           }
         </nav>
@@ -629,54 +652,8 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
               }
             </div>
 
-            <!-- User Menu with Avatar and Details -->
-            <div class="user-profile-menu">
-              <button
-                type="button"
-                class="user-profile-trigger"
-                (click)="toggleUserMenu()"
-                [attr.aria-expanded]="userMenuOpen()"
-                aria-label="User profile options"
-              >
-                <span class="user-avatar" aria-hidden="true">{{ initials }}</span>
-                <div class="user-text">
-                  <span class="user-name">{{ userDisplayName }}</span>
-                  @if (roleSubheading) {
-                    <span class="user-role">{{ roleSubheading }}</span>
-                  }
-                </div>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chevron-svg" aria-hidden="true">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </button>
-
-              @if (userMenuOpen()) {
-                <div class="user-dropdown-card surface-card" (click)="$event.stopPropagation()">
-                  <div class="dropdown-header">
-                    <strong>{{ auth.profile()?.displayName || auth.profile()?.email }}</strong>
-                    @if (auth.profile()?.displayName) {
-                      <span class="muted" style="display:block;font-size:0.8rem;margin:0.15rem 0 0.35rem">{{ auth.profile()?.email }}</span>
-                    }
-                    <span class="status-badge status-badge-success">{{ auth.profile()?.role }}</span>
-                  </div>
-                  <div class="dropdown-actions">
-                    <button
-                      class="button button-quiet button-sm dropdown-item"
-                      type="button"
-                      (click)="signOut()"
-                      [disabled]="pending()"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-inline">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <polyline points="16 17 21 12 16 7"></polyline>
-                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                      </svg>
-                      {{ pending() ? 'Signing out…' : 'Sign out' }}
-                    </button>
-                  </div>
-                </div>
-              }
-            </div>
+            <!-- Reusable Profile Dropdown Component -->
+            <app-user-profile-dropdown />
           </div>
         </header>
 
@@ -1246,7 +1223,7 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
       width: 17px;
       height: 17px;
     }
-    .nd-item-icon.icon-book, .nd-item-icon.icon-book-due { background: #EAF2EF; color: #003D30; }
+    .nd-item-icon.icon-book, .nd-item-icon.icon-book-due, .nd-item-icon.icon-book-open { background: #EAF2EF; color: #003D30; }
     .nd-item-icon.icon-calendar { background: #F0EBF8; color: #6D28D9; }
     .nd-item-icon.icon-check-circle { background: #ECFDF5; color: #059669; }
     .nd-item-icon.icon-arrow-return { background: #FFF4EB; color: #EA580C; }
@@ -1302,92 +1279,6 @@ import { NotificationClientService, NotificationItem } from '../../features/noti
     }
     .nd-view-all:hover {
       text-decoration: underline;
-    }
-
-    /* User Profile Trigger & Dropdown */
-    .user-profile-menu {
-      position: relative;
-    }
-    .user-profile-trigger {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.35rem 0.5rem;
-      border: 1px solid transparent;
-      border-radius: 8px;
-      background: transparent;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .user-profile-trigger:hover {
-      background: #F7FAFC;
-    }
-    .user-avatar {
-      display: grid;
-      width: 2.5rem;
-      height: 2.5rem;
-      place-items: center;
-      border-radius: 50%;
-      background: #0F2942;
-      color: #FFFFFF;
-      font-weight: 700;
-      font-size: 0.95rem;
-      text-transform: uppercase;
-    }
-    .user-text {
-      display: flex;
-      flex-direction: column;
-      text-align: left;
-      line-height: 1.25;
-    }
-    .user-name {
-      font-size: 14.5px;
-      font-weight: 700;
-      color: #1A202C;
-    }
-    .user-role {
-      font-size: 12px;
-      font-weight: 400;
-      color: #718096;
-    }
-    .chevron-svg {
-      width: 1rem;
-      height: 1rem;
-      color: #718096;
-    }
-
-    .user-dropdown-card {
-      position: absolute;
-      top: calc(100% + 8px);
-      right: 0;
-      z-index: 50;
-      min-width: 15rem;
-      padding: 0.85rem;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12);
-      border-radius: 8px;
-    }
-    .dropdown-header {
-      padding-bottom: 0.65rem;
-      margin-bottom: 0.65rem;
-      border-bottom: 1px solid var(--color-line-200);
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-    .dropdown-header strong {
-      font-size: 0.8rem;
-      color: var(--color-charcoal-900);
-      word-break: break-all;
-    }
-    .dropdown-item {
-      width: 100%;
-      justify-content: flex-start;
-      gap: 0.45rem;
-      color: var(--color-danger-700);
-    }
-    .icon-inline {
-      width: 0.95rem;
-      height: 0.95rem;
     }
 
     /* Main Content Area (Horizontal padding: ~44px, Vertical padding: 24px top / 28px bottom) */
@@ -1479,6 +1370,8 @@ export class AppShellComponent implements OnInit {
   private readonly ops = inject(LibrarianOperationsService);
   private readonly memberRequestsService = inject(MemberRequestsService);
   readonly notifService = inject(NotificationClientService);
+  private readonly catalogueService = inject(CatalogueService);
+  private readonly toastService = inject(ToastService);
 
   readonly pending = signal(false);
   readonly userMenuOpen = signal(false);
@@ -1546,6 +1439,27 @@ export class AppShellComponent implements OnInit {
       this.notifService.markAsRead(item.id).subscribe();
     }
     this.closeNotifDropdown();
+
+    const bookId = item.relatedEntityType === 'BOOK'
+      ? (item.relatedEntityId || item.metadata?.bookId)
+      : (item.metadata?.bookId || (item.actionRoute?.startsWith('/workspace/books/') ? item.actionRoute.replace('/workspace/books/', '') : null));
+
+    if (bookId) {
+      this.catalogueService.get(bookId).subscribe({
+        next: (b) => {
+          if (b && b.active) {
+            void this.router.navigate(['/workspace/books', bookId]);
+          } else {
+            this.toastService.show('This book is currently unavailable in the library catalogue.', 'warning');
+          }
+        },
+        error: () => {
+          this.toastService.show('This book is currently unavailable in the library catalogue.', 'warning');
+        }
+      });
+      return;
+    }
+
     if (item.actionRoute) {
       void this.router.navigateByUrl(item.actionRoute);
     } else {

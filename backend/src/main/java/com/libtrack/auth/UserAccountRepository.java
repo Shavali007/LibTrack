@@ -21,6 +21,8 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID>,
     Optional<UserAccount> findByIdAndEnabledTrue(UUID id);
     boolean existsByEmail(String email);
     boolean existsByInstitutionalId(String institutionalId);
+    boolean existsByDisplayNameIgnoreCaseAndIdNot(String displayName, UUID id);
+    Optional<UserAccount> findByDisplayNameIgnoreCase(String displayName);
     boolean existsByRole(AccountRole role);
     Optional<UserAccount> findFirstByRoleAndEnabledTrue(AccountRole role);
 
@@ -29,4 +31,7 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID>,
 
     @Query("select count(u) from UserAccount u where u.approvalStatus = :status and (u.role = com.libtrack.auth.AccountRole.STUDENT or u.role = com.libtrack.auth.AccountRole.FACULTY)")
     long countByApprovalStatusForMembers(@Param("status") ApprovalStatus status);
+
+    @Query("select u from UserAccount u where u.role = com.libtrack.auth.AccountRole.FACULTY and u.enabled = true and u.approvalStatus = com.libtrack.auth.ApprovalStatus.APPROVED order by coalesce(u.displayName, u.email) asc")
+    java.util.List<UserAccount> findAllApprovedFaculty();
 }

@@ -21,6 +21,7 @@ public record BookRequest(
         Integer publicationYear,
         @Size(max = 2048) String coverImageUrl,
         @NotNull CirculationPolicy circulationPolicy,
+        @Size(max = 100) String department,
         @NotEmpty @Size(max = 12) List<@NotBlank @Size(max = 160) String> authors,
         @NotEmpty @Size(max = 10) List<@NotBlank @Size(max = 100) String> categories,
         @Min(value = 1, message = "Number of copies must be a whole number from 1 to 500")
@@ -29,11 +30,24 @@ public record BookRequest(
         BigDecimal numberOfCopies,
         @Size(max = 120) String location) {
 
+    public BookRequest(
+            String title, String isbn, String description, String publisher, Integer publicationYear,
+            String coverImageUrl, CirculationPolicy circulationPolicy, List<String> authors,
+            List<String> categories, BigDecimal numberOfCopies, String location) {
+        this(title, isbn, description, publisher, publicationYear, coverImageUrl, circulationPolicy,
+                null, authors, categories, numberOfCopies, location);
+    }
+
     @AssertTrue(message = "ISBN must be a valid ISBN-10 or ISBN-13")
     public boolean isIsbnValid() { return IsbnValidator.isValid(isbn); }
 
     @AssertTrue(message = "Publication year must be between 1000 and the current year")
     public boolean isPublicationYearValid() { return publicationYear == null || (publicationYear >= 1000 && publicationYear <= Year.now().getValue()); }
+
+    @AssertTrue(message = "Department must be one of the four official departments")
+    public boolean isDepartmentValid() {
+        return department == null || department.isBlank() || com.libtrack.auth.Department.isValid(department);
+    }
 
     @AssertTrue(message = "Cover image URL must use HTTP or HTTPS")
     public boolean isCoverImageUrlValid() {

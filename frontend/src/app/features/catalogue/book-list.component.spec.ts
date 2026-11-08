@@ -226,4 +226,21 @@ describe('BookListComponent', () => {
     expect((fixture.nativeElement.querySelector('#catalogue-sort') as HTMLSelectElement).value).toBe('trending');
     expect(fixture.nativeElement.textContent).toContain('Recent demand');
   });
+
+  it('queries backend API with rating sort when Top Rated is selected', () => {
+    http.expectOne('/api/v1/categories').flush([]);
+    http.expectOne('/api/v1/books/statistics').flush({ totalBooks: 2, totalCategories: 1, availableCopies: 1, availableBooks: 1, unavailableBooks: 1, minimumPublicationYear: null, maximumPublicationYear: null });
+    http.expectOne(request => request.url === '/api/v1/books').flush({ content: [], page: 0, size: 12, totalElements: 0, totalPages: 0 });
+    const sortSelect = fixture.nativeElement.querySelector('#catalogue-sort') as HTMLSelectElement;
+    sortSelect.value = 'topRated';
+    sortSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    const request = http.expectOne(request => request.url === '/api/v1/books' && request.params.get('sort') === 'rating' && request.params.get('direction') === 'desc');
+    request.flush({
+      content: [{ id: 'top-book', title: 'Top Rated Book', isbn: null, authors: ['Top Author'], categories: ['Programming'], publisher: null, publicationYear: 2023, coverImageUrl: null, circulationPolicy: 'STANDARD', totalCopies: 1, availableCopies: 1, onLoanCopies: 0, lostCopies: 0, damagedCopies: 0, withdrawnCopies: 0 }],
+      page: 0, size: 12, totalElements: 1, totalPages: 1
+    });
+    fixture.detectChanges();
+    expect(sortSelect.value).toBe('topRated');
+    expect(fixture.nativeElement.textContent).toContain('Top Rated Book');
+  });
 });

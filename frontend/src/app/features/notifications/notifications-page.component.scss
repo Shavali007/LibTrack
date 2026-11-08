@@ -290,7 +290,8 @@
   }
 
   &.icon-book,
-  &.icon-book-due {
+  &.icon-book-due,
+  &.icon-book-open {
     background-color: #EAF2EF;
     color: #003D30;
   }
@@ -355,6 +356,21 @@
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
+}
+
+.card-wishlist-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background-color: var(--color-primary-soft, #EAF2EF);
+  color: var(--color-primary, #003D30);
+  border: 1px solid var(--color-primary-border, #C2D6CF);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
 }
 
 .card-title {
@@ -441,7 +457,8 @@
   }
 
   &.icon-book,
-  &.icon-book-due {
+  &.icon-book-due,
+  &.icon-book-open {
     background-color: #EAF2EF;
     color: #003D30;
   }
@@ -491,6 +508,27 @@
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+
+.detail-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.badge-wishlist-match {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background-color: var(--color-primary-soft, #EAF2EF);
+  color: var(--color-primary, #003D30);
+  border: 1px solid var(--color-primary-border, #C2D6CF);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .detail-title {

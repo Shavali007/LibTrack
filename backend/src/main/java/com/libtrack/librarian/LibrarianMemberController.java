@@ -32,15 +32,25 @@ public class LibrarianMemberController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) AccountRole role,
             @RequestParam(required = false) Boolean enabled,
+            @RequestParam(required = false) String department,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return memberService.listMembers(q, role, enabled, page, size);
+        return memberService.listMembers(q, role, enabled, department, page, size);
     }
 
     @GetMapping("/{memberId}")
     @PreAuthorize("hasRole('LIBRARIAN')")
     public MemberDetailResponse get(@PathVariable UUID memberId) {
         return memberService.getMemberDetails(memberId);
+    }
+
+    @PostMapping("/{memberId}/department")
+    @PreAuthorize("hasRole('LIBRARIAN')")
+    public ResponseEntity<MemberDetailResponse> updateDepartment(@PathVariable UUID memberId,
+                                                                 @RequestBody Map<String, String> request) {
+        String department = request != null ? request.get("department") : null;
+        MemberDetailResponse updated = memberService.updateMemberDepartment(memberId, department);
+        return ResponseEntity.ok(updated);
     }
 
     @PostMapping("/{memberId}/status")
@@ -63,6 +73,12 @@ public class LibrarianMemberController {
     public ResponseEntity<Void> disable(@PathVariable UUID memberId) {
         memberService.updateAccountStatus(memberId, false);
         return ResponseEntity.noContent().build();
+    }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "INVALID_ARGUMENT", "message", exception.getMessage()));
     }
 
     @org.springframework.web.bind.annotation.ExceptionHandler(IllegalStateException.class)

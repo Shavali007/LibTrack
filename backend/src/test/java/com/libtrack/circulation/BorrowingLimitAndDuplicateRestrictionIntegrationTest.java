@@ -172,7 +172,7 @@ class BorrowingLimitAndDuplicateRestrictionIntegrationTest {
     }
 
     @Test
-    void userCannotBorrowPreviouslyBorrowedBookAgainEvenAfterReturning() throws Exception {
+    void userCanBorrowPreviouslyBorrowedBookAgainAfterReturning() throws Exception {
         UserAccount student = member(AccountRole.STUDENT);
         MockHttpSession studentSession = login(student);
 
@@ -185,24 +185,107 @@ class BorrowingLimitAndDuplicateRestrictionIntegrationTest {
         approve(r1);
         String loan1Id = json(issue(r1, copy1)).get("id").asText();
 
+        // While loan is active, attempting to borrow the same book again is blocked
+        MvcResult submitWhileActive = httpPost(studentSession, "/api/v1/borrow-requests", Map.of("bookId", bookId));
+        assertEquals(409, submitWhileActive.getResponse().getStatus());
+        assertTrue(json(submitWhileActive).get("message").asText().contains("currently have an active loan for this book"));
+
         // Return the book
         MvcResult returnRes = httpPost(lib, "/api/v1/loans/" + loan1Id + "/return", Map.of("condition", "GOOD"));
         assertEquals(200, returnRes.getResponse().getStatus());
 
-        // Attempting to borrow the same book again (even a different physical copy) must be rejected
-        MvcResult submitAgain = httpPost(studentSession, "/api/v1/borrow-requests", Map.of("bookId", bookId));
-        assertEquals(409, submitAgain.getResponse().getStatus());
-        JsonNode errNode = json(submitAgain);
-        assertTrue(errNode.get("message").asText().contains("already borrowed this book previously"),
-                "Expected duplicate borrowing error, got: " + errNode.get("message").asText());
+        // Check eligibility endpoint returns eligible = true, hasReturnedHistory = true
+        MvcResult eligRes = mvc.perform(get("/api/v1/borrow-requests/eligibility").param("bookId", bookId).session(studentSession)).andReturn();
+        assertEquals(200, eligRes.getResponse().getStatus());
+        JsonNode eligJson = json(eligRes);
+        assertTrue(eligJson.get("eligible").asBoolean());
+        assertTrue(eligJson.get("hasReturnedHistory").asBoolean());
+        org.junit.jupiter.api.Assertions.assertFalse(eligJson.get("hasActiveLoan").asBoolean());
+        org.junit.jupiter.api.Assertions.assertFalse(eligJson.get("hasActiveRequest").asBoolean());
 
-        // Another user CAN borrow the same book
-        UserAccount student2 = member(AccountRole.STUDENT);
-        MockHttpSession student2Session = login(student2);
-        String r2 = submit(student2Session, bookId);
+        // Student can now borrow the same book again
+        String r2 = submit(studentSession, bookId);
         approve(r2);
         MvcResult issue2 = issue(r2, copy2);
         assertEquals(201, issue2.getResponse().getStatus());
+    }
+
+    @Test
+    void duplicateBorrowingScenariosCoveredProperly() throws Exception {
+        UserAccount student = member(AccountRole.STUDENT);
+        MockHttpSession studentSession = login(student);
+
+        String bookId = book(CirculationPolicy.STANDARD);
+        String copy1 = copy(bookId);
+        String copy2 = copy(bookId);
+
+        // Scenario 1: Never borrowed -> allowed
+        MvcResult elig1 = mvc.perform(get("/api/v1/borrow-requests/eligibility").param("bookId", bookId).session(studentSession)).andReturn();
+        assertEquals(200, elig1.getResponse().getStatus());
+        assertTrue(json(elig1).get("eligible").asBoolean());
+
+        // Scenario 3: Pending request exists -> blocked
+        String r1 = submit(studentSession, bookId);
+        MvcResult submitPending = httpPost(studentSession, "/api/v1/borrow-requests", Map.of("bookId", bookId));
+        assertEquals(409, submitPending.getResponse().getStatus());
+        assertTrue(json(submitPending).get("message").asText().contains("pending borrowing request"));
+
+        // Scenario 4: Approved request exists -> blocked
+        approve(r1);
+        MvcResult submitApproved = httpPost(studentSession, "/api/v1/borrow-requests", Map.of("bookId", bookId));
+        assertEquals(409, submitApproved.getResponse().getStatus());
+        assertTrue(json(submitApproved).get("message").asText().contains("approved request awaiting book issuance"));
+
+        // Issue book -> loan active. Scenario 2: Active loan exists -> blocked
+        String loan1Id = json(issue(r1, copy1)).get("id").asText();
+        MvcResult submitActive = httpPost(studentSession, "/api/v1/borrow-requests", Map.of("bookId", bookId));
+        assertEquals(409, submitActive.getResponse().getStatus());
+        assertTrue(json(submitActive).get("message").asText().contains("currently have an active loan"));
+
+        // Scenario 5: Return loan -> allowed
+        httpPost(lib, "/api/v1/loans/" + loan1Id + "/return", Map.of("condition", "GOOD"));
+        String r2 = submit(studentSession, bookId);
+        approve(r2);
+        String loan2Id = json(issue(r2, copy2)).get("id").asText();
+
+        // Scenario 6: Multiple returned loans -> allowed
+        httpPost(lib, "/api/v1/loans/" + loan2Id + "/return", Map.of("condition", "GOOD"));
+        String r3 = submit(studentSession, bookId);
+        org.junit.jupiter.api.Assertions.assertNotNull(r3);
+
+        // Scenario 7: Rejected request -> allowed
+        httpPost(lib, "/api/v1/borrow-requests/" + r3 + "/decision", Map.of("decision", "REJECT", "note", "Test rejection"));
+        String r4 = submit(studentSession, bookId);
+        org.junit.jupiter.api.Assertions.assertNotNull(r4);
+
+        // After rejecting r4 as well -> allowed to request again
+        httpPost(lib, "/api/v1/borrow-requests/" + r4 + "/decision", Map.of("decision", "REJECT", "note", "Second rejection"));
+        String r5 = submit(studentSession, bookId);
+        org.junit.jupiter.api.Assertions.assertNotNull(r5);
+    }
+
+    @Test
+    void facultyCanBorrowPreviouslyBorrowedBookAgainAfterReturning() throws Exception {
+        UserAccount faculty = member(AccountRole.FACULTY);
+        MockHttpSession facultySession = login(faculty);
+
+        String bookId = book(CirculationPolicy.STANDARD);
+        String copy1 = copy(bookId);
+        String copy2 = copy(bookId);
+
+        // Faculty first borrowing
+        String r1 = submit(facultySession, bookId);
+        approve(r1);
+        String loanId = json(issue(r1, copy1)).get("id").asText();
+
+        // Return loan
+        httpPost(lib, "/api/v1/loans/" + loanId + "/return", Map.of("condition", "GOOD"));
+
+        // Faculty borrowing again after return
+        String r2 = submit(facultySession, bookId);
+        approve(r2);
+        MvcResult issueRes = issue(r2, copy2);
+        assertEquals(201, issueRes.getResponse().getStatus());
     }
 
     @Test

@@ -76,7 +76,7 @@ public class SecurityConfiguration {
                 authorize.requestMatchers("/api/health", "/swagger-ui/**", "/v3/api-docs/**",
                         "/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/auth/register",
                         "/api/v1/auth/verify-email",
-                        "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll();
+                        "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/reset-password/**").permitAll();
                 if (environment.acceptsProfiles(Profiles.of("development"))) {
                     authorize.requestMatchers("/api/v1/dev/mail-capture", "/api/v1/dev/mail-capture/**").permitAll();
                 }
@@ -93,7 +93,8 @@ public class SecurityConfiguration {
                         "/api/v1/reservations", "/api/v1/reservations/**",
                         "/api/v1/wishlist", "/api/v1/wishlist/**",
                         "/api/v1/circulation", "/api/v1/circulation/**",
-                        "/api/v1/fines", "/api/v1/fines/**").authenticated();
+                        "/api/v1/fines", "/api/v1/fines/**",
+                        "/api/v1/users", "/api/v1/users/**").authenticated();
                 authorize.anyRequest().denyAll();
             })
             .sessionManagement(session -> session

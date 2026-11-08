@@ -2,6 +2,7 @@ package com.libtrack.circulation;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -16,14 +17,15 @@ import com.libtrack.notifications.NotificationService;
 @Component
 public class DueDateNotificationScheduler {
     private static final Logger log = LoggerFactory.getLogger(DueDateNotificationScheduler.class);
+    private static final ZoneId KOLKATA_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final LoanRepository loanRepository;
     private final NotificationService notificationService;
     private final Clock clock;
 
     public DueDateNotificationScheduler(LoanRepository loanRepository,
-                                       NotificationService notificationService,
-                                       Clock clock) {
+                                        NotificationService notificationService,
+                                        Clock clock) {
         this.loanRepository = loanRepository;
         this.notificationService = notificationService;
         this.clock = clock;
@@ -33,67 +35,13 @@ public class DueDateNotificationScheduler {
     @Transactional
     public void runDueDateAndOverdueNotifications() {
         try {
-            LocalDate today = LocalDate.now(clock);
+            LocalDate today = LocalDate.now(clock.withZone(KOLKATA_ZONE));
 
-            // 1. Due in 3 days
-            LocalDate dueIn3 = today.plusDays(3);
-            List<Loan> loansDueIn3 = loanRepository.findByStatusAndDueDate(LoanStatus.ACTIVE, dueIn3);
-            for (Loan loan : loansDueIn3) {
-                String dedupKey = "DUE_REMINDER_3D:" + loan.getId() + ":" + loan.getDueDate();
-                notificationService.sendMemberNotification(
-                        loan.getBorrower().getId(),
-                        "Due Date Reminder",
-                        "Your borrowed book \"" + loan.getCopy().getBook().getTitle() + "\" is due in 3 days.",
-                        "Your borrowed book is due soon. Please return or renew the book before " + loan.getDueDate() + " to avoid fines.",
-                        "DUE_DATE",
-                        "LOAN",
-                        loan.getId(),
-                        "/workspace/my/borrowings",
-                        dedupKey
-                );
-            }
-
-            // 2. Due in 2 days (as in reference mockup: "due in 2 days")
-            LocalDate dueIn2 = today.plusDays(2);
-            List<Loan> loansDueIn2 = loanRepository.findByStatusAndDueDate(LoanStatus.ACTIVE, dueIn2);
-            for (Loan loan : loansDueIn2) {
-                String dedupKey = "DUE_REMINDER_2D:" + loan.getId() + ":" + loan.getDueDate();
-                notificationService.sendMemberNotification(
-                        loan.getBorrower().getId(),
-                        "Due Date Reminder",
-                        "Your borrowed book \"" + loan.getCopy().getBook().getTitle() + "\" is due in 2 days.",
-                        "Your borrowed book is due soon.",
-                        "DUE_DATE",
-                        "LOAN",
-                        loan.getId(),
-                        "/workspace/my/borrowings",
-                        dedupKey
-                );
-            }
-
-            // 3. Due in 1 day (tomorrow)
-            LocalDate dueIn1 = today.plusDays(1);
-            List<Loan> loansDueIn1 = loanRepository.findByStatusAndDueDate(LoanStatus.ACTIVE, dueIn1);
-            for (Loan loan : loansDueIn1) {
-                String dedupKey = "DUE_REMINDER_1D:" + loan.getId() + ":" + loan.getDueDate();
-                notificationService.sendMemberNotification(
-                        loan.getBorrower().getId(),
-                        "Due Date Reminder",
-                        "Your borrowed book \"" + loan.getCopy().getBook().getTitle() + "\" is due tomorrow.",
-                        "Your borrowed book is due tomorrow. Please return or renew it to avoid late fees.",
-                        "DUE_DATE",
-                        "LOAN",
-                        loan.getId(),
-                        "/workspace/my/borrowings",
-                        dedupKey
-                );
-            }
-
-            // 4. Overdue loans
+            // Overdue loans notifications (Strictly: No 3-day or 2-day reminders)
             List<Loan> overdueLoans = loanRepository.findOverdueLoans(LoanStatus.ACTIVE, today);
             for (Loan loan : overdueLoans) {
                 long overdueDays = ChronoUnit.DAYS.between(loan.getDueDate(), today);
-                String dedupKey = "OVERDUE_NOTICE:" + loan.getId() + ":" + loan.getDueDate();
+                String dedupKey = "OVERDUE_NOTICE:" + loan.getId() + ":" + loan.getDueDate() + ":" + today;
                 notificationService.sendMemberNotification(
                         loan.getBorrower().getId(),
                         "Overdue Notice",
@@ -107,7 +55,7 @@ public class DueDateNotificationScheduler {
                 );
             }
         } catch (Exception ex) {
-            log.error("Failed to run periodic due date/overdue notification check: {}", ex.getMessage(), ex);
+            log.error("Failed to run periodic overdue notification check: {}", ex.getMessage(), ex);
         }
     }
 }

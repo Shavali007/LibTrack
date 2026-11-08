@@ -24,6 +24,7 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest,UUI
  List<BorrowRequest> findByBorrower_IdOrderBySubmittedAtDesc(UUID borrowerId);
  boolean existsByBorrower_IdAndBook_IdAndStatus(UUID borrowerId, UUID bookId, BorrowRequestStatus status);
  boolean existsByBorrower_IdAndBook_IdAndStatusIn(UUID borrowerId, UUID bookId, Collection<BorrowRequestStatus> statuses);
+ Optional<BorrowRequest> findFirstByBorrower_IdAndBook_IdAndStatusIn(UUID borrowerId, UUID bookId, Collection<BorrowRequestStatus> statuses);
 
  @Query("select r.book.id as bookId, count(r) as activityCount from BorrowRequest r " +
         "where r.submittedAt >= :cutoff and r.status in :statuses and r.book.active = true " +

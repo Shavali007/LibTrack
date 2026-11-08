@@ -353,9 +353,11 @@ import { BorrowRequestRecord, BorrowingService, Holiday, LoanRecord, ReturnCondi
       flex-shrink: 0;
     }
     .search-input-wrap input {
-      border: 0;
-      background: transparent;
-      outline: none;
+      border: 0 !important;
+      background: transparent !important;
+      outline: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
       font-size: 0.85rem;
       width: 100%;
       color: var(--color-charcoal-900);

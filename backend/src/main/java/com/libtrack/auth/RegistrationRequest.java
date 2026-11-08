@@ -16,7 +16,8 @@ public record RegistrationRequest(
         @NotBlank @Size(max = 254) String email,
         @NotBlank @Size(max = 72) String password,
         @NotBlank @Size(max = 72) String confirmPassword,
-        @NotNull RegistrationRole role) {
+        @NotNull RegistrationRole role,
+        String department) {
 
     public RegistrationRequest(
             String fullName,
@@ -25,7 +26,18 @@ public record RegistrationRequest(
             String password,
             String confirmPassword,
             RegistrationRole role) {
-        this(fullName, fullName, institutionalId, email, password, confirmPassword, role);
+        this(fullName, fullName, institutionalId, email, password, confirmPassword, role, null);
+    }
+
+    public RegistrationRequest(
+            String fullName,
+            String institutionalId,
+            String email,
+            String password,
+            String confirmPassword,
+            RegistrationRole role,
+            String department) {
+        this(fullName, fullName, institutionalId, email, password, confirmPassword, role, department);
     }
 
     public String effectiveUsername() {
@@ -52,7 +64,15 @@ public record RegistrationRequest(
     @AssertTrue(message = "Password confirmation must match")
     public boolean isPasswordConfirmationMatched() { return password != null && password.equals(confirmPassword); }
 
+    @AssertTrue(message = "Department is required and must be one of the four approved departments: Computer Science and Engineering, Electronics and Communication Engineering, Electrical and Electronics Engineering, Mechanical Engineering")
+    public boolean isDepartmentValid() {
+        if (role == RegistrationRole.STUDENT || role == RegistrationRole.FACULTY) {
+            return department != null && Department.isValid(department);
+        }
+        return true;
+    }
+
     @Override public String toString() {
-        return "RegistrationRequest[username=" + effectiveUsername() + ", email=" + email + ", password=[REDACTED], confirmPassword=[REDACTED], role=" + role + "]";
+        return "RegistrationRequest[username=" + effectiveUsername() + ", email=" + email + ", password=[REDACTED], confirmPassword=[REDACTED], role=" + role + ", department=" + department + "]";
     }
 }

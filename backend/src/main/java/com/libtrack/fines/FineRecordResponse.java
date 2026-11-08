@@ -13,9 +13,11 @@ public record FineRecordResponse(
         String borrowerName,
         String borrowerEmail,
         String borrowerInstitutionalId,
+        String borrowerRole,
         UUID bookId,
         String bookTitle,
         String bookIsbn,
+        String bookCoverImageUrl,
         String copyIdentifier,
         LocalDate issueDate,
         LocalDate dueDate,
@@ -34,6 +36,40 @@ public record FineRecordResponse(
         boolean renewed,
         LocalDate originalDueDate
 ) {
+    public FineRecordResponse(
+            UUID id,
+            UUID loanId,
+            UUID borrowerId,
+            String borrowerName,
+            String borrowerEmail,
+            String borrowerInstitutionalId,
+            UUID bookId,
+            String bookTitle,
+            String bookIsbn,
+            String copyIdentifier,
+            LocalDate issueDate,
+            LocalDate dueDate,
+            LocalDate actualReturnDate,
+            String loanStatus,
+            BigDecimal dailyRate,
+            BigDecimal maxFine,
+            int gracePeriodDays,
+            int overdueDays,
+            BigDecimal fineAmount,
+            FineStatus status,
+            Instant assessedAt,
+            Instant paidAt,
+            List<FinePaymentResponse> payments,
+            boolean loanOverdue,
+            boolean renewed,
+            LocalDate originalDueDate
+    ) {
+        this(id, loanId, borrowerId, borrowerName, borrowerEmail, borrowerInstitutionalId,
+                null, bookId, bookTitle, bookIsbn, null, copyIdentifier, issueDate, dueDate, actualReturnDate,
+                loanStatus, dailyRate, maxFine, gracePeriodDays, overdueDays, fineAmount, status,
+                assessedAt, paidAt, payments, loanOverdue, renewed, originalDueDate);
+    }
+
     public FineRecordResponse(
             UUID id,
             UUID loanId,

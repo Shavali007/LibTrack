@@ -1,6 +1,9 @@
 package com.libtrack.recommendation;
 
 import com.libtrack.auth.AccountUserDetails;
+import com.libtrack.catalogue.CatalogueService;
+import com.libtrack.catalogue.DepartmentRecommendationsResponse;
+import com.libtrack.catalogue.BookSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Set;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -23,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class RecommendationController {
 
     private final RecommendationService recommendationService;
+    private final CatalogueService catalogueService;
 
-    public RecommendationController(RecommendationService recommendationService) {
+    public RecommendationController(RecommendationService recommendationService, CatalogueService catalogueService) {
         this.recommendationService = recommendationService;
+        this.catalogueService = catalogueService;
     }
 
     @PostMapping
@@ -81,6 +87,101 @@ public class RecommendationController {
         return ResponseEntity.ok(recommendationService.getFacultyRecommendationsForStudents(studentId));
     }
 
+    @GetMapping("/faculty-directory")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    public ResponseEntity<List<FacultyDirectoryItemResponse>> getFacultyDirectory(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "department", required = false) String department,
+            @RequestParam(name = "sort", required = false) String sort
+    ) {
+        return ResponseEntity.ok(recommendationService.getFacultyDirectory(q, department, sort));
+    }
+
+    @GetMapping("/faculty/{facultyId}")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    public ResponseEntity<FacultyDetailResponse> getFacultyDetails(
+            @PathVariable("facultyId") UUID facultyId,
+            Authentication authentication
+    ) {
+        UUID userId = extractAccountId(authentication);
+        return ResponseEntity.ok(recommendationService.getFacultyDetailsWithRecommendations(facultyId, userId));
+    }
+
+    @GetMapping("/top")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    public ResponseEntity<List<TopRecommendedBookResponse>> getTop(
+            @RequestParam(name = "limit", defaultValue = "5") int limit
+    ) {
+        return ResponseEntity.ok(recommendationService.getTopRecommendedBooks(limit));
+    }
+
+    @GetMapping("/recent")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    public ResponseEntity<List<RecentRecommendationResponse>> getRecent(
+            @RequestParam(name = "limit", defaultValue = "5") int limit
+    ) {
+        return ResponseEntity.ok(recommendationService.getRecentlyRecommended(limit));
+    }
+
+    @GetMapping("/all-books")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    public ResponseEntity<List<AllRecommendedBookItemResponse>> getAllBooks(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "category", required = false) String category,
+            @RequestParam(name = "sort", defaultValue = "most_recommended") String sort,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(recommendationService.getAllRecommendedBooks(q, category, sort, page, size));
+    }
+
+    @GetMapping("/departments")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
+    public ResponseEntity<List<String>> getDepartments() {
+        return ResponseEntity.ok(recommendationService.getDistinctDepartments());
+    }
+
+    @GetMapping("/interests")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY')")
+    public ResponseEntity<StudentInterestsResponse> getInterests(Authentication authentication) {
+        UUID studentId = extractAccountId(authentication);
+        return ResponseEntity.ok(recommendationService.getStudentInterests(studentId));
+    }
+
+    @PutMapping("/interests")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY')")
+    public ResponseEntity<StudentInterestsResponse> updateInterests(
+            @RequestBody StudentInterestsRequest request,
+            Authentication authentication
+    ) {
+        UUID studentId = extractAccountId(authentication);
+        return ResponseEntity.ok(recommendationService.updateStudentInterests(studentId, request));
+    }
+
+    @GetMapping("/personalized")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY')")
+    public ResponseEntity<List<AllRecommendedBookItemResponse>> getPersonalized(Authentication authentication) {
+        UUID studentId = extractAccountId(authentication);
+        return ResponseEntity.ok(recommendationService.getPersonalizedRecommendations(studentId));
+    }
+
+    @GetMapping("/department")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY')")
+    public ResponseEntity<DepartmentRecommendationsResponse> getDepartmentRecommendations(
+            @RequestParam(name = "limit", defaultValue = "10") int limit,
+            Authentication authentication
+    ) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof AccountUserDetails details)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String dept = details.getDepartment();
+        if (dept == null || dept.isBlank()) {
+            return ResponseEntity.ok(new DepartmentRecommendationsResponse(null, List.of()));
+        }
+        List<BookSummaryResponse> books = catalogueService.getDepartmentRecommendations(dept, limit);
+        return ResponseEntity.ok(new DepartmentRecommendationsResponse(dept, books));
+    }
+
     @GetMapping("/books/{bookId}")
     @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'LIBRARIAN')")
     public ResponseEntity<List<RecommendationResponse>> getForBook(
@@ -124,4 +225,3 @@ public class RecommendationController {
         throw new UnauthorizedRecommendationActionException("Unauthenticated user.");
     }
 }
-

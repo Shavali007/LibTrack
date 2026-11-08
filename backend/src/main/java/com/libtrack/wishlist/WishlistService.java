@@ -1,17 +1,23 @@
 package com.libtrack.wishlist;
 
+import com.libtrack.auth.AccountRole;
+import com.libtrack.auth.ApprovalStatus;
 import com.libtrack.auth.UserAccount;
 import com.libtrack.auth.UserAccountRepository;
 import com.libtrack.catalogue.Book;
 import com.libtrack.catalogue.BookCopyRepository;
 import com.libtrack.catalogue.BookNotFoundException;
 import com.libtrack.catalogue.BookRepository;
+import com.libtrack.catalogue.Category;
 import com.libtrack.catalogue.CopyStatus;
+import com.libtrack.notifications.AppNotification;
+import com.libtrack.notifications.NotificationService;
 import com.libtrack.review.BookReviewService;
 import com.libtrack.review.BookReviewSummaryResponse;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,18 +35,21 @@ public class WishlistService {
     private final BookRepository bookRepository;
     private final BookCopyRepository copyRepository;
     private final BookReviewService reviewService;
+    private final NotificationService notificationService;
 
     public WishlistService(
             WishlistRepository wishlistRepository,
             UserAccountRepository userAccountRepository,
             BookRepository bookRepository,
             BookCopyRepository copyRepository,
-            BookReviewService reviewService) {
+            BookReviewService reviewService,
+            NotificationService notificationService) {
         this.wishlistRepository = wishlistRepository;
         this.userAccountRepository = userAccountRepository;
         this.bookRepository = bookRepository;
         this.copyRepository = copyRepository;
         this.reviewService = reviewService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -117,5 +126,68 @@ public class WishlistService {
             result.put(id.toString(), saved.contains(id));
         }
         return result;
+    }
+
+    @Transactional
+    public int notifyWishlistUsersForNewBook(Book book) {
+        if (book == null || !book.isActive() || book.getCategories() == null || book.getCategories().isEmpty()) {
+            return 0;
+        }
+
+        List<UUID> categoryIds = book.getCategories().stream().map(Category::getId).toList();
+        if (categoryIds.isEmpty()) {
+            return 0;
+        }
+
+        List<WishlistCategoryMatch> matches = wishlistRepository.findWishlistCategoryMatches(
+                categoryIds,
+                ApprovalStatus.APPROVED,
+                List.of(AccountRole.STUDENT, AccountRole.FACULTY)
+        );
+
+        if (matches == null || matches.isEmpty()) {
+            return 0;
+        }
+
+        Map<UUID, Set<String>> userCategoryMatches = new HashMap<>();
+        for (WishlistCategoryMatch match : matches) {
+            userCategoryMatches.computeIfAbsent(match.getUserId(), k -> new LinkedHashSet<>()).add(match.getCategoryName());
+        }
+
+        int count = 0;
+        String title = "A new book matches your interests!";
+        String actionRoute = "/workspace/books/" + book.getId();
+
+        for (Map.Entry<UUID, Set<String>> entry : userCategoryMatches.entrySet()) {
+            UUID recipientId = entry.getKey();
+            Set<String> catNames = entry.getValue();
+            String categoriesText = String.join(", ", catNames);
+            boolean multi = catNames.size() > 1;
+
+            String message = "A new book, " + book.getTitle() + ", has been added to the "
+                    + categoriesText + (multi ? " categories" : " category")
+                    + ". Since you have books from " + (multi ? "these categories" : "this category")
+                    + " in your wishlist, you might be interested in exploring it.";
+
+            String dedupKey = "NEW_BOOK_IN_WISHLIST_CATEGORY:" + book.getId() + ":" + recipientId;
+
+            Optional<AppNotification> sent = notificationService.sendMemberNotification(
+                    recipientId,
+                    title,
+                    message,
+                    message,
+                    "NEW_BOOK_IN_WISHLIST_CATEGORY",
+                    "BOOK",
+                    book.getId(),
+                    actionRoute,
+                    dedupKey
+            );
+
+            if (sent.isPresent()) {
+                count++;
+            }
+        }
+
+        return count;
     }
 }

@@ -374,7 +374,7 @@ small, .text-small, .field-hint, .field-helper {
 }
 
 .form-control,
-input:not([type="checkbox"]):not([type="radio"]),
+input:not([type="checkbox"]):not([type="radio"]):not([type="search"]):not(.search-input):not(.toolbar-search-input):not(.topbar-search-input),
 select,
 textarea {
   width: 100%;
@@ -386,6 +386,83 @@ textarea {
   background: var(--color-paper);
   font-size: var(--text-sm);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ==========================================================================
+   GLOBAL SEARCH INPUT SPECIFICATION & ALIGNMENT FIX
+   Ensures search icons, placeholder text, and typed text never overlap across LibTrack.
+   ========================================================================== */
+.search-input-wrap,
+.search-box-wrap,
+.search-bar-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Generic standalone search inputs with leading icon */
+.search-input-wrap > input[type="search"],
+.search-input-wrap > input[type="text"],
+.search-input-wrap > input.search-input,
+.search-input-wrap > input.toolbar-search-input,
+input.search-input,
+input.toolbar-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 2.75rem !important; /* 44px ensures clean ~14px space after 16-18px leading icon */
+  padding-right: 2.5rem !important; /* space for clear button or suffixes */
+}
+
+/* Flex container search boxes where the icon is an inline sibling flex child */
+.search-input-wrap.flex-search input,
+.search-input-wrap.search-flex-wrap input,
+.topbar-search-wrap input,
+.catalogue-search input {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Leading search icon */
+.search-input-wrap > .search-icon,
+.search-input-wrap > svg.search-icon,
+.search-input-wrap > span.search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--color-charcoal-400, #94A3B8);
+  pointer-events: none;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Suffix clear search button */
+.search-input-wrap > .search-clear-btn,
+.search-input-wrap > .clear-search-btn {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-charcoal-400, #94A3B8);
+  cursor: pointer;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+
+  &:hover {
+    color: var(--color-primary, #003D30);
+  }
 }
 
 .form-control::placeholder,

@@ -275,7 +275,7 @@ class PasswordResetIntegrationTest {
         String email = "student." + UUID.randomUUID().toString().substring(0, 8) + "@vitapstudent.ac.in";
         UserAccount account = createActiveStudent(email, "InitialPass123!");
 
-        String rawToken = "sample-expired-token-32-characters-test-12345";
+        String rawToken = "sample-expired-token-val-" + UUID.randomUUID();
         String tokenHash = PasswordResetService.hashToken(rawToken);
         // Expired 1 hour ago
         PasswordResetToken expiredToken = new PasswordResetToken(
@@ -358,5 +358,84 @@ class PasswordResetIntegrationTest {
         // Subsequent call with that session is rejected
         mvc.perform(get("/api/v1/auth/me").session(session))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validateToken_validToken_returnsValidStatus() throws Exception {
+        String email = "student." + UUID.randomUUID().toString().substring(0, 8) + "@vitapstudent.ac.in";
+        createActiveStudent(email, "InitialPass123!");
+
+        mvc.perform(post("/api/v1/auth/forgot-password")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("email", email))))
+                .andExpect(status().isOk());
+
+        String rawToken = extractTokenFromUrl(emailService.getSentEmails().getFirst().textContent());
+
+        mvc.perform(get("/api/v1/auth/reset-password/validate")
+                        .param("token", rawToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.status").value("VALID"));
+    }
+
+    @Test
+    void validateToken_expiredToken_returnsExpiredStatus() throws Exception {
+        String email = "student." + UUID.randomUUID().toString().substring(0, 8) + "@vitapstudent.ac.in";
+        UserAccount account = createActiveStudent(email, "InitialPass123!");
+
+        String rawToken = "sample-expired-token-val-" + UUID.randomUUID();
+        String tokenHash = PasswordResetService.hashToken(rawToken);
+        PasswordResetToken expiredToken = new PasswordResetToken(
+                account.getId(),
+                tokenHash,
+                Instant.now().minusSeconds(3600),
+                Instant.now().minusSeconds(7200)
+        );
+        tokens.save(expiredToken);
+
+        mvc.perform(get("/api/v1/auth/reset-password/validate")
+                        .param("token", rawToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.status").value("EXPIRED"));
+    }
+
+    @Test
+    void validateToken_consumedToken_returnsAlreadyUsedStatus() throws Exception {
+        String email = "student." + UUID.randomUUID().toString().substring(0, 8) + "@vitapstudent.ac.in";
+        createActiveStudent(email, "InitialPass123!");
+
+        mvc.perform(post("/api/v1/auth/forgot-password")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("email", email))))
+                .andExpect(status().isOk());
+
+        String rawToken = extractTokenFromUrl(emailService.getSentEmails().getFirst().textContent());
+
+        // Consume it
+        mvc.perform(post("/api/v1/auth/reset-password")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("token", rawToken, "newPassword", "FirstNewPass1!"))))
+                .andExpect(status().isOk());
+
+        // Validate consumed token
+        mvc.perform(get("/api/v1/auth/reset-password/validate")
+                        .param("token", rawToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.status").value("ALREADY_USED"));
+    }
+
+    @Test
+    void validateToken_invalidToken_returnsInvalidStatus() throws Exception {
+        mvc.perform(get("/api/v1/auth/reset-password/validate")
+                        .param("token", "completely-invalid-nonexistent-token-32chars"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.status").value("INVALID"));
     }
 }

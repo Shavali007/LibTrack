@@ -116,9 +116,11 @@ export interface FineRecord {
   borrowerName: string;
   borrowerEmail: string;
   borrowerInstitutionalId: string | null;
+  borrowerRole?: string | null;
   bookId: string;
   bookTitle: string;
   bookIsbn: string | null;
+  bookCoverImageUrl?: string | null;
   copyIdentifier: string;
   issueDate: string;
   dueDate: string;
@@ -144,6 +146,7 @@ export interface FineSummary {
   paidFines: number;
   totalCollected: number;
   totalOutstanding: number;
+  currentlyOverdueLoans?: number;
 }
 
 export interface LibraryInfoRecord {
@@ -360,6 +363,16 @@ export class LibrarianOperationsService {
 
   getAllFines(): Observable<FineRecord[]> {
     return this.http.get<FineRecord[]>('/api/v1/librarian/fines');
+  }
+
+  getFine(fineId: string): Observable<FineRecord> {
+    return this.http.get<FineRecord>(`/api/v1/librarian/fines/${encodeURIComponent(fineId)}`);
+  }
+
+  recalculateFines(): Observable<void> {
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.post<void>('/api/v1/librarian/fines/recalculate', {}, { headers }))
+    );
   }
 
   getFinesSummary(): Observable<FineSummary> {

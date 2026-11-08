@@ -1,10 +1,12 @@
 package com.libtrack.catalogue;
 
+import com.libtrack.auth.AccountUserDetails;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.validation.annotation.Validated;
@@ -28,13 +30,31 @@ public class CatalogueController {
     public PageResponse<BookSummaryResponse> search(
             @RequestParam(required = false) String q, @RequestParam(required = false) String title,
             @RequestParam(required = false) String author, @RequestParam(required = false) String isbn,
-            @RequestParam(required = false) String category, @RequestParam(required = false) Boolean available,
+            @RequestParam(required = false) String category, @RequestParam(required = false) String department,
+            @RequestParam(required = false) Boolean available,
             @RequestParam(required = false) Integer publicationYearFrom,
             @RequestParam(required = false) Integer publicationYearTo,
             @RequestParam(required = false) List<UUID> bookIds,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "title") String sort, @RequestParam(defaultValue = "asc") String direction) {
-        return catalogue.search(q, title, author, isbn, category, available, publicationYearFrom, publicationYearTo, bookIds, page, size, sort, direction);
+        return catalogue.search(q, title, author, isbn, category, department, available, publicationYearFrom, publicationYearTo, bookIds, page, size, sort, direction);
+    }
+
+    @GetMapping("/books/department-recommendations")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY')")
+    public ResponseEntity<DepartmentRecommendationsResponse> getDepartmentRecommendations(
+            @RequestParam(defaultValue = "10") int limit,
+            Authentication authentication
+    ) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof AccountUserDetails details)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String dept = details.getDepartment();
+        if (dept == null || dept.isBlank()) {
+            return ResponseEntity.ok(new DepartmentRecommendationsResponse(null, List.of()));
+        }
+        List<BookSummaryResponse> books = catalogue.getDepartmentRecommendations(dept, limit);
+        return ResponseEntity.ok(new DepartmentRecommendationsResponse(dept, books));
     }
 
     @GetMapping("/books/statistics")

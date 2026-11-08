@@ -1,8 +1,8 @@
 import { DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService } from './auth.service';
 
@@ -48,19 +48,50 @@ export function resetTokenFromLocation(
           </p>
         </div>
 
-        @if (missingToken()) {
-          <div class="alert alert-error" role="alert">
-            <strong>Invalid or Missing Token</strong>
-            <p>This password reset link is invalid or incomplete. Please request a new link.</p>
+        @if (validatingToken()) {
+          <div class="status-box validating" role="status" aria-live="polite">
+            <div class="spinner" aria-hidden="true"></div>
+            <h2>Verifying link…</h2>
+            <p>Please wait while we check your password reset link.</p>
           </div>
-          <a class="button button-primary button-block" routerLink="/forgot-password">Request New Reset Link</a>
+        } @else if (missingToken()) {
+          <div class="status-box warning" role="alert">
+            <div class="status-icon warning" aria-hidden="true">!</div>
+            <h2>Invalid or Missing Token</h2>
+            <p>This password reset link is invalid or incomplete. Please request a new link.</p>
+            <a class="button button-primary button-block" routerLink="/forgot-password">Request New Reset Link</a>
+          </div>
+        } @else if (!tokenValid()) {
+          <div class="status-box error" role="alert">
+            <div class="status-icon error" aria-hidden="true">
+              @if (tokenInvalidStatus() === 'EXPIRED') {
+                ⏱
+              } @else if (tokenInvalidStatus() === 'ALREADY_USED') {
+                ✓
+              } @else {
+                ✕
+              }
+            </div>
+            <h2>
+              @if (tokenInvalidStatus() === 'EXPIRED') {
+                Link Expired
+              } @else if (tokenInvalidStatus() === 'ALREADY_USED') {
+                Link Already Used
+              } @else {
+                Invalid Reset Link
+              }
+            </h2>
+            <p>{{ tokenErrorMessage() }}</p>
+            <a class="button button-primary button-block" routerLink="/forgot-password">Request New Reset Link</a>
+          </div>
         } @else if (succeeded()) {
-          <div class="success-box" role="status">
-            <div class="success-icon" aria-hidden="true">✓</div>
+          <div class="status-box success" role="status">
+            <div class="status-icon success" aria-hidden="true">✓</div>
             <h2>Password reset complete!</h2>
             <p>Your password has been updated successfully. You can now sign in with your new credentials.</p>
+            <p class="redirect-hint">Redirecting to sign in within {{ redirectCountdown() }} seconds…</p>
+            <a class="button button-primary button-block" routerLink="/login">Sign in with New Password</a>
           </div>
-          <a class="button button-primary button-block" routerLink="/login">Sign in with New Password</a>
         } @else {
           @if (error()) {
             <div class="alert alert-error" role="alert">{{ error() }}</div>
@@ -131,7 +162,7 @@ export function resetTokenFromLocation(
             <button
               class="button button-primary button-block"
               type="submit"
-              [disabled]="form.invalid || pending()"
+              [disabled]="form.invalid || !passwordsMatch() || !allRulesMet() || pending()"
             >
               @if (pending()) {
                 Resetting Password…
@@ -249,72 +280,98 @@ export function resetTokenFromLocation(
       border-radius: 0.85rem;
       color: #293448;
       background: #fff;
-      font-size: 0.94rem;
+      font-size: 0.95rem;
       box-sizing: border-box;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .password-control input:focus {
       outline: none;
       border-color: #003D30;
-      box-shadow: 0 0 0 3px rgba(0, 61, 48, 0.15);
+      box-shadow: 0 0 0 3px rgba(0, 61, 48, 0.12);
     }
     .password-control input[aria-invalid="true"] {
-      border-color: #A73C32;
+      border-color: #D32F2F;
     }
     .password-toggle {
       position: absolute;
       top: 50%;
-      right: 0.75rem;
+      right: 0.65rem;
       transform: translateY(-50%);
-      border: 0;
+      background: none;
+      border: none;
+      padding: 0.35rem 0.5rem;
       color: #003D30;
-      background: transparent;
-      font-size: 0.8rem;
-      font-weight: 700;
+      font-size: 0.82rem;
+      font-weight: 600;
       cursor: pointer;
+      border-radius: 4px;
+    }
+    .password-toggle:hover {
+      background: #EAF2EF;
     }
     .password-rules {
+      list-style: none;
+      margin: 0.35rem 0 0;
+      padding: 0.75rem 0.9rem;
+      background: #F8FAF9;
+      border: 1px solid #E5E8E2;
+      border-radius: 0.75rem;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.25rem 0.65rem;
-      margin: 0.25rem 0 0;
-      padding-left: 1.15rem;
-      color: var(--color-charcoal-600, #69746F);
-      font-size: 0.74rem;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      color: #69746F;
     }
-    .password-rules .met {
+    .password-rules li {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .password-rules li::before {
+      content: "•";
+      color: #8A938E;
+      font-weight: 700;
+    }
+    .password-rules li.met {
       color: #003D30;
       font-weight: 600;
     }
-    .field-error {
-      margin: -0.2rem 0 0;
-      color: #8F3029;
-      font-size: 0.78rem;
+    .password-rules li.met::before {
+      content: "✓";
+      color: #003D30;
     }
-    .button-block {
-      width: 100%;
-      min-height: 3.15rem;
-      border-radius: 0.82rem;
-      font-size: 0.94rem;
-      font-weight: 600;
-      display: flex;
+    .field-error {
+      margin: 0;
+      color: #D32F2F;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+    .button {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
+      padding: 0.75rem 1.4rem;
+      border-radius: 0.85rem;
+      font-size: 0.95rem;
+      font-weight: 600;
       text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s ease, transform 0.1s ease;
+      box-sizing: border-box;
+    }
+    .button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
     .button-primary {
       background: #003D30;
       color: #fff;
-      border: none;
-      cursor: pointer;
-      transition: background 0.15s ease;
     }
     .button-primary:hover:not(:disabled) {
       background: #002B22;
     }
-    .button-primary:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
+    .button-block {
+      width: 100%;
     }
     .card-footer {
       margin-top: 1.5rem;
@@ -325,7 +382,7 @@ export function resetTokenFromLocation(
       align-items: center;
       gap: 0.35rem;
       color: #003D30;
-      font-size: 0.85rem;
+      font-size: 0.88rem;
       font-weight: 600;
       text-decoration: none;
     }
@@ -334,64 +391,102 @@ export function resetTokenFromLocation(
     }
     .alert {
       padding: 0.85rem 1rem;
-      border-radius: 0.85rem;
+      border-radius: 0.75rem;
       font-size: 0.88rem;
-      margin-bottom: 1rem;
+      line-height: 1.45;
+      box-sizing: border-box;
+      margin-bottom: 1.25rem;
     }
     .alert-error {
-      background: #FDF0EE;
-      color: #9B1C1C;
-      border: 1px solid #F8D7D2;
+      background: #FDF2F2;
+      border: 1px solid #F5C6CB;
+      color: #721C24;
     }
-    .alert-error strong {
-      display: block;
-      margin-bottom: 0.25rem;
-    }
-    .alert-error p {
-      margin: 0;
-    }
-    .success-box {
+    .status-box {
       text-align: center;
-      padding: 1rem 0;
+      padding: 1.25rem 0.5rem;
+      display: grid;
+      justify-items: center;
+      gap: 0.65rem;
     }
-    .success-icon {
-      display: inline-grid;
-      width: 3rem;
-      height: 3rem;
-      place-items: center;
-      border-radius: 50%;
-      background: #EAF2EF;
-      color: #003D30;
-      font-size: 1.4rem;
-      font-weight: 700;
-      margin-bottom: 0.75rem;
-    }
-    .success-box h2 {
-      margin: 0 0 0.5rem;
-      font-size: 1.25rem;
+    .status-box h2 {
+      margin: 0;
+      font: 600 1.25rem var(--font-serif, serif);
       color: #003D30;
     }
-    .success-box p {
-      margin: 0 0 1.25rem;
-      color: #35445A;
+    .status-box p {
+      margin: 0;
+      color: #4B5552;
       font-size: 0.9rem;
       line-height: 1.5;
+      max-width: 22rem;
+    }
+    .status-box .button {
+      margin-top: 0.75rem;
+    }
+    .status-icon {
+      display: inline-grid;
+      width: 3.25rem;
+      height: 3.25rem;
+      place-items: center;
+      border-radius: 50%;
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+    .status-icon.warning {
+      background: #FFF8E1;
+      color: #F57F17;
+      border: 1px solid #FFE082;
+    }
+    .status-icon.error {
+      background: #FDF2F2;
+      color: #D32F2F;
+      border: 1px solid #FFCDD2;
+    }
+    .status-icon.success {
+      background: #EAF2EF;
+      color: #003D30;
+      border: 1px solid #8ED3BB;
+    }
+    .spinner {
+      width: 2.25rem;
+      height: 2.25rem;
+      border: 3px solid #EAF2EF;
+      border-top-color: #003D30;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .redirect-hint {
+      color: #69746F;
+      font-size: 0.82rem;
+      margin-top: -0.25rem;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   `],
 })
-export class ResetPasswordComponent implements OnInit {
+export class ResetPasswordComponent implements OnInit, OnDestroy {
   private readonly document = inject(DOCUMENT);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
 
   readonly token = signal<string | null>(null);
+  readonly validatingToken = signal(false);
+  readonly tokenValid = signal(false);
   readonly missingToken = signal(false);
+  readonly tokenInvalidStatus = signal('INVALID');
+  readonly tokenErrorMessage = signal('');
   readonly showPassword = signal(false);
   readonly showConfirmPassword = signal(false);
   readonly pending = signal(false);
   readonly succeeded = signal(false);
   readonly error = signal('');
+  readonly redirectCountdown = signal(5);
+
+  private countdownInterval: ReturnType<typeof setInterval> | null = null;
 
   readonly form = this.fb.group({
     newPassword: ['', [Validators.required, (c: AbstractControl) => this.validatePasswordRules(c)]],
@@ -435,8 +530,36 @@ export class ResetPasswordComponent implements OnInit {
 
     if (!rawToken) {
       this.missingToken.set(true);
-    } else {
-      this.token.set(rawToken);
+      return;
+    }
+
+    this.token.set(rawToken);
+    this.validatingToken.set(true);
+
+    this.auth
+      .validateResetToken(rawToken)
+      .pipe(finalize(() => this.validatingToken.set(false)))
+      .subscribe({
+        next: (res) => {
+          if (res && res.valid) {
+            this.tokenValid.set(true);
+          } else {
+            this.tokenValid.set(false);
+            this.tokenInvalidStatus.set(res?.status || 'INVALID');
+            this.tokenErrorMessage.set(res?.message || 'This password reset link is invalid, expired, or has already been used.');
+          }
+        },
+        error: () => {
+          // If server fails or is unreachable, allow user to proceed to submit form rather than hard lockout
+          this.tokenValid.set(true);
+        },
+      });
+  }
+
+  ngOnDestroy(): void {
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
     }
   }
 
@@ -504,13 +627,14 @@ export class ResetPasswordComponent implements OnInit {
       .subscribe({
         next: () => {
           this.succeeded.set(true);
+          this.startRedirectCountdown();
         },
         error: (err: unknown) => {
           if (err instanceof HttpErrorResponse) {
             if (err.status === 400) {
               const code = err.error?.code;
               if (code === 'INVALID_OR_EXPIRED_TOKEN') {
-                this.error.set('This password reset link is invalid, expired, or has already been used.');
+                this.error.set(err.error?.message || 'This password reset link is invalid, expired, or has already been used.');
               } else {
                 this.error.set(err.error?.message || 'Password does not meet the security requirements.');
               }
@@ -522,5 +646,22 @@ export class ResetPasswordComponent implements OnInit {
           }
         },
       });
+  }
+
+  private startRedirectCountdown(): void {
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+    }
+    this.redirectCountdown.set(5);
+    this.countdownInterval = setInterval(() => {
+      const current = this.redirectCountdown();
+      if (current <= 1) {
+        clearInterval(this.countdownInterval!);
+        this.countdownInterval = null;
+        this.router.navigate(['/login']);
+      } else {
+        this.redirectCountdown.set(current - 1);
+      }
+    }, 1000);
   }
 }

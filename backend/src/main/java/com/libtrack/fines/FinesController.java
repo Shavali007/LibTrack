@@ -47,9 +47,20 @@ public class FinesController {
         return ResponseEntity.ok(fineService.getAllFines());
     }
 
+    @GetMapping("/{fineId}")
+    public ResponseEntity<FineRecordResponse> getFine(@PathVariable UUID fineId) {
+        return ResponseEntity.ok(fineService.getFine(fineId));
+    }
+
     @GetMapping("/summary")
     public ResponseEntity<FineSummaryResponse> getSummary() {
         return ResponseEntity.ok(fineService.getSummary());
+    }
+
+    @PostMapping("/recalculate")
+    public ResponseEntity<Void> recalculate() {
+        fineService.recalculateOverdueFines();
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{fineId}/payments")

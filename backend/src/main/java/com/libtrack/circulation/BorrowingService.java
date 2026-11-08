@@ -53,17 +53,7 @@ public class BorrowingService {
   Instant now=clock.instant();
   BorrowRequest request=requests.saveAndFlush(new BorrowRequest(borrower,book,now));
   requestEvents.save(new BorrowRequestEvent(request,BorrowRequestEventType.SUBMITTED,borrower,null,now));
-  notificationService.sendMemberNotification(
-      borrower.getId(),
-      "Borrow Request Submitted",
-      "Your request for \"" + book.getTitle() + "\" has been submitted.",
-      "Your request is awaiting review by library administration.",
-      "BORROW_REQUEST",
-      "BORROW_REQUEST",
-      request.getId(),
-      "/workspace/my/requests",
-      null
-  );
+
   notificationService.sendRoleNotification(
       AccountRole.LIBRARIAN,
       "New Borrow Request",
@@ -109,7 +99,7 @@ public class BorrowingService {
           "BORROW_REQUEST",
           request.getId(),
           "/workspace/my/requests",
-          null
+          "REQ_APP:" + request.getId()
       );
   } else {
       notificationService.sendMemberNotification(
@@ -121,7 +111,7 @@ public class BorrowingService {
           "BORROW_REQUEST",
           request.getId(),
           "/workspace/my/requests",
-          null
+          "REQ_REJ:" + request.getId()
       );
   }
   if(input.decision()==RequestDecision.REJECT){reservations.handleBorrowRequestRejection(requestId);}
@@ -165,11 +155,11 @@ public class BorrowingService {
       "Book Issued",
       "\"" + book.getTitle() + "\" has been issued to you. Due on " + dueDate + ".",
       "Your borrowed book is active. Due date: " + dueDate + ". Please return or renew on time.",
-      "LOAN",
+      "BORROW_REQUEST",
       "LOAN",
       loan.getId(),
       "/workspace/my/borrowings",
-      null
+      "LOAN_ISSUE:" + loan.getId()
   );
   return loanResponse(loan);
  }
@@ -407,17 +397,6 @@ public class BorrowingService {
 
  @PreAuthorize("hasRole('LIBRARIAN')") @Transactional
  public LoanResponse recordReturn(UUID loanId,UUID librarianId,ReturnRequest input){UserAccount librarian=librarian(librarianId);Loan loan=loans.findByIdForUpdate(loanId).orElseThrow(CirculationNotFoundException::new);if(loan.getStatus()!=LoanStatus.ACTIVE)throw new CirculationConflictException("This loan is no longer active.");if(input.condition()!=ReturnCondition.GOOD&&(input.note()==null||input.note().isBlank()))throw new CirculationConflictException("A case note is required for lost or damaged material.");BookCopy copy=copies.findByIdForUpdate(loan.getCopy().getId()).orElseThrow(CirculationNotFoundException::new);if(copy.getStatus()!=CopyStatus.ON_LOAN)throw new CirculationConflictException("The copy status does not match the active loan.");LocalDate returned=today();CopyStatus nextStatus=switch(input.condition()){case GOOD->CopyStatus.AVAILABLE;case DAMAGED->CopyStatus.DAMAGED;case LOST->CopyStatus.LOST;};loan.returnCopy(input.condition(),returned,clean(input.note()));copy.update(copy.getCopyIdentifier(),copy.getLocation(),nextStatus);copies.saveAndFlush(copy);if(nextStatus==CopyStatus.AVAILABLE){reservations.processQueueForCopy(copy);}fines.finalizeFineOnReturn(loan);LoanEventType event=switch(input.condition()){case GOOD->LoanEventType.RETURNED_GOOD;case DAMAGED->LoanEventType.RETURNED_DAMAGED;case LOST->LoanEventType.REPORTED_LOST;};loanEvents.save(new LoanEvent(loan,event,librarian,returned,null,null,nextStatus.name(),clean(input.note()),clock.instant()));
-notificationService.sendMemberNotification(
-    loan.getBorrower().getId(),
-    "Book Returned",
-    "Your return for \"" + loan.getCopy().getBook().getTitle() + "\" has been recorded.",
-    "The physical book was successfully received back at the library.",
-    "LOAN",
-    "LOAN",
-    loan.getId(),
-    "/workspace/my/borrowings",
-    null
-);
 if (input.condition() == ReturnCondition.DAMAGED) {
     notificationService.sendRoleNotification(
         AccountRole.LIBRARIAN,
@@ -510,7 +489,7 @@ return loanResponse(loan);}
  @PreAuthorize("hasRole('LIBRARIAN')") @Transactional
  public LibraryHolidayResponse updateHoliday(UUID id,UUID actorId,LibraryHolidayInput input){librarian(actorId);LibraryHoliday holiday=holidays.findById(id).orElseThrow(CirculationNotFoundException::new);String name=input.name().strip();LocalDate fromDate=input.resolveFromDate();LocalDate toDate=input.resolveToDate();if(fromDate==null||toDate==null)throw new IllegalArgumentException("Holiday From Date and To Date are mandatory.");if(toDate.isBefore(fromDate))throw new IllegalArgumentException("Holiday To Date cannot be earlier than From Date.");List<LibraryHoliday> overlapping=holidays.findOverlappingHolidaysExcludingId(id,fromDate,toDate);if(!overlapping.isEmpty()){LibraryHoliday first=overlapping.get(0);throw new CirculationConflictException("The holiday date range ("+fromDate+" to "+toDate+") overlaps with existing holiday '"+first.getName()+"' ("+first.getFromDate()+" to "+first.getToDate()+").");}holiday.update(fromDate,toDate,name);try{return LibraryHolidayResponse.from(holidays.saveAndFlush(holiday));}catch(DataIntegrityViolationException ex){throw new CirculationConflictException("A holiday is already configured for that date range.");}}
 
- private BorrowRequestResponse requestResponse(BorrowRequest request){List<BorrowRequestEventResponse> history=requestEvents.history(request.getId()).stream().map(e->new BorrowRequestEventResponse(e.getEventType(),e.getActor().getEmail(),e.getOccurredAt(),e.getReason())).toList();return new BorrowRequestResponse(request.getId(),request.getBook().getId(),request.getBook().getTitle(),request.getBook().getCoverImageUrl(),request.getBorrower().getEmail(),request.getBorrower().getInstitutionalId(),request.getBorrower().getRole()!=null?request.getBorrower().getRole().name():null,request.getStatus(),request.getSubmittedAt(),request.getDecidedAt(),request.getDecisionReason(),history,request.getBorrower().getDisplayName());}
+ private BorrowRequestResponse requestResponse(BorrowRequest request){List<BorrowRequestEventResponse> history=requestEvents.history(request.getId()).stream().map(e->new BorrowRequestEventResponse(e.getEventType(),e.getActor().getEmail(),e.getOccurredAt(),e.getReason())).toList();return new BorrowRequestResponse(request.getId(),request.getBook().getId(),request.getBook().getTitle(),request.getBook().getCoverImageUrl(),request.getBorrower().getEmail(),request.getBorrower().getInstitutionalId(),request.getBorrower().getRole()!=null?request.getBorrower().getRole().name():null,request.getStatus(),request.getSubmittedAt(),request.getDecidedAt(),request.getDecisionReason(),history,request.getBorrower().getDisplayName(),request.getBorrower().getDepartment());}
  private LoanResponse loanResponse(Loan loan) {
   Book book = loan.getCopy().getBook();
   boolean overdue = loan.getStatus() == LoanStatus.ACTIVE && loan.getDueDate().isBefore(today());
@@ -596,7 +575,8 @@ return loanResponse(loan);}
       returnCondition,
       processedByEmail,
       daysLeft,
-      inventoryStatus
+      inventoryStatus,
+      loan.getBorrower() != null ? loan.getBorrower().getDepartment() : null
   );
  }
  private LibraryHolidayResponse holidayResponse(LibraryHoliday holiday){return LibraryHolidayResponse.from(holiday);}
@@ -617,17 +597,63 @@ return loanResponse(loan);}
   return parseInt(settings.getSetting("loan.max.active.student", "5"), 5);
  }
 
+ @PreAuthorize("hasAnyRole('STUDENT','FACULTY')")
+ @Transactional(readOnly = true)
+ public BorrowingEligibilityResponse checkBorrowingEligibility(UUID borrowerId, UUID bookId) {
+  UserAccount borrower = accounts.findById(borrowerId).orElseThrow(CirculationNotFoundException::new);
+  Book book = books.findById(bookId).filter(Book::isActive).orElseThrow(CirculationNotFoundException::new);
+
+  boolean hasReturned = loans.existsByBorrower_IdAndCopy_Book_IdAndStatus(borrowerId, bookId, LoanStatus.RETURNED);
+
+  boolean hasActiveLoan = loans.existsByBorrower_IdAndCopy_Book_IdAndStatus(borrowerId, bookId, LoanStatus.ACTIVE);
+  if (hasActiveLoan) {
+   return BorrowingEligibilityResponse.ineligible(
+       true, false, null, hasReturned,
+       "You currently have an active, unreturned loan for this book."
+   );
+  }
+
+  var activeReqOpt = requests.findFirstByBorrower_IdAndBook_IdAndStatusIn(
+      borrowerId, bookId, List.of(BorrowRequestStatus.PENDING, BorrowRequestStatus.APPROVED)
+  );
+  if (activeReqOpt.isPresent()) {
+   BorrowRequest req = activeReqOpt.get();
+   String statusStr = req.getStatus().name();
+   String reason = req.getStatus() == BorrowRequestStatus.APPROVED
+       ? "You already have an approved borrowing request for this book awaiting copy issuance at the desk."
+       : "You already have a pending borrowing request for this book awaiting review.";
+   return BorrowingEligibilityResponse.ineligible(
+       false, true, statusStr, hasReturned, reason
+   );
+  }
+
+  long activeLoans = loans.countByBorrower_IdAndStatus(borrowerId, LoanStatus.ACTIVE);
+  int maxLimit = getBorrowingLimit(borrower);
+  if (activeLoans >= maxLimit) {
+   return BorrowingEligibilityResponse.ineligible(
+       false, false, null, hasReturned,
+       "You have reached the maximum borrowing limit of " + maxLimit + " active borrowed books."
+   );
+  }
+
+  return BorrowingEligibilityResponse.eligible(hasReturned);
+ }
+
  private void validateBorrowerEligibility(UserAccount borrower, Book book, boolean isOwnSubmission) {
-  if (loans.existsByBorrower_IdAndCopy_Book_Id(borrower.getId(), book.getId())) {
+  if (loans.existsByBorrower_IdAndCopy_Book_IdAndStatus(borrower.getId(), book.getId(), LoanStatus.ACTIVE)) {
    String msg = isOwnSubmission
-     ? "You have already borrowed this book previously. Duplicate borrowing of the same book is not permitted."
-     : "The borrower has already borrowed this book previously. Duplicate borrowing of the same book is not permitted.";
+     ? "You currently have an active loan for this book. Duplicate borrowing of the same book is not permitted while a loan is active."
+     : "The borrower currently has an active loan for this book. Duplicate borrowing of the same book is not permitted while a loan is active.";
    throw new CirculationConflictException(msg);
   }
 
-  if (isOwnSubmission && (requests.existsByBorrower_IdAndBook_IdAndStatus(borrower.getId(), book.getId(), BorrowRequestStatus.PENDING)
-    || requests.existsByBorrower_IdAndBook_IdAndStatus(borrower.getId(), book.getId(), BorrowRequestStatus.APPROVED))) {
-   throw new CirculationConflictException("You already have an active borrowing request for this book.");
+  if (isOwnSubmission) {
+    if (requests.existsByBorrower_IdAndBook_IdAndStatus(borrower.getId(), book.getId(), BorrowRequestStatus.PENDING)) {
+      throw new CirculationConflictException("You already have a pending borrowing request for this book awaiting review.");
+    }
+    if (requests.existsByBorrower_IdAndBook_IdAndStatus(borrower.getId(), book.getId(), BorrowRequestStatus.APPROVED)) {
+      throw new CirculationConflictException("You already have an approved request awaiting book issuance.");
+    }
   }
 
   long activeLoans = loans.countByBorrower_IdAndStatus(borrower.getId(), LoanStatus.ACTIVE);

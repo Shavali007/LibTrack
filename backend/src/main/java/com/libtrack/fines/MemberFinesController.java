@@ -27,4 +27,18 @@ public class MemberFinesController {
         UUID accountId = ((AccountUserDetails) auth.getPrincipal()).getId();
         return ResponseEntity.ok(fineService.getMemberFines(accountId));
     }
+
+    @GetMapping("/summary")
+    public ResponseEntity<MemberFineSummaryResponse> getMySummary(Authentication auth) {
+        UUID accountId = ((AccountUserDetails) auth.getPrincipal()).getId();
+        return ResponseEntity.ok(fineService.getMemberSummary(accountId));
+    }
+
+    @GetMapping("/{fineId}")
+    public ResponseEntity<FineRecordResponse> getMyFine(
+            @org.springframework.web.bind.annotation.PathVariable UUID fineId,
+            Authentication auth) {
+        UUID accountId = ((AccountUserDetails) auth.getPrincipal()).getId();
+        return ResponseEntity.ok(fineService.getMemberFine(fineId, accountId));
+    }
 }

@@ -148,4 +148,15 @@ describe('LibrarianDashboardComponent', () => {
     expect(el.querySelector('.pending-section')).not.toBeNull();
     expect(el.querySelector('.chart-panel')).not.toBeNull();
   });
+
+  it('renders welcome banner with LIBRARIAN WORKSPACE, heading, description, and shared banner asset', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.welcome-eyebrow')?.textContent).toContain('LIBRARIAN WORKSPACE');
+    expect(el.querySelector('.welcome-title')?.textContent).toContain('Welcome back, Librarian!');
+    expect(el.querySelector('.welcome-subtitle')?.textContent).toContain('Manage library resources, support learners and keep the library running smoothly.');
+    const asset = el.querySelector('.banner-right-asset') as HTMLImageElement;
+    expect(asset).not.toBeNull();
+    expect(asset.getAttribute('src')).toBe('/assets/banner-student-right.png');
+    expect(el.textContent).toContain('A library is not just a place to read, but a place to grow.');
+  });
 });

@@ -7,5 +7,16 @@ public record FineSummaryResponse(
         long unpaidFines,
         long paidFines,
         BigDecimal totalCollected,
-        BigDecimal totalOutstanding
-) {}
+        BigDecimal totalOutstanding,
+        long currentlyOverdueLoans
+) {
+    public FineSummaryResponse(
+            long totalFines,
+            long unpaidFines,
+            long paidFines,
+            BigDecimal totalCollected,
+            BigDecimal totalOutstanding
+    ) {
+        this(totalFines, unpaidFines, paidFines, totalCollected, totalOutstanding, 0);
+    }
+}

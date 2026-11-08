@@ -25,4 +25,14 @@ public interface FineRepository extends JpaRepository<Fine, UUID> {
 
     @Query("select coalesce(sum(f.fineAmount), 0) from Fine f where f.status = 'PAID'")
     BigDecimal sumPaidFines();
+
+    long countByBorrower_Id(UUID borrowerId);
+
+    long countByBorrower_IdAndStatus(UUID borrowerId, FineStatus status);
+
+    @Query("select coalesce(sum(f.fineAmount), 0) from Fine f where f.borrower.id = :borrowerId and f.status = 'UNPAID'")
+    BigDecimal sumUnpaidFinesByBorrower(@Param("borrowerId") UUID borrowerId);
+
+    @Query("select coalesce(sum(f.fineAmount), 0) from Fine f where f.borrower.id = :borrowerId and f.status = 'PAID'")
+    BigDecimal sumPaidFinesByBorrower(@Param("borrowerId") UUID borrowerId);
 }

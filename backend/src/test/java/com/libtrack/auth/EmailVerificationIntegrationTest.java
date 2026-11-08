@@ -123,7 +123,7 @@ class EmailVerificationIntegrationTest {
  }
  private void register(String email)throws Exception{
   mvc.perform(post("/api/v1/auth/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
-   .content(json.writeValueAsString(Map.of("email",email,"role","STUDENT","password","SecurePass1!","confirmPassword","SecurePass1!"))))
+   .content(json.writeValueAsString(Map.of("email",email,"role","STUDENT","password","SecurePass1!","confirmPassword","SecurePass1!","department","Computer Science and Engineering"))))
    .andExpect(status().isAccepted());
   verification.issue(accounts.findByEmail(email).orElseThrow());
  }

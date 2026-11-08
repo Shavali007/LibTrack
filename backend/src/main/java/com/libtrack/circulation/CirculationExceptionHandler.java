@@ -3,7 +3,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = {"com.libtrack.circulation", "com.libtrack.fines"})
 public class CirculationExceptionHandler {
  @ExceptionHandler(CirculationConflictException.class) ResponseEntity<ErrorBody> conflict(CirculationConflictException e){return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorBody("CIRCULATION_CONFLICT",e.getMessage()));}
  @ExceptionHandler(CirculationNotFoundException.class) ResponseEntity<ErrorBody> missing(CirculationNotFoundException e){return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorBody("CIRCULATION_NOT_FOUND",e.getMessage()));}

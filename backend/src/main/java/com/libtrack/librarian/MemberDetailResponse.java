@@ -18,13 +18,22 @@ public record MemberDetailResponse(
     List<LoanResponse> currentLoans,
     List<LoanResponse> borrowingHistory,
     List<BorrowRequestResponse> borrowRequests,
-    String displayName
+    String displayName,
+    String department
 ) {
+    public MemberDetailResponse(UUID id, String email, AccountRole role, boolean enabled,
+                                String institutionalId, Instant createdAt, Instant identityVerifiedAt,
+                                List<LoanResponse> currentLoans, List<LoanResponse> borrowingHistory,
+                                List<BorrowRequestResponse> borrowRequests, String displayName) {
+        this(id, email, role, enabled, institutionalId, createdAt, identityVerifiedAt,
+             currentLoans, borrowingHistory, borrowRequests, displayName, null);
+    }
+
     public MemberDetailResponse(UUID id, String email, AccountRole role, boolean enabled,
                                 String institutionalId, Instant createdAt, Instant identityVerifiedAt,
                                 List<LoanResponse> currentLoans, List<LoanResponse> borrowingHistory,
                                 List<BorrowRequestResponse> borrowRequests) {
         this(id, email, role, enabled, institutionalId, createdAt, identityVerifiedAt,
-             currentLoans, borrowingHistory, borrowRequests, null);
+             currentLoans, borrowingHistory, borrowRequests, null, null);
     }
 }

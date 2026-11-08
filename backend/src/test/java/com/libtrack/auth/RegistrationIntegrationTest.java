@@ -128,7 +128,8 @@ class RegistrationIntegrationTest {
                         "email", studentEmail1,
                         "password", "SecurePass1!",
                         "confirmPassword", "SecurePass1!",
-                        "role", "STUDENT"
+                        "role", "STUDENT",
+                        "department", "Computer Science and Engineering"
                 )))).andExpect(status().isAccepted());
 
         UserAccount acc1 = accounts.findByEmail(studentEmail1).orElseThrow();
@@ -142,7 +143,8 @@ class RegistrationIntegrationTest {
                         "email", studentEmail2,
                         "password", "SecurePass1!",
                         "confirmPassword", "SecurePass1!",
-                        "role", "STUDENT"
+                        "role", "STUDENT",
+                        "department", "Computer Science and Engineering"
                 )))).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
     }
@@ -187,7 +189,7 @@ class RegistrationIntegrationTest {
     }
 
     private String body(String email, String role, String password, String confirmation) throws Exception {
-        return mapper.writeValueAsString(Map.of("email", email, "role", role, "password", password, "confirmPassword", confirmation));
+        return mapper.writeValueAsString(Map.of("email", email, "role", role, "password", password, "confirmPassword", confirmation, "department", "Computer Science and Engineering"));
     }
 
     private String studentEmail() {

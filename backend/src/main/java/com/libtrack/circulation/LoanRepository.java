@@ -65,6 +65,9 @@ public interface LoanRepository extends JpaRepository<Loan, UUID>, JpaSpecificat
 
     long countByStatusAndDueDateBefore(LoanStatus status, LocalDate date);
 
+    @Query("select count(l) from Loan l where l.borrower.id = :borrowerId and l.status = 'ACTIVE' and l.dueDate < :date")
+    long countOverdueLoansByBorrower(@Param("borrowerId") UUID borrowerId, @Param("date") LocalDate date);
+
     @Query("select l from Loan l join fetch l.copy c join fetch c.book join fetch l.borrower where l.status = :status and l.dueDate < :date order by l.dueDate asc")
     List<Loan> findOverdueLoans(@Param("status") LoanStatus status, @Param("date") LocalDate date);
 

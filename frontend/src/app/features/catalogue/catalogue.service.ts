@@ -4,7 +4,7 @@ import { Observable, switchMap, tap } from 'rxjs';
 export type CirculationPolicy = 'STANDARD' | 'REFERENCE_ONLY' | 'SERIAL_RESTRICTED' | 'APPROVED_OVERNIGHT_EXCEPTION';
 export type CopyStatus = 'AVAILABLE' | 'ON_LOAN' | 'LOST' | 'DAMAGED' | 'WITHDRAWN';
 export interface InventorySummary { totalCopies: number; availableCopies: number; onLoanCopies: number; lostCopies: number; damagedCopies: number; withdrawnCopies: number; }
-export interface BookSummary extends InventorySummary { id: string; title: string; isbn: string | null; authors: string[]; categories: string[]; publisher: string | null; publicationYear: number | null; coverImageUrl: string | null; circulationPolicy: CirculationPolicy; hasDigitalEdition?: boolean; }
+export interface BookSummary extends InventorySummary { id: string; title: string; isbn: string | null; authors: string[]; categories: string[]; publisher: string | null; publicationYear: number | null; coverImageUrl: string | null; circulationPolicy: CirculationPolicy; department?: string | null; hasDigitalEdition?: boolean; }
 export interface TrendingBook extends BookSummary { trendingScore: number; issuedLoanCount: number; activeReservationCount: number; directRequestCount: number; }
 export interface BookDetail extends BookSummary { description: string | null; active: boolean; createdAt: string; updatedAt: string; }
 export interface Page<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number; }
@@ -65,7 +65,7 @@ export interface ChapterUpdateRequest {
   endPage: number;
   content?: string | null;
 }
-export interface BookWrite { title: string; isbn: string | null; description: string | null; publisher: string | null; publicationYear: number | null; coverImageUrl: string | null; circulationPolicy: CirculationPolicy; authors: string[]; categories: string[]; }
+export interface BookWrite { title: string; isbn: string | null; description: string | null; publisher: string | null; publicationYear: number | null; coverImageUrl: string | null; circulationPolicy: CirculationPolicy; department?: string; authors: string[]; categories: string[]; }
 export interface BookCreate extends BookWrite { numberOfCopies: number; location?: string | null; }
 @Injectable({ providedIn: 'root' }) export class CatalogueService {
   private readonly http = inject(HttpClient);
@@ -97,6 +97,10 @@ export interface BookCreate extends BookWrite { numberOfCopies: number; location
     }
     return this.http.get<Page<TrendingBook>>('/api/v1/books/trending', { params });
   }
+  departmentRecommendations(limit = 10): Observable<{ department: string | null; books: BookSummary[] }> {
+    const params = new HttpParams().set('limit', limit);
+    return this.http.get<{ department: string | null; books: BookSummary[] }>('/api/v1/books/department-recommendations', { params });
+  }
   get(id: string): Observable<BookDetail> { return this.http.get<BookDetail>(`/api/v1/books/${id}`); }
   create(body: BookCreate): Observable<BookDetail> { return this.post<BookDetail>('/api/v1/books', body); }
   update(id: string, body: BookWrite): Observable<BookDetail> { return this.patch<BookDetail>(`/api/v1/books/${id}`, body); }
@@ -110,33 +114,49 @@ export interface BookCreate extends BookWrite { numberOfCopies: number; location
   getDigitalEdition(bookId: string): Observable<DigitalEdition> {
     return this.http.get<DigitalEdition>(`/api/v1/books/${bookId}/digital-edition`);
   }
+
   uploadDigitalEdition(bookId: string, file: File, editionLabel?: string): Observable<DigitalEdition> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', file, file.name);
     if (editionLabel && editionLabel.trim()) {
       formData.append('editionLabel', editionLabel.trim());
     }
-    return this.post<DigitalEdition>(`/api/v1/books/${bookId}/digital-edition`, formData);
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.post<DigitalEdition>(`/api/v1/books/${bookId}/digital-edition`, formData, { headers }))
+    );
   }
+
   replaceDigitalEdition(bookId: string, file: File, editionLabel?: string): Observable<DigitalEdition> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', file, file.name);
     if (editionLabel && editionLabel.trim()) {
       formData.append('editionLabel', editionLabel.trim());
     }
-    return this.put<DigitalEdition>(`/api/v1/books/${bookId}/digital-edition`, formData);
+    return this.csrfHeaders().pipe(
+      switchMap(headers => this.http.put<DigitalEdition>(`/api/v1/books/${bookId}/digital-edition`, formData, { headers }))
+    );
   }
+
   deleteDigitalEdition(bookId: string): Observable<void> {
     return this.delete<void>(`/api/v1/books/${bookId}/digital-edition`);
   }
+
   digitalEditionContentUrl(bookId: string): string {
     return `/api/v1/books/${bookId}/digital-edition/content`;
   }
+
   digitalEditionDownloadUrl(bookId: string): string {
     return `/api/v1/books/${bookId}/digital-edition/download`;
   }
+
   fetchDigitalEditionBlob(bookId: string): Observable<Blob> {
     return this.http.get(`/api/v1/books/${bookId}/digital-edition/content`, {
+      responseType: 'blob'
+    });
+  }
+
+  downloadDigitalEdition(bookId: string): Observable<Blob> {
+    return this.http.get(`/api/v1/books/${bookId}/digital-edition/file`, {
       responseType: 'blob'
     });
   }
@@ -145,7 +165,7 @@ export interface BookCreate extends BookWrite { numberOfCopies: number; location
     return this.http.get<Chapter[]>(`/api/v1/books/${bookId}/chapters`);
   }
 
-  searchChapters(bookId: string, query: string, page = 0, size = 10): Observable<ChapterSearchResponse> {
+  searchChapters(bookId: string, query: string, page = 0, size = 20): Observable<ChapterSearchResponse> {
     const params = new HttpParams()
       .set('query', query)
       .set('page', page)

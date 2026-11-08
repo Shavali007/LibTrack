@@ -10,6 +10,7 @@ public record NotificationMetadata(
     String bookAuthor,
     String bookSubject,
     String bookCoverUrl,
+    UUID categoryId,
     UUID loanId,
     String loanDisplayCode,
     LocalDate dueDate,
@@ -25,7 +26,7 @@ public record NotificationMetadata(
 ) {
     public static NotificationMetadata empty() {
         return new NotificationMetadata(
-            null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
         );
     }
 }

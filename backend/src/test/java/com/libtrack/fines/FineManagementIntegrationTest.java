@@ -152,6 +152,8 @@ class FineManagementIntegrationTest {
         assertTrue(summary.get("totalFines").asLong() >= 1);
         assertTrue(summary.get("unpaidFines").asLong() >= 1);
         assertTrue(summary.get("totalOutstanding").asDouble() >= 50.0);
+        assertTrue(summary.has("currentlyOverdueLoans"));
+        assertTrue(summary.get("currentlyOverdueLoans").asLong() >= 1);
 
         // Student views their own fines
         MvcResult myFinesResult = mvc.perform(get("/api/v1/fines/mine").session(studentSession)).andReturn();
@@ -162,6 +164,40 @@ class FineManagementIntegrationTest {
         assertEquals(10.0, myFines.get(0).get("dailyRate").asDouble());
         assertEquals(500.0, myFines.get(0).get("maxFine").asDouble());
         assertEquals(0, myFines.get(0).get("gracePeriodDays").asInt());
+        assertEquals("STUDENT", myFines.get(0).get("borrowerRole").asText());
+
+        // Student views member summary
+        MvcResult mySummaryResult = mvc.perform(get("/api/v1/fines/summary").session(studentSession)).andReturn();
+        assertEquals(200, mySummaryResult.getResponse().getStatus());
+        JsonNode mySummary = mapper.readTree(mySummaryResult.getResponse().getContentAsString());
+        assertEquals(50.0, mySummary.get("totalOutstanding").asDouble());
+        assertEquals(1, mySummary.get("unpaidCount").asLong());
+        assertEquals(0.0, mySummary.get("totalPaid").asDouble());
+        assertEquals(0, mySummary.get("paidCount").asLong());
+        assertEquals(1, mySummary.get("totalAssessments").asLong());
+        assertEquals(1, mySummary.get("currentOverdueCount").asLong());
+
+        // Student views single fine details
+        MvcResult singleFineRes = mvc.perform(get("/api/v1/fines/" + assessed.getId()).session(studentSession)).andReturn();
+        assertEquals(200, singleFineRes.getResponse().getStatus());
+        JsonNode singleFine = mapper.readTree(singleFineRes.getResponse().getContentAsString());
+        assertEquals(assessed.getId().toString(), singleFine.get("id").asText());
+
+        // Cross-member access rejection: other student cannot view student 1's fine
+        UserAccount otherStudent = member(AccountRole.STUDENT);
+        MockHttpSession otherSession = login(otherStudent);
+        MvcResult crossAccess = mvc.perform(get("/api/v1/fines/" + assessed.getId()).session(otherSession)).andReturn();
+        assertEquals(403, crossAccess.getResponse().getStatus());
+
+        // Librarian single fine inspection
+        MvcResult libSingleFine = mvc.perform(get("/api/v1/librarian/fines/" + assessed.getId()).session(libSession)).andReturn();
+        assertEquals(200, libSingleFine.getResponse().getStatus());
+
+        // Librarian recalculate trigger
+        MvcResult recalcRes = mvc.perform(post("/api/v1/librarian/fines/recalculate")
+                .session(libSession)
+                .with(csrf())).andReturn();
+        assertEquals(204, recalcRes.getResponse().getStatus());
 
         // Attempt partial payment (₹25 instead of ₹50) -> Must fail with 409 Conflict
         MvcResult partialPay = mvc.perform(post("/api/v1/librarian/fines/" + assessed.getId() + "/payments")

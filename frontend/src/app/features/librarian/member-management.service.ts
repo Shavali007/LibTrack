@@ -12,6 +12,7 @@ export interface MemberSummary {
   createdAt: string;
   currentLoans: number;
   displayName?: string | null;
+  department?: string | null;
 }
 
 export interface MemberDetail {
@@ -26,6 +27,7 @@ export interface MemberDetail {
   borrowingHistory: LoanRecord[];
   borrowRequests: BorrowRequestRecord[];
   displayName?: string | null;
+  department?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -41,16 +43,25 @@ export class MemberManagementService {
     );
   }
 
-  list(q = '', role = '', enabled: boolean | null = null, page = 0, size = 15): Observable<Page<MemberSummary>> {
+  list(q = '', role = '', enabled: boolean | null = null, department = '', page = 0, size = 15): Observable<Page<MemberSummary>> {
     let params = new HttpParams().set('page', page).set('size', size);
     if (q.trim()) params = params.set('q', q.trim());
     if (role) params = params.set('role', role);
     if (enabled !== null) params = params.set('enabled', enabled);
+    if (department && department !== 'ALL' && department !== 'All Departments') {
+      params = params.set('department', department);
+    }
     return this.http.get<Page<MemberSummary>>('/api/v1/librarian/members', { params });
   }
 
   get(id: string): Observable<MemberDetail> {
     return this.http.get<MemberDetail>(`/api/v1/librarian/members/${id}`);
+  }
+
+  updateDepartment(id: string, department: string): Observable<MemberDetail> {
+    return this.csrf().pipe(
+      switchMap(headers => this.http.post<MemberDetail>(`/api/v1/librarian/members/${id}/department`, { department }, { headers }))
+    );
   }
 
   enable(id: string): Observable<void> {

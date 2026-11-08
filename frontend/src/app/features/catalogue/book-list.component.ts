@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
-import { AuthService, UserProfile } from '../auth/auth.service';
+import { AuthService, UserProfile, OFFICIAL_DEPARTMENTS } from '../auth/auth.service';
 import { SignInDialogComponent } from '../auth/sign-in-dialog.component';
 import { BookSummary, CatalogueService, CatalogueStatistics, Category } from './catalogue.service';
 import { RecommendationService, Recommendation } from '../recommendations/recommendation.service';
@@ -28,7 +28,6 @@ import { PublicNavigationComponent } from '../../shared/layout/public-navigation
           <h1 id="catalogue-title" class="page-title">Books &amp; Catalogue</h1>
           <p class="page-subtitle">Search, explore and find books across all subjects in the university library.</p>
         </div>
-        <div class="catalogue-hero-art" aria-hidden="true"><img src="/assets/banner-plant-books.png" alt="" loading="eager"></div>
       </section>
 
       <section class="search-and-stats" aria-label="Catalogue search and statistics">
@@ -39,9 +38,44 @@ import { PublicNavigationComponent } from '../../shared/layout/public-navigation
           <button class="search-submit" type="submit">Search</button>
         </form>
         <div class="catalogue-stats" aria-label="Catalogue totals">
-          <article class="stat-card"><span class="stat-icon" aria-hidden="true">▤</span><div><strong>{{ statistics()?.totalBooks ?? '—' }}</strong><span>Total Books</span></div></article>
-          <article class="stat-card"><span class="stat-icon" aria-hidden="true">▱</span><div><strong>{{ statistics()?.totalCategories ?? '—' }}</strong><span>Categories</span></div></article>
-          <article class="stat-card"><span class="stat-icon" aria-hidden="true">♧</span><div><strong>{{ statistics()?.availableCopies ?? '—' }}</strong><span>Available Copies</span></div></article>
+          <article class="stat-card">
+            <div class="stat-icon stat-icon-wrap" aria-hidden="true">
+              <svg class="stat-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <strong class="stat-value">{{ statistics()?.totalBooks ?? '—' }}</strong>
+              <span class="stat-label">Total Books</span>
+            </div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-icon stat-icon-wrap" aria-hidden="true">
+              <svg class="stat-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <strong class="stat-value">{{ statistics()?.totalCategories ?? '—' }}</strong>
+              <span class="stat-label">Categories</span>
+            </div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-icon stat-icon-wrap" aria-hidden="true">
+              <svg class="stat-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                <path d="m9 12 2 2 4-4"/>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <strong class="stat-value">{{ statistics()?.availableCopies ?? '—' }}</strong>
+              <span class="stat-label">Available Copies</span>
+            </div>
+          </article>
         </div>
         @if (statisticsLoading()) { <p class="stats-note" role="status" aria-live="polite">Loading catalogue totals…</p> }
         @else if (statisticsError()) { <p class="stats-note stats-error" role="alert">Catalogue totals are temporarily unavailable. <button class="text-button" type="button" (click)="loadStatistics()">Retry</button></p> }
@@ -93,6 +127,23 @@ import { PublicNavigationComponent } from '../../shared/layout/public-navigation
           <label><input type="checkbox" aria-label="Available" [checked]="draftAvailable()" (change)="setAvailability('available', $any($event.target).checked)"> Available ({{ availableCount() }})</label>
           <label><input type="checkbox" aria-label="Not Available" [checked]="draftUnavailable()" (change)="setAvailability('unavailable', $any($event.target).checked)"> Not Available ({{ unavailableCount() }})</label>
         </section>
+        <section class="filter-group" aria-labelledby="department-filter-title">
+          <h3 id="department-filter-title">Department</h3>
+          <div class="department-filter-select-wrap">
+            <select
+              id="department-filter"
+              class="department-select-control"
+              [ngModel]="draftDepartment()"
+              (ngModelChange)="setDepartment($event)"
+              aria-label="Filter by department"
+            >
+              <option value="">All Departments</option>
+              @for (dept of officialDepartments; track dept) {
+                <option [value]="dept">{{ dept }}</option>
+              }
+            </select>
+          </div>
+        </section>
         <section class="filter-group" aria-labelledby="category-filter-title">
           <h3 id="category-filter-title">Category</h3>
           @for (c of visibleFilterCategories(); track c.id) {
@@ -122,7 +173,7 @@ import { PublicNavigationComponent } from '../../shared/layout/public-navigation
             @if (auth.profile()?.role === 'LIBRARIAN') { <a class="add-book-btn compact-add" routerLink="/workspace/librarian/books/new">＋ Add Book</a> }
             <label for="catalogue-sort">Sort by:</label>
             <select id="catalogue-sort" [value]="sortSelection()" (change)="changeSort($any($event.target).value)">
-              <option value="trending">Trending</option><option value="title:asc">Title A–Z</option><option value="title:desc">Title Z–A</option><option value="publicationYear:desc">Newest publication year</option><option value="publicationYear:asc">Oldest publication year</option>
+              <option value="trending">Trending</option><option value="topRated">Top Rated</option><option value="title:asc">Title A–Z</option><option value="title:desc">Title Z–A</option><option value="publicationYear:desc">Newest publication year</option><option value="publicationYear:asc">Oldest publication year</option>
             </select>
             <div class="view-toggle" role="group" aria-label="Catalogue view">
               <button type="button" [class.active]="viewMode() === 'grid'" [attr.aria-pressed]="viewMode() === 'grid'" aria-label="Grid view" (click)="viewMode.set('grid')">▦</button>
@@ -161,6 +212,7 @@ import { PublicNavigationComponent } from '../../shared/layout/public-navigation
                   <p class="book-author">{{ book.authors.join(', ') || 'Unknown Author' }}</p>
                   <p class="book-isbn">{{ book.isbn ? 'ISBN: '+book.isbn : 'No ISBN listed' }}</p>
                   <div class="book-badges">
+                    @if (book.department) { <span class="badge-dept">{{ book.department }}</span> }
                     @if (book.hasDigitalEdition) { <span class="badge-pdf">PDF</span> }
                     @if (recommendedBookIds().has(book.id)) { <span class="badge-faculty-rec">Faculty Recommended</span> }
                     @if (book.publicationYear) { <span>{{ book.publicationYear }}</span> }
@@ -618,6 +670,32 @@ import { PublicNavigationComponent } from '../../shared/layout/public-navigation
       color: #DC2626;
       border: 1px solid #FCA5A5;
     }
+    .badge-dept {
+      background: var(--color-primary-soft, #EAF2EF);
+      color: var(--color-primary, #003D30);
+      border: 1px solid var(--color-primary-border, #C2D6CF);
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-full, 9999px);
+      font-size: var(--font-size-xs, 0.75rem);
+      font-weight: 600;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      max-width: 190px;
+    }
+    .department-filter-select-wrap {
+      margin-top: 0.35rem;
+    }
+    .department-select-control {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      border: 1px solid var(--color-line-300, #D8D2C4);
+      border-radius: var(--radius-control, 6px);
+      background: #FFFFFF;
+      font-size: var(--font-size-sm, 0.84375rem);
+      color: var(--color-charcoal-900, #1F2421);
+      font-family: inherit;
+    }
     .badge-faculty-rec {
       font-size: 0.6875rem;
       font-weight: 600;
@@ -908,17 +986,16 @@ import { PublicNavigationComponent } from '../../shared/layout/public-navigation
     .catalogue-public-nav{min-height:4rem;margin:0;padding:.55rem clamp(1rem,4.2vw,4.5rem);background:rgb(255 255 255 / 94%);border-bottom:1px solid #e9e5dc;gap:1.5rem}.catalogue-public-nav .brand{gap:.65rem}.brand-icon{width:2.6rem;height:2.6rem;border-radius:.65rem}.brand-icon svg{width:1.45rem;fill:none;stroke:#d9f5e8;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.brand-copy{display:grid;gap:.1rem}.brand-copy strong{font:600 1.35rem/1 var(--font-serif);letter-spacing:-.02em}.brand-copy small{font-size:.58rem;font-weight:600;letter-spacing:.02em;color:#58645e}.catalogue-public-nav nav{gap:clamp(.8rem,2.4vw,2.4rem)}.catalogue-public-nav nav a[aria-current="page"]{color:var(--color-forest-900);font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:.65rem}.catalogue-public-nav nav a,.catalogue-public-nav nav button{font-size:.88rem}.workspace-action{display:inline-flex;min-height:2.75rem;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.2rem;border:0;border-radius:.65rem;background:var(--color-forest-900);color:#fff;font:600 .86rem var(--font-sans);text-decoration:none;white-space:nowrap;cursor:pointer;box-shadow:0 2px 5px rgb(0 61 48 / 16%)}.workspace-action:hover{background:var(--color-forest-950)}
     .catalogue-public-nav{min-height:4rem;margin:0;padding:.55rem clamp(1rem,4.2vw,4.5rem);background:rgb(255 255 255 / 94%);border-bottom:1px solid #e9e5dc;gap:1.5rem}.catalogue-public-nav .brand{gap:.65rem}.brand-icon{width:2.6rem;height:2.6rem;border-radius:.65rem}.brand-icon svg{width:1.45rem;fill:none;stroke:#d9f5e8;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.brand-copy{display:grid;gap:.1rem}.brand-copy strong{font:600 1.35rem/1 var(--font-serif);letter-spacing:-.02em}.brand-copy small{font-size:.58rem;font-weight:600;letter-spacing:.02em;color:#58645e}.catalogue-public-nav nav{gap:clamp(.8rem,2.4vw,2.4rem)}.catalogue-public-nav nav a[aria-current="page"]{color:var(--color-forest-900);font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:.65rem}.catalogue-public-nav nav a,.catalogue-public-nav nav button{font-size:.88rem}.workspace-action{display:inline-flex;min-height:2.75rem;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.2rem;border:0;border-radius:.65rem;background:var(--color-forest-900);color:#fff;font:600 .86rem var(--font-sans);text-decoration:none;white-space:nowrap;cursor:pointer;box-shadow:0 2px 5px rgb(0 61 48 / 16%)}.workspace-action:hover{background:var(--color-forest-950)}
 
-    .catalogue-hero{position:relative;display:flex;min-height:8.25rem;align-items:center;overflow:hidden;margin:0 calc(-1 * clamp(1rem,3.6vw,4.25rem));padding:1.35rem clamp(1rem,3.6vw,4.25rem);background:linear-gradient(90deg,#faf8f4 0%,#faf8f4 55%,#f4eee2 100%);border-bottom:1px solid #eee9df}.catalogue-hero-copy{position:relative;z-index:1;max-width:55rem}.catalogue-eyebrow{margin:0 0 .25rem;color:var(--color-forest-800);font-size:.72rem;font-weight:750;letter-spacing:.07em}.page-title{margin:0 0 .25rem;color:#101729;font:700 clamp(1.8rem,2.7vw,2.35rem)/1.1 var(--font-sans);letter-spacing:-.035em}.page-subtitle{margin:0;color:#475569;font:400 .98rem/1.45 var(--font-sans)}.catalogue-hero-art{position:absolute;inset:0 0 0 auto;width:min(35%,32rem);overflow:hidden;mask-image:linear-gradient(90deg,transparent 0%,#000 20%)}.catalogue-hero-art img{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;object-position:right center;clip-path:inset(0 0 0 42%)}
-    .search-and-stats{display:grid;grid-template-columns:minmax(15rem,1fr) auto;align-items:center;gap:1rem;padding:1rem 0}.catalogue-search{display:flex;min-width:0;min-height:3.55rem;align-items:center;gap:.7rem;padding:.38rem .45rem .38rem .9rem;border:1px solid #e3e2de;border-radius:.85rem;background:#fff;box-shadow:0 2px 7px rgb(20 40 30 / 4%)}.catalogue-search .search-icon{width:1.35rem;height:1.35rem;flex:0 0 auto;color:#263b34}.catalogue-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#263b34;font:500 .93rem var(--font-sans)}.catalogue-search input::placeholder{color:#77818d}.catalogue-search input:focus-visible{outline:2px solid var(--color-forest-700);outline-offset:2px;border-radius:.2rem}.search-submit{min-height:2.75rem;padding:.45rem 1.25rem;border:0;border-radius:.65rem;background:var(--color-forest-900);color:#fff;font:650 .88rem var(--font-sans);cursor:pointer}.search-submit:hover{background:var(--color-forest-950)}.catalogue-stats{display:grid;grid-template-columns:repeat(3,minmax(8rem,1fr));gap:.65rem}.stat-card{display:flex;min-width:8rem;min-height:3.55rem;align-items:center;gap:.65rem;padding:.5rem .8rem;border:1px solid #eeeae3;border-radius:.75rem;background:#fff;box-shadow:0 2px 8px rgb(20 40 30 / 5%)}.stat-icon{display:grid;width:1.8rem;height:1.8rem;flex:0 0 auto;place-items:center;color:var(--color-forest-800);font-size:1.45rem;font-weight:600}.stat-card div{display:grid;gap:.1rem}.stat-card strong{color:#15221c;font-size:1.05rem;font-weight:750;line-height:1.1}.stat-card span:not(.stat-icon){color:#52605a;font-size:.72rem;white-space:nowrap}.stats-note{margin:0 0 .5rem;color:#80631a;font-size:.78rem}
+    .catalogue-hero{position:relative;display:flex;min-height:7.5rem;align-items:center;margin:0 calc(-1 * clamp(1rem,3.6vw,4.25rem));padding:1.6rem clamp(1rem,3.6vw,4.25rem);background:#faf8f5;border-bottom:1px solid #eae6de;box-sizing:border-box}.catalogue-hero-copy{position:relative;z-index:1;max-width:52rem}.catalogue-eyebrow{margin:0 0 .35rem;color:var(--color-forest-800);font-size:.74rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase}.page-title{margin:0 0 .4rem;color:#101729;font:600 clamp(1.9rem,2.7vw,2.4rem)/1.18 var(--font-serif);letter-spacing:-.025em}.page-subtitle{margin:0;color:var(--color-charcoal-600);font:400 .95rem/1.5 var(--font-sans);max-width:44rem}
+    .search-and-stats{display:grid;grid-template-columns:minmax(18rem,1fr) auto;align-items:stretch;gap:1.25rem;padding:1.35rem 0 1.15rem}.catalogue-search{display:flex;min-width:0;min-height:4.5rem;align-items:center;gap:.85rem;padding:.5rem .65rem .5rem 1.15rem;border:1px solid #e3e2de;border-radius:.85rem;background:#fff;box-shadow:0 2px 8px rgb(20 40 30 / 4%);box-sizing:border-box;transition:border-color .15s ease,box-shadow .15s ease}.catalogue-search:focus-within{border-color:var(--color-sage-300);box-shadow:0 4px 12px rgb(0 61 48 / 8%)}.catalogue-search .search-icon{width:1.35rem;height:1.35rem;flex:0 0 auto;color:var(--color-forest-900)}.catalogue-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#112a20;font:500 .95rem var(--font-sans)}.catalogue-search input::placeholder{color:#77818d}.catalogue-search input:focus-visible{outline:none}.search-submit{min-height:3.1rem;padding:.55rem 1.5rem;border:0;border-radius:.65rem;background:var(--color-forest-900);color:#fff;font:600 .88rem var(--font-sans);cursor:pointer;flex-shrink:0;transition:background-color .15s ease}.search-submit:hover{background:var(--color-forest-950)}.catalogue-stats{display:grid;grid-template-columns:repeat(3,minmax(10.5rem,1fr));gap:.85rem;align-items:stretch}.stat-card{display:flex;min-width:10.5rem;min-height:4.5rem;align-items:center;gap:.85rem;padding:.75rem 1.15rem;border:1px solid var(--color-line-200);border-radius:.85rem;background:#fff;box-shadow:0 2px 8px rgb(20 40 30 / 4%);box-sizing:border-box;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}.stat-card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgb(0 61 48 / 7%);border-color:var(--color-sage-300)}.stat-icon-wrap{display:flex;align-items:center;justify-content:center;width:2.65rem;height:2.65rem;border-radius:.65rem;background:#eaf2ef;color:var(--color-forest-900);flex-shrink:0}.stat-icon-svg{width:1.35rem;height:1.35rem}.stat-info{display:flex;flex-direction:column;justify-content:center;gap:.15rem;min-width:0}.stat-value{color:#101729;font-size:1.45rem;font-weight:700;line-height:1.15;letter-spacing:-.02em;font-family:var(--font-sans)}.stat-label{color:var(--color-charcoal-600);font-size:.76rem;font-weight:600;white-space:nowrap;letter-spacing:.01em}.stats-note{grid-column:1 / -1;margin:.25rem 0 0;color:#80631a;font-size:.78rem}
     .category-chips-row{display:flex;align-items:center;gap:.5rem;margin:0 0 1rem;padding:.1rem 0 .8rem;border-bottom:1px solid #e8e4dc;overflow-x:auto}.category-chips-row>strong{flex:0 0 auto;margin-right:.3rem;color:#27332e;font-size:.8rem}.category-chip{padding:.5rem .9rem;border:1px solid #e8e7e2;border-radius:999px;background:#fff;color:#313c36;font-size:.78rem;font-weight:600;white-space:nowrap;box-shadow:0 1px 3px rgb(20 40 30 / 3%)}.category-chip:hover{border-color:#aac8ba;color:var(--color-forest-900)}.category-chip.active,.faculty-filter-chip.active{border-color:var(--color-forest-900);background:var(--color-forest-900);color:#fff}.faculty-filter-chip{display:inline-flex;align-items:center;gap:.3rem;background:#f8faf8;border-color:#c9d7d0;color:var(--color-forest-900)}.more-chip{color:var(--color-forest-900)}
     .results-layout{display:grid;grid-template-columns:15rem minmax(0,1fr);align-items:start;gap:1.2rem}.filters-panel{padding:1rem;border:1px solid #ebe8e1;border-radius:.9rem;background:#fff;box-shadow:0 2px 8px rgb(20 40 30 / 4%)}.filters-heading{display:flex;align-items:center;justify-content:space-between;padding-bottom:.75rem;border-bottom:1px solid #eeeae3}.filters-heading h2{margin:0;color:#202c26;font-size:1rem;font-weight:750}.filters-heading .text-button{font-size:.78rem;text-decoration:none}.filter-group{display:grid;gap:.65rem;padding:.85rem 0;border-bottom:1px solid #eeeae3}.filter-group h3{margin:0 0 .15rem;color:#28352f;font-size:.84rem;font-weight:700}.filter-group>label{display:flex;align-items:center;gap:.55rem;color:#47534c;font-size:.8rem;cursor:pointer}.filter-group input[type="checkbox"]{width:1rem;height:1rem;accent-color:var(--color-forest-900)}.filter-group .show-more{justify-self:start;padding:0;text-decoration:none}.year-values{display:flex;justify-content:space-between;color:#59665e;font-size:.73rem}.year-values strong{color:#28352f}.year-filter input[type="range"]{width:100%;height:.3rem;accent-color:var(--color-forest-900)}.filter-error{margin:.65rem 0 0;color:#a33727;font-size:.75rem}.apply-filters{width:100%;min-height:2.55rem;margin-top:.9rem;border:1px solid #8fb7a4;border-radius:.65rem;background:#eef7f1;color:var(--color-forest-900);font-weight:700;cursor:pointer}.apply-filters:hover{background:#e3f1e8}.mobile-filter-toggle{display:none}
     .results-panel{min-width:0}.results-toolbar{display:flex;min-height:2.65rem;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.75rem}.result-count{margin:0;color:#4d5953;font-size:.82rem;font-weight:600}.results-controls{display:flex;align-items:center;gap:.5rem;color:#34423a;font-size:.78rem}.results-controls label{font-weight:600}.results-controls select{min-height:2.3rem;max-width:12rem;padding:0 2rem 0 .65rem;border:1px solid #e4e2dc;border-radius:.55rem;background:#fff;color:#29362f;font-size:.78rem}.compact-add{min-height:2.25rem;padding:.45rem .7rem;font-size:.75rem}.view-toggle{display:flex;overflow:hidden;border:1px solid #e5e3de;border-radius:.6rem;background:#fff}.view-toggle button{width:2.25rem;height:2.25rem;border:0;background:transparent;color:#59645e;font-size:1rem;cursor:pointer}.view-toggle button.active{background:var(--color-forest-900);color:#fff}.book-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}.book-card{display:grid;min-width:0;grid-template-columns:5.2rem minmax(0,1fr) minmax(9rem,11.5rem);align-items:center;gap:.8rem;padding:.75rem;border:1px solid #e8e7e2;border-radius:.9rem;background:#fff;box-shadow:0 2px 6px rgb(20 40 30 / 4%);transition:box-shadow .16s ease,transform .16s ease}.book-card:hover{box-shadow:0 5px 15px rgb(20 40 30 / 8%);transform:translateY(-1px)}.card-cover{position:relative;display:block;width:5.2rem;height:7.6rem;overflow:hidden;border-radius:.45rem;background:#eef0eb;box-shadow:0 2px 5px rgb(20 40 30 / 12%)}.card-cover img{display:block;width:100%;height:100%;object-fit:contain;background:#f5f4ef}.card-cover-fallback{display:grid;width:100%;height:100%;place-items:center;padding:.4rem;border-left:4px solid #a5c4b2;background:#0b3d30;color:#fff;font:700 .85rem var(--font-serif);text-align:center;overflow-wrap:anywhere}.cover-status{position:absolute;top:.25rem;right:.25rem;padding:.16rem .3rem;border-radius:.3rem;font-size:.55rem;font-weight:700}.cover-status.available{background:#e4f3e8;color:#075632}.cover-status.unavailable{background:#fff1d2;color:#8e4a00}.book-main{min-width:0}.book-category{margin:0 0 .35rem;color:var(--color-forest-800);font-size:.65rem;font-weight:750;letter-spacing:.06em;text-transform:uppercase}.book-main h2{margin:0 0 .28rem;color:#1a2420;font-size:.98rem;font-weight:750;line-height:1.25;overflow-wrap:anywhere}.book-main h2 a{color:inherit;text-decoration:none}.book-main h2 a:hover{color:var(--color-forest-900);text-decoration:underline;text-underline-offset:.15rem}.book-author{margin:0 0 .28rem;color:#55615a;font-size:.8rem;overflow-wrap:anywhere}.book-isbn{margin:0;color:#65716a;font-size:.7rem;overflow-wrap:anywhere}.book-badges{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}.book-badges>span:not(.badge-pdf):not(.badge-faculty-rec){padding:.1rem .3rem;border-radius:.3rem;background:#f3f3ef;color:#68736d;font-size:.62rem}.book-action{display:flex;min-width:0;flex-direction:column;align-items:stretch;gap:.5rem;padding-left:.75rem;border-left:1px solid #ecebe6}.availability-pill{display:block;max-width:100%;padding:.4rem .5rem;border-radius:999px;font-size:.68rem;font-weight:700;text-align:center;white-space:normal;line-height:1.2}.availability-pill.available{background:#e6f3e9;color:#075632}.availability-pill.unavailable{background:#fff2d4;color:#945000}.book-action-button{display:flex;min-height:2.35rem;align-items:center;justify-content:center;padding:.4rem .55rem;border:1px solid var(--color-forest-900);border-radius:.55rem;font-size:.73rem;font-weight:700;line-height:1.2;text-align:center;text-decoration:none;cursor:pointer}.book-action-button.primary{background:var(--color-forest-900);color:#fff}.book-action-button.primary:hover{background:var(--color-forest-950)}.book-action-button.secondary{background:#fff;color:var(--color-forest-900)}.book-action-button.secondary:hover{background:#eef7f1}.book-action-note{color:#68736d;font-size:.66rem;text-align:center}.book-utilities{display:flex;justify-content:flex-end;gap:.35rem}.utility-button{display:grid;width:1.8rem;height:1.8rem;place-items:center;border:1px solid #e6e5df;border-radius:.45rem;background:#fff;color:#52625a;font-size:1rem;text-decoration:none;cursor:pointer}.utility-button:hover,.utility-button.is-rec{border-color:#b7d3c3;background:#edf7f0;color:var(--color-forest-900)}.utility-button.is-wishlisted{border-color:#f5c5ca;background:#fff3f4;color:#bd2332}.pagination-controls{display:flex;justify-content:center;gap:.4rem;margin:1.1rem 0 0}.pagination-btn,.pagination-page{width:2.15rem;height:2.15rem;border:1px solid #e5e4de;border-radius:50%;background:#fff;color:#33423a}.pagination-page.active{border-color:var(--color-forest-900);background:var(--color-forest-900);color:#fff}.pagination-btn:disabled{opacity:.42;cursor:not-allowed}
     .book-grid.list-view{grid-template-columns:1fr}.book-grid.list-view .book-card{grid-template-columns:5.2rem minmax(0,1fr) minmax(10rem,13rem)}
-    @media(max-width:1250px){.search-and-stats{grid-template-columns:1fr}.catalogue-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.results-layout{grid-template-columns:13rem minmax(0,1fr);gap:.8rem}.book-grid{grid-template-columns:1fr}.book-card{grid-template-columns:5.5rem minmax(0,1fr) minmax(10rem,13rem)}.card-cover{width:5.5rem;height:8rem}}
-    @media(max-width:900px){.catalogue-content{padding-inline:1.25rem}.catalogue-public-nav{padding-inline:1.25rem}.catalogue-public-nav nav{gap:.75rem}.catalogue-hero{margin-inline:-1.25rem;padding-inline:1.25rem}
-    .catalogue-hero{min-height:7.5rem;margin-inline:-.8rem;padding:1rem .8rem}.catalogue-hero-art{width:42%;opacity:.6}.catalogue-hero-copy{max-width:75%}.page-title{font-size:1.75rem}.page-subtitle{max-width:26rem;font-size:.82rem}.catalogue-eyebrow{font-size:.63rem}.search-and-stats{gap:.7rem;padding:.75rem 0}.catalogue-search{min-height:3.15rem}.search-submit{min-height:2.45rem;padding-inline:.75rem}.catalogue-search input{font-size:.8rem}.catalogue-stats{gap:.35rem}.stat-card{min-width:0;min-height:3.1rem;gap:.35rem;padding:.4rem}.stat-icon{width:1.3rem;height:1.3rem;font-size:1.1rem}.stat-card strong{font-size:.88rem}.stat-card span:not(.stat-icon){font-size:.58rem;white-space:normal}.category-chips-row{margin-bottom:.75rem}.category-chips-row>strong{font-size:.7rem}.category-chip{padding:.43rem .68rem;font-size:.7rem}.results-toolbar{align-items:flex-start;flex-direction:column;gap:.55rem}.results-controls{width:100%;flex-wrap:wrap}.results-controls select{flex:1;max-width:none}.results-controls label{margin-right:auto}.compact-add{order:4}.book-grid{grid-template-columns:1fr}.book-card{grid-template-columns:5.2rem minmax(0,1fr);gap:.65rem;padding:.65rem}.card-cover{width:5.2rem;height:7.6rem}.book-main h2{font-size:.9rem}.book-action-button{font-size:.68rem}.book-utilities{gap:.2rem}.utility-button{width:1.65rem;height:1.65rem}.pagination-controls{margin-bottom:1rem}}
-    @media(max-width:620px){.catalogue-public-nav{min-height:3.6rem;flex-wrap:wrap;padding:.45rem .8rem}.catalogue-public-nav nav{width:100%;flex-wrap:wrap;justify-content:space-between;gap:.45rem;padding-bottom:.35rem}.catalogue-public-nav nav a{display:inline-flex}.brand-copy small{font-size:.52rem}.workspace-action{min-height:2.45rem;padding:.45rem .65rem;font-size:.72rem}.catalogue-content{padding-inline:.8rem}.catalogue-hero{min-height:7.5rem;margin-inline:-.8rem;padding:1rem .8rem}.catalogue-hero-art{width:42%;opacity:.6}.catalogue-hero-copy{max-width:75%}.page-title{font-size:1.75rem}.page-subtitle{max-width:26rem;font-size:.82rem}.catalogue-eyebrow{font-size:.63rem}.search-and-stats{gap:.7rem;padding:.75rem 0}.catalogue-search{min-height:3.15rem}.search-submit{min-height:2.45rem;padding-inline:.75rem}.catalogue-search input{font-size:.8rem}.catalogue-stats{gap:.35rem}.stat-card{min-width:0;min-height:3.1rem;gap:.35rem;padding:.4rem}.stat-icon{width:1.3rem;height:1.3rem;font-size:1.1rem}.stat-card strong{font-size:.88rem}.stat-card span:not(.stat-icon){font-size:.58rem;white-space:normal}.category-chips-row{margin-bottom:.75rem}.category-chips-row>strong{font-size:.7rem}.category-chip{padding:.43rem .68rem;font-size:.7rem}.results-toolbar{align-items:flex-start;flex-direction:column;gap:.55rem}.results-controls{width:100%;flex-wrap:wrap}.results-controls select{flex:1;max-width:none}.results-controls label{margin-right:auto}.compact-add{order:4}.book-grid{grid-template-columns:1fr}.book-card{grid-template-columns:5.2rem minmax(0,1fr);gap:.65rem;padding:.65rem}.card-cover{width:5.2rem;height:7.6rem}.book-main h2{font-size:.9rem}.book-action-button{font-size:.68rem}.book-utilities{gap:.2rem}.utility-button{width:1.65rem;height:1.65rem}.pagination-controls{margin-bottom:1rem}}
-    @media(max-width:380px){.catalogue-hero-art{opacity:.35}.catalogue-hero-copy{max-width:88%}.catalogue-stats{grid-template-columns:1fr}.stat-card{justify-content:flex-start}.stat-card span:not(.stat-icon){white-space:nowrap}.book-card{grid-template-columns:4.5rem minmax(0,1fr);gap:.5rem}.card-cover{width:4.5rem;height:6.7rem}.book-action{flex-wrap:wrap}.book-action-button{max-width:none}}
+    @media(max-width:1200px){.search-and-stats{grid-template-columns:1fr;gap:1rem}.catalogue-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:.85rem}.results-layout{grid-template-columns:13rem minmax(0,1fr);gap:.8rem}.book-grid{grid-template-columns:1fr}.book-card{grid-template-columns:5.5rem minmax(0,1fr) minmax(10rem,13rem)}.card-cover{width:5.5rem;height:8rem}}
+    @media(max-width:900px){.catalogue-content{padding-inline:1.25rem}.catalogue-public-nav{padding-inline:1.25rem}.catalogue-public-nav nav{gap:.75rem}.catalogue-hero{margin-inline:-1.25rem;padding:1.25rem 1.25rem;min-height:6.5rem}.page-title{font-size:1.75rem}.page-subtitle{max-width:28rem;font-size:.88rem}.catalogue-eyebrow{font-size:.68rem}.category-chips-row{margin-bottom:.75rem}.category-chips-row>strong{font-size:.7rem}.category-chip{padding:.43rem .68rem;font-size:.7rem}.results-toolbar{align-items:flex-start;flex-direction:column;gap:.55rem}.results-controls{width:100%;flex-wrap:wrap}.results-controls select{flex:1;max-width:none}.results-controls label{margin-right:auto}.compact-add{order:4}.book-grid{grid-template-columns:1fr}.book-card{grid-template-columns:5.2rem minmax(0,1fr);gap:.65rem;padding:.65rem}.card-cover{width:5.2rem;height:7.6rem}.book-main h2{font-size:.9rem}.book-action-button{font-size:.68rem}.book-utilities{gap:.2rem}.utility-button{width:1.65rem;height:1.65rem}.pagination-controls{margin-bottom:1rem}}
+    @media(max-width:620px){.catalogue-public-nav{min-height:3.6rem;flex-wrap:wrap;padding:.45rem .8rem}.catalogue-public-nav nav{width:100%;flex-wrap:wrap;justify-content:space-between;gap:.45rem;padding-bottom:.35rem}.catalogue-public-nav nav a{display:inline-flex}.brand-copy small{font-size:.52rem}.workspace-action{min-height:2.45rem;padding:.45rem .65rem;font-size:.72rem}.catalogue-content{padding-inline:.8rem}.catalogue-hero{margin-inline:-.8rem;padding:1rem .8rem;min-height:5.5rem}.page-title{font-size:1.55rem}.page-subtitle{max-width:24rem;font-size:.82rem}.catalogue-eyebrow{font-size:.63rem}.search-and-stats{gap:.75rem;padding:.75rem 0}.catalogue-search{min-height:3.8rem;padding:.4rem .5rem .4rem .85rem}.search-submit{min-height:2.65rem;padding-inline:.95rem;font-size:.82rem}.catalogue-search input{font-size:.88rem}.catalogue-stats{grid-template-columns:1fr;gap:.65rem}.stat-card{min-width:0;min-height:4.1rem;padding:.65rem .95rem}.stat-icon-wrap{width:2.4rem;height:2.4rem}.stat-icon-svg{width:1.2rem;height:1.2rem}.stat-value{font-size:1.3rem}.stat-label{font-size:.75rem}}
+    @media(max-width:380px){.catalogue-hero-copy{max-width:100%}.stat-card{justify-content:flex-start}.stat-card .stat-label{white-space:nowrap}.book-card{grid-template-columns:4.5rem minmax(0,1fr);gap:.5rem}.card-cover{width:4.5rem;height:6.7rem}.book-action{flex-wrap:wrap}.book-action-button{max-width:none}}
   `]
 })
 export class BookListComponent {
@@ -955,7 +1032,7 @@ export class BookListComponent {
   readonly draftYearTo = signal<number | null>(null);
   readonly filterError = signal('');
   readonly viewMode = signal<'grid' | 'list'>('grid');
-  readonly sortField = signal<'title' | 'publicationYear' | 'trending'>('title');
+  readonly sortField = signal<'title' | 'publicationYear' | 'trending' | 'rating'>('title');
   readonly sortDirection = signal<'asc' | 'desc'>('asc');
 
   readonly recommendedBookIds = signal<Set<string>>(new Set());
@@ -974,8 +1051,11 @@ export class BookListComponent {
   q = '';
   category = '';
   availability = '';
+  department = '';
+  readonly officialDepartments = OFFICIAL_DEPARTMENTS;
+  readonly draftDepartment = signal<string>('');
 
-  private applied = { q: '', category: '', availability: '', yearFrom: null as number | null, yearTo: null as number | null };
+  private applied = { q: '', category: '', department: '', availability: '', yearFrom: null as number | null, yearTo: null as number | null };
   private searchRequest = 0;
   private goToWorkspaceAfterSignIn = false;
 
@@ -983,6 +1063,8 @@ export class BookListComponent {
     this.q = this.route.snapshot.queryParamMap.get('q') || '';
     this.category = this.route.snapshot.queryParamMap.get('category') || '';
     this.availability = this.route.snapshot.queryParamMap.get('availability') || '';
+    this.department = this.route.snapshot.queryParamMap.get('department') || '';
+    this.draftDepartment.set(this.department);
     this.draftAvailable.set(this.availability !== 'false');
     this.draftUnavailable.set(this.availability !== 'true');
     this.draftYearFrom.set(this.readYearParam(this.route.snapshot.queryParamMap.get('publicationYearFrom')));
@@ -990,11 +1072,15 @@ export class BookListComponent {
     const sortDirection = this.route.snapshot.queryParamMap.get('direction');
     this.sortDirection.set(sortDirection === 'desc' ? 'desc' : 'asc');
     const sortField = this.route.snapshot.queryParamMap.get('sort');
-    this.sortField.set(sortField === 'publicationYear' || sortField === 'trending' ? sortField : 'title');
+    this.sortField.set(
+      sortField === 'publicationYear' || sortField === 'trending' || sortField === 'rating' || sortField === 'topRated'
+        ? (sortField === 'topRated' ? 'rating' : sortField)
+        : 'title'
+    );
     if (this.route.snapshot.queryParamMap.get('facultyRecommended') === 'true') {
       this.facultyRecommendedOnly.set(true);
     }
-    this.applied = { q: this.q.trim(), category: this.category.trim(), availability: this.availability, yearFrom: this.draftYearFrom(), yearTo: this.draftYearTo() };
+    this.applied = { q: this.q.trim(), category: this.category.trim(), department: this.department.trim(), availability: this.availability, yearFrom: this.draftYearFrom(), yearTo: this.draftYearTo() };
 
     this.service.categories().subscribe({
       next: x => this.categories.set(x),
@@ -1018,22 +1104,28 @@ export class BookListComponent {
       const q = params.get('q') || '';
       const cat = params.get('category') || '';
       const avail = params.get('availability') || '';
+      const dept = params.get('department') || '';
       const yearFrom = this.readYearParam(params.get('publicationYearFrom'));
       const yearTo = this.readYearParam(params.get('publicationYearTo'));
       const sort = params.get('sort');
-      const nextSort: 'title' | 'publicationYear' | 'trending' = sort === 'publicationYear' || sort === 'trending' ? sort : 'title';
-      const direction = sort === 'trending' ? 'desc' : (params.get('direction') === 'desc' ? 'desc' : 'asc');
-      if (q.trim() !== this.applied.q || cat.trim() !== this.applied.category || avail !== this.applied.availability || yearFrom !== this.applied.yearFrom || yearTo !== this.applied.yearTo || nextSort !== this.sortField() || direction !== this.sortDirection()) {
+      const nextSort: 'title' | 'publicationYear' | 'trending' | 'rating' =
+        sort === 'publicationYear' || sort === 'trending' || sort === 'rating' || sort === 'topRated'
+          ? (sort === 'topRated' ? 'rating' : sort)
+          : 'title';
+      const direction = nextSort === 'trending' || nextSort === 'rating' ? 'desc' : (params.get('direction') === 'desc' ? 'desc' : 'asc');
+      if (q.trim() !== this.applied.q || cat.trim() !== this.applied.category || dept.trim() !== this.applied.department || avail !== this.applied.availability || yearFrom !== this.applied.yearFrom || yearTo !== this.applied.yearTo || nextSort !== this.sortField() || direction !== this.sortDirection()) {
         this.q = q;
         this.category = cat;
         this.availability = avail;
+        this.department = dept;
+        this.draftDepartment.set(dept);
         this.draftAvailable.set(avail !== 'false');
         this.draftUnavailable.set(avail !== 'true');
         this.draftYearFrom.set(yearFrom);
         this.draftYearTo.set(yearTo);
         this.sortField.set(nextSort);
         this.sortDirection.set(direction);
-        this.applied = { q: q.trim(), category: cat.trim(), availability: avail, yearFrom, yearTo };
+        this.applied = { q: q.trim(), category: cat.trim(), department: dept.trim(), availability: avail, yearFrom, yearTo };
         this.load(0);
       }
     });
@@ -1060,6 +1152,7 @@ export class BookListComponent {
     return {
       q: this.applied.q || null,
       category: this.applied.category || null,
+      department: this.applied.department || null,
       availability: this.applied.availability || null,
       publicationYearFrom: this.applied.yearFrom === null ? null : String(this.applied.yearFrom),
       publicationYearTo: this.applied.yearTo === null ? null : String(this.applied.yearTo),
@@ -1077,10 +1170,15 @@ export class BookListComponent {
       return;
     }
     this.filterError.set('');
-    this.applied = { q: this.q.trim(), category: this.category.trim(), availability: this.availability, yearFrom: from, yearTo: to };
+    this.department = this.draftDepartment();
+    this.applied = { q: this.q.trim(), category: this.category.trim(), department: this.department.trim(), availability: this.availability, yearFrom: from, yearTo: to };
     void this.router.navigate([], { relativeTo: this.route, queryParams: this.currentQueryParams(), queryParamsHandling: 'merge' });
     this.filtersOpen.set(false);
     this.load(0);
+  }
+
+  setDepartment(dept: string) {
+    this.draftDepartment.set(dept);
   }
 
   selectCategory(catName: string) {
@@ -1098,7 +1196,11 @@ export class BookListComponent {
   visibleFilterCategories(): Category[] { return this.showAllFilterCategories() ? this.categories() : this.categories().slice(0, this.filterCategoryLimit); }
   availableCount(): number { return this.statistics()?.availableBooks ?? 0; }
   unavailableCount(): number { return this.statistics()?.unavailableBooks ?? 0; }
-  sortSelection(): string { return this.sortField() === 'trending' ? 'trending' : `${this.sortField()}:${this.sortDirection()}`; }
+  sortSelection(): string {
+    if (this.sortField() === 'trending') return 'trending';
+    if (this.sortField() === 'rating') return 'topRated';
+    return `${this.sortField()}:${this.sortDirection()}`;
+  }
 
   selectFilterCategory(name: string, checked: boolean): void {
     this.category = checked ? name : this.category.toLowerCase() === name.toLowerCase() ? '' : this.category;
@@ -1125,6 +1227,13 @@ export class BookListComponent {
   changeSort(value: string): void {
     if (value === 'trending') {
       this.sortField.set('trending');
+      this.sortDirection.set('desc');
+      void this.router.navigate([], { relativeTo: this.route, queryParams: this.currentQueryParams() });
+      this.load(0);
+      return;
+    }
+    if (value === 'topRated' || value === 'rating') {
+      this.sortField.set('rating');
       this.sortDirection.set('desc');
       void this.router.navigate([], { relativeTo: this.route, queryParams: this.currentQueryParams() });
       this.load(0);
@@ -1169,10 +1278,13 @@ export class BookListComponent {
     this.draftYearTo.set(null);
     this.filterError.set('');
     this.facultyRecommendedOnly.set(false);
-    this.applied = { q: '', category: '', availability: '', yearFrom: null, yearTo: null };
+    this.department = '';
+    this.draftDepartment.set('');
+    this.applied = { q: '', category: '', department: '', availability: '', yearFrom: null, yearTo: null };
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { q: null, category: null, availability: null, publicationYearFrom: null, publicationYearTo: null, facultyRecommended: null },
+      queryParams: { q: null, category: null, department: null, availability: null, publicationYearFrom: null, publicationYearTo: null, facultyRecommended: null },
+
       queryParamsHandling: 'merge',
     });
     this.load(0);
@@ -1193,6 +1305,7 @@ export class BookListComponent {
     const filters = {
       q: this.applied.q,
       category: this.applied.category,
+      department: this.applied.department || null,
       available: this.applied.availability === '' ? null : this.applied.availability === 'true',
       publicationYearFrom: this.applied.yearFrom,
       publicationYearTo: this.applied.yearTo,

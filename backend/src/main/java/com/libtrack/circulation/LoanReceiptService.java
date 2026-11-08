@@ -132,7 +132,8 @@ public class LoanReceiptService {
                 loan.getIssuedBy() != null ? loan.getIssuedBy().getDisplayName() : null,
                 loan.getIssuedBy() != null ? loan.getIssuedBy().getEmail() : null,
                 "Central Library",
-                "VIT-AP University"
+                "VIT-AP University",
+                borrower != null ? borrower.getDepartment() : null
         );
     }
 }

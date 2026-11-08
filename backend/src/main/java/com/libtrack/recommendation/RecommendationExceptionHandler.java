@@ -7,9 +7,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(assignableTypes = RecommendationController.class)
 public class RecommendationExceptionHandler {
 
@@ -56,6 +59,16 @@ public class RecommendationExceptionHandler {
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<RecommendationError> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new RecommendationError("DUPLICATE_RECOMMENDATION", "You have already recommended this book."));
+    }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<RecommendationError> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest().body(new RecommendationError("INVALID_ARGUMENT", "Invalid identifier parameter."));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<RecommendationError> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(new RecommendationError("INVALID_ARGUMENT", ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

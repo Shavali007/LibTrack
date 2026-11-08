@@ -58,14 +58,14 @@ public class LibraryPolicyController {
         );
 
         var fines = new LibraryPoliciesResponse.FinePolicyDto(
-                finePolicyConfigured ? finePolicy.dailyRateLabel() : "Not configured",
-                finePolicyConfigured ? finePolicy.maximumFineLabel() : "Not configured",
-                finePolicyConfigured ? finePolicy.gracePeriodLabel() : "Not configured",
+                finePolicy.dailyRateLabel(),
+                finePolicy.maximumFineLabel(),
+                finePolicy.gracePeriodLabel(),
                 "Full payment only",
                 "Manual payment recorded by a Librarian at the circulation desk",
                 !finePolicyConfigured ? "UNCONFIGURED" : monetaryFinesEnabled ? "ACTIVE" : "DISABLED",
                 monetaryFinesEnabled,
-                finePolicyConfigured ? finePolicy.description() : "No borrowing and fine policy is currently configured.",
+                finePolicy.description(),
                 finePolicyConfigured
         );
 

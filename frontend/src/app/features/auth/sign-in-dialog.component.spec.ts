@@ -79,7 +79,7 @@ describe('SignInDialogComponent', () => {
     const fixture = TestBed.createComponent(SignInDialogComponent);
     const component = fixture.componentInstance;
     fixture.detectChanges(); component.setMode('register');
-    component.form.patchValue({ username: 'Shavali', email: 'shavali.23mic7248@vitapstudent.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!' });
+    component.form.patchValue({ username: 'Shavali', email: 'shavali.23mic7248@vitapstudent.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!', department: 'Computer Science and Engineering' });
     component.form.controls.email.setValue('shavali23mic7248@vitapstudent.ac.in');
     expect(component.form.controls.email.hasError('institutionalEmail')).toBe(true);
     component.form.controls.email.setValue('shavali.23mic7248@vitapstudent.ac.in');
@@ -113,7 +113,7 @@ describe('SignInDialogComponent', () => {
     const fixture = TestBed.createComponent(SignInDialogComponent);
     const component = fixture.componentInstance;
     fixture.detectChanges(); component.setMode('register');
-    component.form.patchValue({ username: 'Shavali', email: 'shavali.23mic7248@vitapstudent.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!' });
+    component.form.patchValue({ username: 'Shavali', email: 'shavali.23mic7248@vitapstudent.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!', department: 'Computer Science and Engineering' });
     component.submit(); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('#dialog-email-error')?.textContent).toContain('Enter a valid VIT-AP student email address.');
     expect(fixture.nativeElement.querySelector('#dialog-password-error')?.textContent).toContain('Password does not meet');
@@ -131,9 +131,9 @@ describe('SignInDialogComponent', () => {
     const fixture = TestBed.createComponent(SignInDialogComponent);
     const component = fixture.componentInstance;
     fixture.detectChanges(); component.setMode('register'); component.selectRole('FACULTY');
-    component.form.patchValue({ username: 'Dr. Faculty', email: 'faculty@vitap.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!' });
+    component.form.patchValue({ username: 'Dr. Faculty', email: 'faculty@vitap.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!', department: 'Computer Science and Engineering' });
     component.submit(); fixture.detectChanges();
-    expect(auth.register).toHaveBeenCalledWith({ username: 'Dr. Faculty', fullName: 'Dr. Faculty', email: 'faculty@vitap.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!', role: 'FACULTY' });
+    expect(auth.register).toHaveBeenCalledWith({ username: 'Dr. Faculty', fullName: 'Dr. Faculty', email: 'faculty@vitap.ac.in', password: 'SecurePass1!', confirmPassword: 'SecurePass1!', role: 'FACULTY', department: 'Computer Science and Engineering' });
     expect(component.registrationMessage()).toContain('inactive pending verification');
     expect(auth.login).not.toHaveBeenCalled();
     expect(component.form.controls.password.value).toBe('');
@@ -179,7 +179,8 @@ describe('SignInDialogComponent', () => {
       username: 'Existing Applicant',
       email: 'existing.23mic7210@vitapstudent.ac.in',
       password: 'SecurePass1!',
-      confirmPassword: 'SecurePass1!'
+      confirmPassword: 'SecurePass1!',
+      department: 'Computer Science and Engineering'
     });
 
     // 1. APPROVED account

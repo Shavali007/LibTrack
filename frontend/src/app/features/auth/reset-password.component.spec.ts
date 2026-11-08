@@ -9,7 +9,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 describe('ResetPasswordComponent', () => {
   let fixture: ComponentFixture<ResetPasswordComponent>;
   let component: ResetPasswordComponent;
-  let authService: { resetPassword: ReturnType<typeof vi.fn> };
+  let authService: {
+    resetPassword: ReturnType<typeof vi.fn>;
+    validateResetToken: ReturnType<typeof vi.fn>;
+  };
 
   it('extracts token from query parameter or hash correctly', () => {
     expect(resetTokenFromLocation('my-query-token', null, 'http://localhost/reset-password')).toBe('my-query-token');
@@ -21,6 +24,9 @@ describe('ResetPasswordComponent', () => {
     beforeEach(async () => {
       authService = {
         resetPassword: vi.fn(),
+        validateResetToken: vi.fn().mockReturnValue(
+          of({ valid: true, status: 'VALID', message: 'Token is valid.' })
+        ),
       };
 
       await TestBed.configureTestingModule({
@@ -47,7 +53,12 @@ describe('ResetPasswordComponent', () => {
       fixture.detectChanges();
     });
 
-    it('renders new password and confirm password inputs', () => {
+    it('validates the token with the backend on init', () => {
+      expect(authService.validateResetToken).toHaveBeenCalledWith('sample-valid-token-123');
+      expect(component.tokenValid()).toBe(true);
+    });
+
+    it('renders new password and confirm password inputs when token is valid', () => {
       const el = fixture.nativeElement as HTMLElement;
       expect(component.missingToken()).toBe(false);
       expect(el.querySelector('input#new-password')).toBeTruthy();
@@ -107,7 +118,7 @@ describe('ResetPasswordComponent', () => {
       expect(el.querySelector('a.button-primary')?.getAttribute('href')).toBe('/login');
     });
 
-    it('handles expired token error response from backend', () => {
+    it('handles expired token error response from backend on submit', () => {
       authService.resetPassword.mockReturnValue(
         throwError(() => new HttpErrorResponse({
           status: 400,
@@ -123,7 +134,90 @@ describe('ResetPasswordComponent', () => {
       fixture.detectChanges();
 
       expect(component.succeeded()).toBe(false);
-      expect(component.error()).toContain('This password reset link is invalid, expired, or has already been used.');
+      expect(component.error()).toContain('Password reset token is invalid or has expired.');
+    });
+  });
+
+  describe('with expired token on load', () => {
+    beforeEach(async () => {
+      authService = {
+        resetPassword: vi.fn(),
+        validateResetToken: vi.fn().mockReturnValue(
+          of({ valid: false, status: 'EXPIRED', message: 'This password reset link has expired. Password reset links are valid for 15 minutes.' })
+        ),
+      };
+
+      await TestBed.configureTestingModule({
+        imports: [ResetPasswordComponent],
+        providers: [
+          provideRouter([]),
+          { provide: AuthService, useValue: authService },
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              snapshot: {
+                queryParamMap: { get: () => 'expired-token' },
+                fragment: null,
+              },
+            },
+          },
+        ],
+      }).compileComponents();
+
+      fixture = TestBed.createComponent(ResetPasswordComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    });
+
+    it('shows expired token state and request new reset link button', () => {
+      expect(component.tokenValid()).toBe(false);
+      expect(component.tokenInvalidStatus()).toBe('EXPIRED');
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).toContain('Link Expired');
+      expect(el.textContent).toContain('15 minutes');
+      expect(el.querySelector('a.button-primary')?.getAttribute('href')).toBe('/forgot-password');
+      expect(el.querySelector('input#new-password')).toBeNull();
+    });
+  });
+
+  describe('with already-used token on load', () => {
+    beforeEach(async () => {
+      authService = {
+        resetPassword: vi.fn(),
+        validateResetToken: vi.fn().mockReturnValue(
+          of({ valid: false, status: 'ALREADY_USED', message: 'This password reset link has already been used. Please request a new one.' })
+        ),
+      };
+
+      await TestBed.configureTestingModule({
+        imports: [ResetPasswordComponent],
+        providers: [
+          provideRouter([]),
+          { provide: AuthService, useValue: authService },
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              snapshot: {
+                queryParamMap: { get: () => 'consumed-token' },
+                fragment: null,
+              },
+            },
+          },
+        ],
+      }).compileComponents();
+
+      fixture = TestBed.createComponent(ResetPasswordComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    });
+
+    it('shows already used state and request new reset link button', () => {
+      expect(component.tokenValid()).toBe(false);
+      expect(component.tokenInvalidStatus()).toBe('ALREADY_USED');
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).toContain('Link Already Used');
+      expect(el.querySelector('a.button-primary')?.getAttribute('href')).toBe('/forgot-password');
+      expect(el.querySelector('input#new-password')).toBeNull();
     });
   });
 
@@ -131,6 +225,7 @@ describe('ResetPasswordComponent', () => {
     beforeEach(async () => {
       authService = {
         resetPassword: vi.fn(),
+        validateResetToken: vi.fn(),
       };
 
       await TestBed.configureTestingModule({

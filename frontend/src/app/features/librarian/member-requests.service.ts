@@ -23,6 +23,7 @@ export interface MemberRequestSummary {
   reviewedByLibrarianName: string | null;
   rejectionReason: string | null;
   librarianRemarks: string | null;
+  department?: string | null;
 }
 
 export interface MemberApprovalAuditItem {
@@ -49,6 +50,7 @@ export interface MemberRequestDetail {
   rejectionReason: string | null;
   librarianRemarks: string | null;
   auditHistory: MemberApprovalAuditItem[];
+  department?: string | null;
 }
 
 export interface ApproveMemberPayload {

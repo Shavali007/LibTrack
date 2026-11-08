@@ -1,5 +1,10 @@
 package com.libtrack.catalogue;
 
+import com.libtrack.auth.AccountRole;
+import com.libtrack.auth.UserAccount;
+import com.libtrack.auth.UserAccountRepository;
+import com.libtrack.notifications.NotificationService;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.time.Clock;
@@ -46,12 +51,18 @@ public class CatalogueService {
     private final LoanRepository loans;
     private final BorrowRequestRepository borrowRequests;
     private final BookReservationRepository bookReservations;
+    private final UserAccountRepository userAccounts;
+    private final NotificationService notificationService;
+    private final com.libtrack.wishlist.WishlistService wishlistService;
     private final Clock clock;
 
     public CatalogueService(BookRepository books, AuthorRepository authors, CategoryRepository categories, BookCopyRepository copies,
                            CopyIdentifierGenerator copyIdentifierGenerator, DigitalEditionRepository digitalEditions,
                            ReservationService reservations, LoanRepository loans, BorrowRequestRepository borrowRequests,
-                           BookReservationRepository bookReservations, Clock clock) {
+                           BookReservationRepository bookReservations, UserAccountRepository userAccounts,
+                           NotificationService notificationService,
+                           com.libtrack.wishlist.WishlistService wishlistService,
+                           Clock clock) {
         this.books = books; this.authors = authors; this.categories = categories; this.copies = copies;
         this.copyIdentifierGenerator = copyIdentifierGenerator;
         this.digitalEditions = digitalEditions;
@@ -59,6 +70,9 @@ public class CatalogueService {
         this.loans = loans;
         this.borrowRequests = borrowRequests;
         this.bookReservations = bookReservations;
+        this.userAccounts = userAccounts;
+        this.notificationService = notificationService;
+        this.wishlistService = wishlistService;
         this.clock = clock;
     }
 
@@ -66,7 +80,7 @@ public class CatalogueService {
     @Transactional(readOnly = true)
     public PageResponse<BookSummaryResponse> search(String q, String title, String author, String isbn, String category, Boolean available,
                                                      int page, int size, String sortField, String direction) {
-        return search(q, title, author, isbn, category, available, null, null, null, page, size, sortField, direction);
+        return search(q, title, author, isbn, category, null, available, null, null, null, page, size, sortField, direction);
     }
 
     @PreAuthorize("permitAll()")
@@ -74,22 +88,39 @@ public class CatalogueService {
     public PageResponse<BookSummaryResponse> search(String q, String title, String author, String isbn, String category, Boolean available,
                                                      Integer publicationYearFrom, Integer publicationYearTo,
                                                      java.util.Collection<UUID> bookIds, int page, int size, String sortField, String direction) {
+        return search(q, title, author, isbn, category, null, available, publicationYearFrom, publicationYearTo, bookIds, page, size, sortField, direction);
+    }
+
+    @PreAuthorize("permitAll()")
+    @Transactional(readOnly = true)
+    public PageResponse<BookSummaryResponse> search(String q, String title, String author, String isbn, String category, String department, Boolean available,
+                                                     Integer publicationYearFrom, Integer publicationYearTo,
+                                                     java.util.Collection<UUID> bookIds, int page, int size, String sortField, String direction) {
         if (page < 0) throw new IllegalArgumentException("Page must be zero or greater.");
         if (size < 1 || size > MAX_PAGE_SIZE) throw new IllegalArgumentException("Page size must be between 1 and 100.");
         if (publicationYearFrom != null && publicationYearTo != null && publicationYearFrom > publicationYearTo) {
             throw new IllegalArgumentException("Publication year range start must not exceed its end.");
         }
-        String field = switch (sortField == null ? "title" : sortField) {
-            case "title" -> "title";
-            case "publicationYear" -> "publicationYear";
-            case "createdAt" -> "createdAt";
-            default -> throw new IllegalArgumentException("Unsupported sort field.");
-        };
-        Sort.Direction sortDirection;
-        try { sortDirection = Sort.Direction.fromString(direction == null ? "asc" : direction); }
-        catch (IllegalArgumentException exception) { throw new IllegalArgumentException("Sort direction must be asc or desc."); }
-        Sort sort = Sort.by(sortDirection, field).and(Sort.by(Sort.Direction.ASC, "id"));
-        Specification<Book> filters = BookSpecifications.search(q, title, author, isbn, category, available, publicationYearFrom, publicationYearTo, bookIds);
+        boolean isRatingSort = "rating".equalsIgnoreCase(sortField) || "topRated".equalsIgnoreCase(sortField) || "top-rated".equalsIgnoreCase(sortField);
+        Sort sort;
+        if (isRatingSort) {
+            if (direction != null && !direction.equalsIgnoreCase("asc") && !direction.equalsIgnoreCase("desc")) {
+                throw new IllegalArgumentException("Sort direction must be asc or desc.");
+            }
+            sort = Sort.unsorted();
+        } else {
+            String field = switch (sortField == null ? "title" : sortField) {
+                case "title" -> "title";
+                case "publicationYear" -> "publicationYear";
+                case "createdAt" -> "createdAt";
+                default -> throw new IllegalArgumentException("Unsupported sort field.");
+            };
+            Sort.Direction sortDirection;
+            try { sortDirection = Sort.Direction.fromString(direction == null ? "asc" : direction); }
+            catch (IllegalArgumentException exception) { throw new IllegalArgumentException("Sort direction must be asc or desc."); }
+            sort = Sort.by(sortDirection, field).and(Sort.by(Sort.Direction.ASC, "id"));
+        }
+        Specification<Book> filters = BookSpecifications.search(q, title, author, isbn, category, department, available, publicationYearFrom, publicationYearTo, bookIds, sortField, direction);
         Page<Book> result = books.findAll(filters, PageRequest.of(page, size, sort));
         Map<UUID, BookAvailability> availability = availability(result.getContent());
         List<UUID> resultBookIds = result.getContent().stream().map(Book::getId).toList();
@@ -106,6 +137,26 @@ public class CatalogueService {
         Book book = books.findById(id).filter(found -> found.isActive() || librarian).orElseThrow(BookNotFoundException::new);
         boolean hasDigitalEdition = digitalEditions.existsByBookId(book.getId());
         return detail(book, availability(List.of(book)).get(book.getId()), hasDigitalEdition);
+    }
+
+    @PreAuthorize("permitAll()")
+    @Transactional(readOnly = true)
+    public List<BookSummaryResponse> getDepartmentRecommendations(String department, int limit) {
+        if (department == null || department.isBlank()) return List.of();
+        String canonical = com.libtrack.auth.Department.canonicalize(department);
+        if (canonical == null) return List.of();
+        Specification<Book> spec = (root, query, cb) -> cb.and(
+                cb.isTrue(root.get("active")),
+                cb.equal(root.get("department"), canonical)
+        );
+        int clampedLimit = Math.min(Math.max(limit, 1), 50);
+        Page<Book> page = books.findAll(spec, PageRequest.of(0, clampedLimit, Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.ASC, "title"))));
+        Map<UUID, BookAvailability> avail = availability(page.getContent());
+        List<UUID> ids = page.getContent().stream().map(Book::getId).toList();
+        Set<UUID> digitalIds = ids.isEmpty() ? Set.of() : new HashSet<>(digitalEditions.findBookIdsWithDigitalEdition(ids));
+        return page.getContent().stream()
+                .map(b -> summary(b, avail.get(b.getId()), digitalIds.contains(b.getId())))
+                .toList();
     }
 
     @PreAuthorize("permitAll()")
@@ -189,11 +240,17 @@ public class CatalogueService {
     @Transactional
     public BookDetailResponse createBook(BookRequest request) {
         SetNames names = resolveNames(request.authors(), request.categories());
+        String dept = request.department() != null && !request.department().isBlank()
+                ? com.libtrack.auth.Department.canonicalize(request.department())
+                : "Computer Science and Engineering";
         Book book = new Book(request.title().strip(), IsbnValidator.normalize(request.isbn()), clean(request.description()),
-                clean(request.publisher()), request.publicationYear(), clean(request.coverImageUrl()), request.circulationPolicy(), names.authors(), names.categories());
+                clean(request.publisher()), request.publicationYear(), clean(request.coverImageUrl()), request.circulationPolicy(),
+                dept, names.authors(), names.categories());
         try {
             book = books.saveAndFlush(book);
             if (request.numberOfCopies() != null) createPhysicalCopies(book, request.numberOfCopies().intValueExact(), clean(request.location()));
+            wishlistService.notifyWishlistUsersForNewBook(book);
+            dispatchNewBookArrivalNotifications(book);
             return detail(book, availability(List.of(book)).get(book.getId()), false);
         } catch (DataIntegrityViolationException exception) { throw new CatalogueConflictException(); }
     }
@@ -203,8 +260,12 @@ public class CatalogueService {
     public BookDetailResponse updateBook(UUID id, BookRequest request) {
         Book book = books.findById(id).orElseThrow(BookNotFoundException::new);
         SetNames names = resolveNames(request.authors(), request.categories());
+        String dept = request.department() != null && !request.department().isBlank()
+                ? com.libtrack.auth.Department.canonicalize(request.department())
+                : book.getDepartment();
         book.update(request.title().strip(), IsbnValidator.normalize(request.isbn()), clean(request.description()),
-                clean(request.publisher()), request.publicationYear(), clean(request.coverImageUrl()), request.circulationPolicy(), names.authors(), names.categories());
+                clean(request.publisher()), request.publicationYear(), clean(request.coverImageUrl()), request.circulationPolicy(),
+                dept, names.authors(), names.categories());
         try {
             books.flush();
             boolean hasDigital = digitalEditions.existsByBookId(book.getId());
@@ -349,7 +410,7 @@ public class CatalogueService {
         long withdrawn = counts == null ? 0 : counts.withdrawnCopies();
         return new BookSummaryResponse(book.getId(), book.getTitle(), book.getIsbn(), sortedAuthors(book), sortedCategories(book),
                 book.getPublisher(), book.getPublicationYear(), book.getCoverImageUrl(), book.getCirculationPolicy(),
-                total, available, onLoan, lost, damaged, withdrawn, hasDigitalEdition);
+                total, available, onLoan, lost, damaged, withdrawn, hasDigitalEdition, book.getDepartment());
     }
 
     private static TrendingBookResponse trendingResponse(Book book, BookAvailability counts, boolean hasDigitalEdition, TrendingActivity activity) {
@@ -382,7 +443,7 @@ public class CatalogueService {
         long withdrawn = counts == null ? 0 : counts.withdrawnCopies();
         return new BookDetailResponse(book.getId(), book.getTitle(), book.getIsbn(), book.getDescription(), sortedAuthors(book), sortedCategories(book),
                 book.getPublisher(), book.getPublicationYear(), book.getCoverImageUrl(), book.getCirculationPolicy(), book.isActive(),
-                total, available, onLoan, lost, damaged, withdrawn, book.getCreatedAt(), book.getUpdatedAt(), hasDigitalEdition);
+                total, available, onLoan, lost, damaged, withdrawn, book.getCreatedAt(), book.getUpdatedAt(), hasDigitalEdition, book.getDepartment());
     }
 
     private List<BookCopy> createPhysicalCopies(Book book, int quantity, String location) {
@@ -413,5 +474,80 @@ public class CatalogueService {
         long activeReservations() { return activeReservations; }
         long directRequests() { return directRequests; }
         long score() { return issuedLoans * 3 + activeReservations * 2 + directRequests; }
+    }
+
+    private void dispatchNewBookArrivalNotifications(Book book) {
+        UUID creatorId = null;
+        try {
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof com.libtrack.auth.AccountUserDetails details) {
+                creatorId = details.getId();
+            }
+        } catch (Exception ignored) {}
+
+        String bookDept = book.getDepartment() != null && !book.getDepartment().isBlank()
+                ? com.libtrack.auth.Department.canonicalize(book.getDepartment())
+                : null;
+        String authorList = String.join(", ", sortedAuthors(book));
+        if (authorList.isBlank()) {
+            authorList = "Unknown Author";
+        }
+
+        UUID finalCreatorId = creatorId;
+        List<UserAccount> eligibleUsers = userAccounts.findAll().stream()
+                .filter(UserAccount::isEnabled)
+                .filter(u -> finalCreatorId == null || !u.getId().equals(finalCreatorId))
+                .toList();
+
+        for (UserAccount user : eligibleUsers) {
+            String userDept = user.getDepartment() != null && !user.getDepartment().isBlank()
+                    ? com.libtrack.auth.Department.canonicalize(user.getDepartment())
+                    : null;
+
+            boolean departmentMatch = bookDept != null && userDept != null && bookDept.equalsIgnoreCase(userDept)
+                    && (user.getRole() == AccountRole.STUDENT || user.getRole() == AccountRole.FACULTY);
+
+            if (departmentMatch) {
+                if (notificationService.isNotificationAllowed(user.getId(), "DEPARTMENT_BOOK_ARRIVAL")) {
+                    notificationService.sendMemberNotification(
+                            user.getId(),
+                            "New books for your department",
+                            "A new book, " + book.getTitle() + ", has been added to your department's collection.",
+                            "\"" + book.getTitle() + "\" by " + authorList + " is now available in " + bookDept + ".",
+                            "DEPARTMENT_BOOK_ARRIVAL",
+                            "BOOK",
+                            book.getId(),
+                            "/workspace/books/" + book.getId(),
+                            "DEPT_BOOK_NEW:" + book.getId() + ":" + user.getId()
+                    );
+                } else if (notificationService.isNotificationAllowed(user.getId(), "NEW_BOOK_ARRIVAL")) {
+                    notificationService.sendMemberNotification(
+                            user.getId(),
+                            "New Book Added",
+                            "\"" + book.getTitle() + "\" by " + authorList + " has been added to the library catalogue.",
+                            "A new title is now available in the library catalogue: \"" + book.getTitle() + "\".",
+                            "NEW_BOOK_ARRIVAL",
+                            "BOOK",
+                            book.getId(),
+                            "/workspace/books/" + book.getId(),
+                            "BOOK_NEW:" + book.getId() + ":" + user.getId()
+                    );
+                }
+            } else {
+                if (notificationService.isNotificationAllowed(user.getId(), "NEW_BOOK_ARRIVAL")) {
+                    notificationService.sendMemberNotification(
+                            user.getId(),
+                            "New Book Added",
+                            "\"" + book.getTitle() + "\" by " + authorList + " has been added to the library catalogue.",
+                            "A new title is now available in the library catalogue: \"" + book.getTitle() + "\".",
+                            "NEW_BOOK_ARRIVAL",
+                            "BOOK",
+                            book.getId(),
+                            "/workspace/books/" + book.getId(),
+                            "BOOK_NEW:" + book.getId() + ":" + user.getId()
+                    );
+                }
+            }
+        }
     }
 }

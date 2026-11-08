@@ -7,6 +7,15 @@ export type BorrowRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ISSUED'
 export type LoanStatus = 'ACTIVE' | 'RETURNED' | 'LOST';
 export type ReturnCondition = 'GOOD' | 'DAMAGED' | 'LOST';
 
+export interface BorrowingEligibility {
+  eligible: boolean;
+  hasActiveLoan: boolean;
+  hasActiveRequest: boolean;
+  activeRequestStatus: string | null;
+  hasReturnedHistory: boolean;
+  reason: string | null;
+}
+
 export interface Page<T> {
   content: T[];
   page: number;
@@ -31,6 +40,7 @@ export interface BorrowRequestRecord {
   borrowerInstitutionalId?: string | null;
   borrowerRole?: string | null;
   borrowerDisplayName?: string | null;
+  borrowerDepartment?: string | null;
   status: BorrowRequestStatus;
   submittedAt: string;
   decidedAt: string | null;
@@ -59,6 +69,7 @@ export interface LoanRecord {
   borrowerEmail: string;
   borrowerDisplayName?: string | null;
   borrowerRole?: string | null;
+  borrowerDepartment?: string | null;
   status: LoanStatus;
   issueDate: string;
   dueDate: string;
@@ -72,6 +83,15 @@ export interface LoanRecord {
   processedByEmail?: string | null;
   daysLeft?: number | null;
   inventoryStatus?: string | null;
+}
+
+export interface MemberFineSummary {
+  totalOutstanding: number;
+  unpaidCount: number;
+  totalPaid: number;
+  paidCount: number;
+  totalAssessments: number;
+  currentOverdueCount: number;
 }
 
 export interface CirculationSummary {
@@ -161,6 +181,7 @@ export interface LoanReceiptRecord {
   issuedByEmail: string;
   libraryName: string;
   universityName: string;
+  borrowerDepartment?: string | null;
 }
 
 export interface CirculationCopy {
@@ -206,6 +227,11 @@ export class BorrowingService {
     let params = new HttpParams().set('size', 100);
     if (status) params = params.set('status', status);
     return this.http.get<Page<BorrowRequestRecord>>('/api/v1/borrow-requests', { params });
+  }
+
+  checkEligibility(bookId: string): Observable<BorrowingEligibility> {
+    const params = new HttpParams().set('bookId', bookId);
+    return this.http.get<BorrowingEligibility>('/api/v1/borrow-requests/eligibility', { params });
   }
 
   submit(bookId: string): Observable<BorrowRequestRecord> {
@@ -294,6 +320,14 @@ export class BorrowingService {
 
   myFines(): Observable<FineRecord[]> {
     return this.http.get<FineRecord[]>('/api/v1/fines/mine');
+  }
+
+  myFineSummary(): Observable<MemberFineSummary> {
+    return this.http.get<MemberFineSummary>('/api/v1/fines/summary');
+  }
+
+  myFine(fineId: string): Observable<FineRecord> {
+    return this.http.get<FineRecord>(`/api/v1/fines/${encodeURIComponent(fineId)}`);
   }
 
   getLoanReceipt(loanId: string): Observable<LoanReceiptRecord> {

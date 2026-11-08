@@ -300,6 +300,9 @@
                       <div class="borrower-info">
                         <span class="borrower-name">{{ loan.borrowerDisplayName || loan.borrowerEmail.split('@')[0] }}</span>
                         <span class="borrower-email">{{ loan.borrowerEmail }}</span>
+                        @if (loan.borrowerDepartment) {
+                          <span class="borrower-dept">{{ loan.borrowerDepartment }}</span>
+                        }
                       </div>
                     </div>
                   </td>
@@ -689,6 +692,9 @@
                       <div class="borrower-info">
                         <span class="borrower-name">{{ h.borrowerDisplayName || h.borrowerEmail.split('@')[0] }}</span>
                         <span class="borrower-email">{{ h.borrowerEmail }}</span>
+                        @if (h.borrowerDepartment) {
+                          <span class="borrower-dept">{{ h.borrowerDepartment }}</span>
+                        }
                       </div>
                     </div>
                   </td>
@@ -1044,6 +1050,12 @@
                   <span class="meta-value">{{ loan.borrowerDisplayName || loan.borrowerEmail }}</span>
                   <span class="meta-role-badge" [class.badge-faculty]="loan.borrowerRole === 'FACULTY'">{{ loan.borrowerRole === 'FACULTY' ? 'Faculty' : 'Student' }}</span>
                 </div>
+                @if (loan.borrowerDepartment) {
+                  <div class="modal-meta-row">
+                    <span class="meta-label">Department:</span>
+                    <span class="meta-value">{{ loan.borrowerDepartment }}</span>
+                  </div>
+                }
                 <div class="modal-meta-row">
                   <span class="meta-label">Due Date:</span>
                   <span class="meta-value">{{ loan.dueDate | date:'mediumDate' }}</span>
@@ -1186,6 +1198,12 @@
                   <span class="meta-value">{{ loan.borrowerDisplayName || loan.borrowerEmail }}</span>
                   <span class="meta-role-badge" [class.badge-faculty]="loan.borrowerRole === 'FACULTY'">{{ loan.borrowerRole === 'FACULTY' ? 'Faculty' : 'Student' }}</span>
                 </div>
+                @if (loan.borrowerDepartment) {
+                  <div class="modal-meta-row">
+                    <span class="meta-label">Department:</span>
+                    <span class="meta-value">{{ loan.borrowerDepartment }}</span>
+                  </div>
+                }
                 <div class="modal-meta-row">
                   <span class="meta-label">Current Condition:</span>
                   <span

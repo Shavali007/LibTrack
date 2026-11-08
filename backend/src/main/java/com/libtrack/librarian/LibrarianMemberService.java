@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.libtrack.auth.AccountNotFoundException;
 import com.libtrack.auth.AccountRole;
+import com.libtrack.auth.Department;
 import com.libtrack.auth.UserAccount;
 import com.libtrack.auth.UserAccountRepository;
 import com.libtrack.catalogue.Book;
@@ -74,6 +75,12 @@ public class LibrarianMemberService {
     @PreAuthorize("hasRole('LIBRARIAN')")
     @Transactional(readOnly = true)
     public PageResponse<MemberSummaryResponse> listMembers(String q, AccountRole role, Boolean enabled, int page, int size) {
+        return listMembers(q, role, enabled, null, page, size);
+    }
+
+    @PreAuthorize("hasRole('LIBRARIAN')")
+    @Transactional(readOnly = true)
+    public PageResponse<MemberSummaryResponse> listMembers(String q, AccountRole role, Boolean enabled, String department, int page, int size) {
         if (page < 0) {
             throw new IllegalArgumentException("Page must be zero or greater.");
         }
@@ -82,7 +89,7 @@ public class LibrarianMemberService {
         }
 
         Page<UserAccount> result = accounts.findAll(
-            MemberSpecifications.members(q, role, enabled),
+            MemberSpecifications.members(q, role, enabled, department),
             PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
         );
 
@@ -103,7 +110,8 @@ public class LibrarianMemberService {
                 account.getInstitutionalId(),
                 account.getCreatedAt(),
                 loanCounts.getOrDefault(account.getId(), 0L),
-                account.getDisplayName()
+                account.getDisplayName(),
+                account.getDepartment()
             )
         ).toList();
 
@@ -138,8 +146,24 @@ public class LibrarianMemberService {
             currentLoans,
             pastLoans,
             borrowRequests,
-            account.getDisplayName()
+            account.getDisplayName(),
+            account.getDepartment()
         );
+    }
+
+    @PreAuthorize("hasRole('LIBRARIAN')")
+    @Transactional
+    public MemberDetailResponse updateMemberDepartment(UUID memberId, String department) {
+        UserAccount account = accounts.findById(memberId).orElseThrow(AccountNotFoundException::new);
+        if (account.getRole() == AccountRole.LIBRARIAN) {
+            throw new IllegalArgumentException("Librarian accounts cannot be assigned an academic department.");
+        }
+        if (department == null || department.isBlank() || !Department.isValid(department)) {
+            throw new IllegalArgumentException("Invalid department. Must be one of the four official departments: Computer Science and Engineering, Electronics and Communication Engineering, Electrical and Electronics Engineering, Mechanical Engineering.");
+        }
+        account.setDepartment(Department.canonicalize(department));
+        accounts.saveAndFlush(account);
+        return getMemberDetails(memberId);
     }
 
     @PreAuthorize("hasRole('LIBRARIAN')")
@@ -204,7 +228,13 @@ public class LibrarianMemberService {
             renewalEligible,
             loan.getReturnNote(),
             history,
-            loan.getBorrower().getDisplayName()
+            loan.getBorrower().getDisplayName(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            loan.getBorrower().getDepartment()
         );
     }
 
@@ -230,7 +260,8 @@ public class LibrarianMemberService {
             request.getDecidedAt(),
             request.getDecisionReason(),
             history,
-            request.getBorrower().getDisplayName()
+            request.getBorrower().getDisplayName(),
+            request.getBorrower().getDepartment()
         );
     }
 }

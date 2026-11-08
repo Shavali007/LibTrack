@@ -155,13 +155,16 @@ public class FineService {
         long paidFines = fineRepository.countByStatus(FineStatus.PAID);
         BigDecimal totalCollected = finePaymentRepository.sumTotalCollected();
         BigDecimal totalOutstanding = fineRepository.sumUnpaidFines();
+        LocalDate today = LocalDate.now(clock);
+        long currentlyOverdueLoans = loanRepository.countByStatusAndDueDateBefore(LoanStatus.ACTIVE, today);
 
         return new FineSummaryResponse(
                 totalFines,
                 unpaidFines,
                 paidFines,
                 totalCollected != null ? totalCollected : BigDecimal.ZERO,
-                totalOutstanding != null ? totalOutstanding : BigDecimal.ZERO
+                totalOutstanding != null ? totalOutstanding : BigDecimal.ZERO,
+                currentlyOverdueLoans
         );
     }
 
@@ -173,12 +176,55 @@ public class FineService {
         return fines.stream().map(this::toResponse).toList();
     }
 
+    @PreAuthorize("hasRole('LIBRARIAN')")
+    @Transactional
+    public FineRecordResponse getFine(UUID fineId) {
+        recalculateOverdueFines();
+        Fine fine = fineRepository.findById(fineId)
+                .orElseThrow(CirculationNotFoundException::new);
+        return toResponse(fine);
+    }
+
     @PreAuthorize("hasAnyRole('STUDENT','FACULTY')")
     @Transactional
     public List<FineRecordResponse> getMemberFines(UUID memberId) {
         recalculateOverdueFines();
         List<Fine> fines = fineRepository.findByBorrowerIdWithDetails(memberId);
         return fines.stream().map(this::toResponse).toList();
+    }
+
+    @PreAuthorize("hasAnyRole('STUDENT','FACULTY')")
+    @Transactional
+    public MemberFineSummaryResponse getMemberSummary(UUID memberId) {
+        recalculateOverdueFines();
+        BigDecimal totalOutstanding = fineRepository.sumUnpaidFinesByBorrower(memberId);
+        BigDecimal totalPaid = fineRepository.sumPaidFinesByBorrower(memberId);
+        long unpaidCount = fineRepository.countByBorrower_IdAndStatus(memberId, FineStatus.UNPAID);
+        long paidCount = fineRepository.countByBorrower_IdAndStatus(memberId, FineStatus.PAID);
+        long totalAssessments = fineRepository.countByBorrower_Id(memberId);
+        LocalDate today = LocalDate.now(clock);
+        long currentOverdueCount = loanRepository.countOverdueLoansByBorrower(memberId, today);
+
+        return new MemberFineSummaryResponse(
+                totalOutstanding != null ? totalOutstanding : BigDecimal.ZERO,
+                unpaidCount,
+                totalPaid != null ? totalPaid : BigDecimal.ZERO,
+                paidCount,
+                totalAssessments,
+                currentOverdueCount
+        );
+    }
+
+    @PreAuthorize("hasAnyRole('STUDENT','FACULTY')")
+    @Transactional
+    public FineRecordResponse getMemberFine(UUID fineId, UUID memberId) {
+        recalculateOverdueFines();
+        Fine fine = fineRepository.findById(fineId)
+                .orElseThrow(CirculationNotFoundException::new);
+        if (!fine.getBorrower().getId().equals(memberId)) {
+            throw new org.springframework.security.access.AccessDeniedException("You do not have permission to view this fine.");
+        }
+        return toResponse(fine);
     }
 
     @PreAuthorize("hasRole('LIBRARIAN')")
@@ -264,6 +310,8 @@ public class FineService {
             }
         }
 
+        String borrowerRole = borrower.getRole() != null ? borrower.getRole().name() : "STUDENT";
+
         return new FineRecordResponse(
                 fine.getId(),
                 loan.getId(),
@@ -271,9 +319,11 @@ public class FineService {
                 borrowerName,
                 borrower.getEmail(),
                 borrower.getInstitutionalId(),
+                borrowerRole,
                 book.getId(),
                 book.getTitle(),
                 book.getIsbn(),
+                book.getCoverImageUrl(),
                 copy.getCopyIdentifier(),
                 loan.getIssueDate(),
                 loan.getDueDate(),

@@ -16,5 +16,22 @@ public record MemberRequestSummaryResponse(
         Instant reviewedAt,
         String reviewedByLibrarianName,
         String rejectionReason,
-        String librarianRemarks
-) {}
+        String librarianRemarks,
+        String department
+) {
+    public MemberRequestSummaryResponse(
+            UUID id,
+            String fullName,
+            String email,
+            String institutionalId,
+            AccountRole role,
+            Instant requestedOn,
+            ApprovalStatus approvalStatus,
+            Instant reviewedAt,
+            String reviewedByLibrarianName,
+            String rejectionReason,
+            String librarianRemarks
+    ) {
+        this(id, fullName, email, institutionalId, role, requestedOn, approvalStatus, reviewedAt, reviewedByLibrarianName, rejectionReason, librarianRemarks, null);
+    }
+}

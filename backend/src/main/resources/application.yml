@@ -31,6 +31,7 @@ server:
         same-site: lax
         secure: ${SESSION_COOKIE_SECURE:false}
 libtrack:
+  frontend-base-url: ${LIBTRACK_FRONTEND_BASE_URL:http://localhost:4200}
   registration:
     verification-token-ttl: ${LIBTRACK_VERIFICATION_TOKEN_TTL:PT24H}
     frontend-base-url: ${LIBTRACK_FRONTEND_BASE_URL:http://localhost:4200}

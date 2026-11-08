@@ -26,6 +26,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.libtrack.common.email.EmailService;
 
@@ -104,7 +105,11 @@ public class PasswordResetService {
         log.info("Password reset token generated for accountId={} expiresAt={}", account.getId(), expiresAt);
 
         // Send email via EmailService (Resend)
-        String resetUrl = frontendBaseUrl + "/reset-password?token=" + rawToken;
+        String resetUrl = UriComponentsBuilder.fromUriString(frontendBaseUrl)
+                .path("/reset-password")
+                .queryParam("token", rawToken)
+                .build()
+                .toUriString();
         String displayName = resolveDisplayName(account);
         String subject = "Reset Your LibTrack Password";
         String htmlContent = buildHtmlEmail(displayName, resetUrl);
@@ -119,6 +124,36 @@ public class PasswordResetService {
         }
 
         return genericResponse();
+    }
+
+    @Transactional(readOnly = true)
+    public PasswordResetTokenValidationResponse validateToken(String rawToken) {
+        if (rawToken == null || rawToken.isBlank() || rawToken.length() < 30 || rawToken.length() > 100) {
+            return PasswordResetTokenValidationResponse.invalidToken("This password reset link is invalid or malformed.");
+        }
+
+        String tokenHash = hashToken(rawToken);
+        PasswordResetToken token = tokens.findByTokenHash(tokenHash).orElse(null);
+        Instant now = clock.instant();
+
+        if (token == null) {
+            return PasswordResetTokenValidationResponse.invalidToken("This password reset link is invalid or has expired.");
+        }
+
+        if (token.getConsumedAt() != null) {
+            return PasswordResetTokenValidationResponse.alreadyUsedToken();
+        }
+
+        if (!token.getExpiresAt().isAfter(now)) {
+            return PasswordResetTokenValidationResponse.expiredToken();
+        }
+
+        UserAccount account = accounts.findById(token.getAccountId()).orElse(null);
+        if (account == null || !account.isEnabled()) {
+            return PasswordResetTokenValidationResponse.invalidToken("This password reset link is no longer valid.");
+        }
+
+        return PasswordResetTokenValidationResponse.validToken();
     }
 
     @Transactional
@@ -144,6 +179,9 @@ public class PasswordResetService {
         if (!token.isUsableAt(now)) {
             log.warn("Password reset rejected: token accountId={} already consumed or expired (consumedAt={}, expiresAt={})",
                     token.getAccountId(), token.getConsumedAt(), token.getExpiresAt());
+            if (token.getConsumedAt() != null) {
+                throw new InvalidPasswordResetTokenException("This password reset link has already been used. Please request a new link.");
+            }
             throw new InvalidPasswordResetTokenException("Password reset token is invalid or has expired.");
         }
 

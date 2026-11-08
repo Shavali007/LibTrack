@@ -8,8 +8,42 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = {AuthController.class, AccountProvisioningController.class, RegistrationController.class, EmailVerificationController.class, PasswordResetController.class})
+@RestControllerAdvice(assignableTypes = {
+        AuthController.class,
+        AccountProvisioningController.class,
+        RegistrationController.class,
+        EmailVerificationController.class,
+        PasswordResetController.class,
+        UserSettingsController.class
+})
 public class AuthApiExceptionHandler {
+    @ExceptionHandler(UsernameAlreadyExistsException.class)
+    ResponseEntity<?> usernameAlreadyExists(UsernameAlreadyExistsException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new RegistrationValidationError(
+                "USERNAME_ALREADY_EXISTS",
+                exception.getMessage(),
+                Map.of("username", exception.getMessage())
+        ));
+    }
+
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    ResponseEntity<?> invalidCurrentPassword(InvalidCurrentPasswordException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new RegistrationValidationError(
+                "INVALID_CURRENT_PASSWORD",
+                exception.getMessage(),
+                Map.of("currentPassword", exception.getMessage())
+        ));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<?> illegalArgument(IllegalArgumentException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new RegistrationValidationError(
+                "INVALID_ARGUMENT",
+                exception.getMessage(),
+                Map.of("error", exception.getMessage())
+        ));
+    }
+
     @ExceptionHandler(VerificationDeliveryUnavailableException.class)
     ResponseEntity<AuthenticationError> verificationDeliveryUnavailable(VerificationDeliveryUnavailableException exception) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
@@ -54,6 +88,7 @@ public class AuthApiExceptionHandler {
                 case "institutionalEmailValid" -> "email";
                 case "passwordPolicySatisfied" -> "password";
                 case "passwordConfirmationMatched" -> "confirmPassword";
+                case "departmentValid" -> "department";
                 default -> error.getField();
             };
             String message = error.getDefaultMessage();

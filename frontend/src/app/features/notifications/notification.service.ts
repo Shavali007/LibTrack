@@ -9,6 +9,7 @@ export interface NotificationMetadata {
   bookAuthor?: string | null;
   bookSubject?: string | null;
   bookCoverUrl?: string | null;
+  categoryId?: string | null;
   loanId?: string | null;
   loanDisplayCode?: string | null;
   dueDate?: string | null;
@@ -217,6 +218,7 @@ export class NotificationClientService implements OnDestroy {
     const cat = (category || '').toUpperCase();
     const t = (title || '').toLowerCase();
 
+    if (cat.includes('WISHLIST') || cat.includes('NEW_BOOK')) return 'book-open';
     if (cat.includes('RESERVATION') || t.includes('reservation')) return 'calendar';
     if (cat.includes('DUE') || t.includes('due')) return 'book-due';
     if (t.includes('approved') || t.includes('accepted')) return 'check-circle';

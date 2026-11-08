@@ -23,6 +23,11 @@ public class CirculationController {
      this.loanReceiptService=loanReceiptService;
  }
  private static UUID accountId(Authentication authentication){return ((AccountUserDetails)authentication.getPrincipal()).getId();}
+ @GetMapping("/borrow-requests/eligibility")
+ @PreAuthorize("hasAnyRole('STUDENT','FACULTY')")
+ public BorrowingEligibilityResponse checkEligibility(@RequestParam UUID bookId, Authentication auth) {
+   return borrowing.checkBorrowingEligibility(accountId(auth), bookId);
+ }
  @PostMapping("/borrow-requests") public ResponseEntity<BorrowRequestResponse> submit(@Valid @RequestBody BorrowRequestCreate body,Authentication auth){return ResponseEntity.status(HttpStatus.CREATED).body(borrowing.submit(accountId(auth),body));}
  @GetMapping("/borrow-requests/mine") public PageResponse<BorrowRequestResponse> mineRequests(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size,Authentication auth){return borrowing.mineRequests(accountId(auth),page,size);}
  @GetMapping("/borrow-requests") public PageResponse<BorrowRequestResponse> queue(@RequestParam(required=false) BorrowRequestStatus status,@RequestParam(required=false) UUID bookId,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size){return borrowing.queue(status,bookId,page,size);}

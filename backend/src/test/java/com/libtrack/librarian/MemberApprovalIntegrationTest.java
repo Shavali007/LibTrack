@@ -66,7 +66,8 @@ class MemberApprovalIntegrationTest {
                 "email", "rahul.23mic7210@vitapstudent.ac.in",
                 "password", "StudentPass123!",
                 "confirmPassword", "StudentPass123!",
-                "role", "STUDENT"
+                "role", "STUDENT",
+                "department", "Computer Science and Engineering"
         );
 
         mvc.perform(post("/api/v1/auth/register")
@@ -80,6 +81,7 @@ class MemberApprovalIntegrationTest {
         UserAccount saved = accounts.findByEmail("rahul.23mic7210@vitapstudent.ac.in").orElseThrow();
         assertThat(saved.getDisplayName()).isEqualTo("Rahul Kumar");
         assertThat(saved.getInstitutionalId()).isEqualTo("23MIC7210");
+        assertThat(saved.getDepartment()).isEqualTo("Computer Science and Engineering");
         assertThat(saved.getApprovalStatus()).isEqualTo(ApprovalStatus.PENDING_APPROVAL);
         assertThat(saved.isEnabled()).isFalse();
     }
@@ -93,7 +95,8 @@ class MemberApprovalIntegrationTest {
                 "email", "arjun.reddy@vitap.ac.in",
                 "password", "FacultyPass123!",
                 "confirmPassword", "FacultyPass123!",
-                "role", "FACULTY"
+                "role", "FACULTY",
+                "department", "Electronics and Communication Engineering"
         );
 
         mvc.perform(post("/api/v1/auth/register")
@@ -106,6 +109,7 @@ class MemberApprovalIntegrationTest {
         UserAccount saved = accounts.findByEmail("arjun.reddy@vitap.ac.in").orElseThrow();
         assertThat(saved.getDisplayName()).isEqualTo("Dr. Arjun Reddy");
         assertThat(saved.getInstitutionalId()).isNull();
+        assertThat(saved.getDepartment()).isEqualTo("Electronics and Communication Engineering");
         assertThat(saved.getApprovalStatus()).isEqualTo(ApprovalStatus.PENDING_APPROVAL);
         assertThat(saved.isEnabled()).isFalse();
     }
@@ -127,7 +131,8 @@ class MemberApprovalIntegrationTest {
                 "email", "priya.23mic7211@vitapstudent.ac.in",
                 "password", "StudentPass123!",
                 "confirmPassword", "StudentPass123!",
-                "role", "STUDENT"
+                "role", "STUDENT",
+                "department", "Mechanical Engineering"
         );
 
         mvc.perform(post("/api/v1/auth/register")
@@ -154,7 +159,8 @@ class MemberApprovalIntegrationTest {
                 "email", "different.23mic7211@vitapstudent.ac.in",
                 "password", "StudentPass123!",
                 "confirmPassword", "StudentPass123!",
-                "role", "STUDENT"
+                "role", "STUDENT",
+                "department", "Electrical and Electronics Engineering"
         );
 
         mvc.perform(post("/api/v1/auth/register")

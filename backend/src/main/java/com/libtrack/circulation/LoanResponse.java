@@ -26,7 +26,8 @@ public record LoanResponse(
     String returnCondition,
     String processedByEmail,
     Long daysLeft,
-    String inventoryStatus
+    String inventoryStatus,
+    String borrowerDepartment
 ) {
     public LoanResponse(UUID id, UUID borrowRequestId, UUID bookId, String bookTitle, String coverImageUrl,
                         String copyIdentifier, String borrowerEmail, LoanStatus status, LocalDate issueDate,
@@ -34,7 +35,7 @@ public record LoanResponse(
                         boolean renewalEligible, String returnNote, List<LoanEventResponse> history) {
         this(id, borrowRequestId, bookId, bookTitle, coverImageUrl, copyIdentifier, borrowerEmail, status,
              issueDate, dueDate, actualReturnDate, renewalCount, overdue, renewalEligible, returnNote, history,
-             null, null, null, null, null, null);
+             null, null, null, null, null, null, null);
     }
 
     public LoanResponse(UUID id, UUID borrowRequestId, UUID bookId, String bookTitle, String coverImageUrl,
@@ -44,7 +45,7 @@ public record LoanResponse(
                         String borrowerDisplayName) {
         this(id, borrowRequestId, bookId, bookTitle, coverImageUrl, copyIdentifier, borrowerEmail, status,
              issueDate, dueDate, actualReturnDate, renewalCount, overdue, renewalEligible, returnNote, history,
-             borrowerDisplayName, null, null, null, null, null);
+             borrowerDisplayName, null, null, null, null, null, null);
     }
 
     public LoanResponse(UUID id, UUID borrowRequestId, UUID bookId, String bookTitle, String coverImageUrl,
@@ -55,6 +56,17 @@ public record LoanResponse(
                         String processedByEmail, Long daysLeft) {
         this(id, borrowRequestId, bookId, bookTitle, coverImageUrl, copyIdentifier, borrowerEmail, status,
              issueDate, dueDate, actualReturnDate, renewalCount, overdue, renewalEligible, returnNote, history,
-             borrowerDisplayName, borrowerRole, returnCondition, processedByEmail, daysLeft, null);
+             borrowerDisplayName, borrowerRole, returnCondition, processedByEmail, daysLeft, null, null);
+    }
+
+    public LoanResponse(UUID id, UUID borrowRequestId, UUID bookId, String bookTitle, String coverImageUrl,
+                        String copyIdentifier, String borrowerEmail, LoanStatus status, LocalDate issueDate,
+                        LocalDate dueDate, LocalDate actualReturnDate, short renewalCount, boolean overdue,
+                        boolean renewalEligible, String returnNote, List<LoanEventResponse> history,
+                        String borrowerDisplayName, String borrowerRole, String returnCondition,
+                        String processedByEmail, Long daysLeft, String inventoryStatus) {
+        this(id, borrowRequestId, bookId, bookTitle, coverImageUrl, copyIdentifier, borrowerEmail, status,
+             issueDate, dueDate, actualReturnDate, renewalCount, overdue, renewalEligible, returnNote, history,
+             borrowerDisplayName, borrowerRole, returnCondition, processedByEmail, daysLeft, inventoryStatus, null);
     }
 }

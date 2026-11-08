@@ -52,6 +52,9 @@ public class RegistrationService {
                 displayName,
                 derivedInstitutionalId
         );
+        if (request.department() != null && !request.department().isBlank()) {
+            pending.setDepartment(Department.canonicalize(request.department()));
+        }
 
         try {
             UserAccount saved = accounts.saveAndFlush(pending);

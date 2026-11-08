@@ -3,7 +3,7 @@ import { Component, ElementRef, EventEmitter, Input, Output, ViewChild, inject, 
 import { AbstractControl, NonNullableFormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { Router } from '@angular/router';
-import { AccountRole, AuthService, RegistrationRole, UserProfile } from './auth.service';
+import { AccountRole, AuthService, OFFICIAL_DEPARTMENTS, RegistrationRole, UserProfile } from './auth.service';
 
 @Component({
   selector: 'app-sign-in-dialog',
@@ -41,6 +41,17 @@ import { AccountRole, AuthService, RegistrationRole, UserProfile } from './auth.
                   <input id="dialog-username" type="text" formControlName="username" autocomplete="name" required
                     [attr.aria-invalid]="usernameInvalid" [attr.aria-describedby]="usernameInvalid ? 'dialog-username-error' : null">
                   @if (usernameInvalid) { <p class="field-error" id="dialog-username-error">Enter your user name.</p> }
+                </div>
+                <div class="field">
+                  <label for="dialog-department">Department <span aria-hidden="true">*</span></label>
+                  <select id="dialog-department" formControlName="department" required
+                    [attr.aria-invalid]="departmentInvalid" [attr.aria-describedby]="departmentInvalid ? 'dialog-department-error' : null">
+                    <option value="" disabled selected>Select Department</option>
+                    @for (dept of officialDepartments; track dept) {
+                      <option [value]="dept">{{ dept }}</option>
+                    }
+                  </select>
+                  @if (departmentInvalid) { <p class="field-error" id="dialog-department-error">{{ departmentError }}</p> }
                 </div>
               }
               <div class="field"><label for="dialog-email">Institutional Email <span aria-hidden="true">*</span></label>
@@ -97,7 +108,7 @@ import { AccountRole, AuthService, RegistrationRole, UserProfile } from './auth.
     dialog.sign-in-dialog::backdrop{background:rgb(16 31 25 / 56%);backdrop-filter:blur(2px)}
     .dialog-header{display:grid;gap:.45rem;padding:1.25rem 1.55rem 1.05rem;color:#fff;background:#00392f}
     .title-row{display:flex;align-items:center;gap:.65rem;min-width:0}.book-icon{width:1.65rem;height:1.65rem;flex:0 0 auto;color:#61e5bc}.title-row h2{margin:0;color:#fff;font:600 1.55rem/1.2 var(--font-serif);letter-spacing:-.02em}.dialog-close{display:grid;width:2.25rem;height:2.25rem;flex:0 0 auto;margin-left:auto;place-items:center;border:0;border-radius:50%;color:#61e5bc;background:transparent;font-size:1.8rem;line-height:1;cursor:pointer}.dialog-close:hover{background:rgb(255 255 255 / 10%)}
-    .dialog-subtitle{margin:0;color:#8ed3bb;font-size:.92rem}.role-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.2rem;margin-top:.65rem;padding:.22rem;border-radius:.85rem;background:#064a3d}.role-tabs button{min-height:2.5rem;border:0;border-radius:.68rem;color:#9bdcc5;background:transparent;font-size:.85rem;font-weight:650;cursor:pointer;transition:background-color 160ms ease,color 160ms ease}.role-tabs button[aria-selected="true"]{color:#fff;background:#08745a;box-shadow:inset 0 0 0 1px rgb(255 255 255 / 8%)}.role-tabs button:focus-visible,.dialog-close:focus-visible,.link-button:focus-visible,.password-toggle:focus-visible{outline:3px solid #a9efd8;outline-offset:2px}.dialog-body{display:grid;gap:1.05rem;padding:1.8rem 1.55rem 1.85rem}.dialog-body form{display:grid;gap:1.05rem}.field{display:grid;gap:.58rem}.field-label-row{display:flex;align-items:center;justify-content:space-between}.forgot-password-link{padding:0;border:0;color:var(--color-forest-900,#003D30);background:transparent;font-size:.8rem;font-weight:600;text-decoration:none;cursor:pointer}.forgot-password-link:hover{text-decoration:underline}.field label{color:#35445a;font-size:.88rem;font-weight:600}.dialog-body input{width:100%;min-height:3rem;padding:.65rem .95rem;border:1px solid #e8e0d5;border-radius:.85rem;color:#293448;background:#fff;font-size:.94rem}.dialog-body input:focus{border-color:var(--color-forest-700);outline:3px solid rgb(6 89 69 / 18%);outline-offset:1px}.dialog-body input[aria-invalid="true"]{border-color:#a73c32}.password-control{position:relative}.password-control input{padding-right:4.1rem}.password-toggle{position:absolute;top:50%;right:.75rem;transform:translateY(-50%);border:0;color:var(--color-forest-900);background:transparent;font-size:.78rem;font-weight:700;cursor:pointer}.button-block{width:100%;min-height:3.15rem;border-radius:.82rem;font-size:.92rem}.field-error{margin:-.15rem 0 0;color:#8f3029;font-size:.78rem;display:flex;align-items:center;flex-wrap:wrap;gap:.35rem}.password-rules{display:grid;grid-template-columns:1fr 1fr;gap:.22rem .65rem;margin:0;padding-left:1.15rem;color:var(--color-charcoal-600);font-size:.72rem}.password-rules .met{color:var(--color-forest-800)}.verification-note,.provision-note{margin:0;color:var(--color-charcoal-600);font-size:.78rem}.switch-mode{margin:0;text-align:center;color:var(--color-charcoal-700);font-size:.82rem}.link-button{padding:.2rem;border:0;color:var(--color-forest-900);background:transparent;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}.duplicate-signin-btn{margin-left:.35rem;padding:0;border:0;color:var(--color-forest-900,#003D30);background:transparent;font-weight:700;text-decoration:underline;cursor:pointer;display:inline}.pending-message{padding:.85rem;border:1px solid var(--color-sage-300);border-radius:.85rem;color:var(--color-charcoal-900);background:var(--color-sage-100)}.pending-message strong{font:600 1.1rem var(--font-serif);color:var(--color-forest-950)}.pending-message p{margin:.35rem 0 0;font-size:.86rem}.mismatch{margin:0}
+    .dialog-subtitle{margin:0;color:#8ed3bb;font-size:.92rem}.role-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.2rem;margin-top:.65rem;padding:.22rem;border-radius:.85rem;background:#064a3d}.role-tabs button{min-height:2.5rem;border:0;border-radius:.68rem;color:#9bdcc5;background:transparent;font-size:.85rem;font-weight:650;cursor:pointer;transition:background-color 160ms ease,color 160ms ease}.role-tabs button[aria-selected="true"]{color:#fff;background:#08745a;box-shadow:inset 0 0 0 1px rgb(255 255 255 / 8%)}.role-tabs button:focus-visible,.dialog-close:focus-visible,.link-button:focus-visible,.password-toggle:focus-visible{outline:3px solid #a9efd8;outline-offset:2px}.dialog-body{display:grid;gap:1.05rem;padding:1.8rem 1.55rem 1.85rem}.dialog-body form{display:grid;gap:1.05rem}.field{display:grid;gap:.58rem}.field-label-row{display:flex;align-items:center;justify-content:space-between}.forgot-password-link{padding:0;border:0;color:var(--color-forest-900,#003D30);background:transparent;font-size:.8rem;font-weight:600;text-decoration:none;cursor:pointer}.forgot-password-link:hover{text-decoration:underline}.field label{color:#35445a;font-size:.88rem;font-weight:600}.dialog-body input,.dialog-body select{width:100%;min-height:3rem;padding:.65rem .95rem;border:1px solid #e8e0d5;border-radius:.85rem;color:#293448;background:#fff;font-size:.94rem}.dialog-body input:focus,.dialog-body select:focus{border-color:var(--color-forest-700);outline:3px solid rgb(6 89 69 / 18%);outline-offset:1px}.dialog-body input[aria-invalid="true"],.dialog-body select[aria-invalid="true"]{border-color:#a73c32}.password-control{position:relative}.password-control input{padding-right:4.1rem}.password-toggle{position:absolute;top:50%;right:.75rem;transform:translateY(-50%);border:0;color:var(--color-forest-900);background:transparent;font-size:.78rem;font-weight:700;cursor:pointer}.button-block{width:100%;min-height:3.15rem;border-radius:.82rem;font-size:.92rem}.field-error{margin:-.15rem 0 0;color:#8f3029;font-size:.78rem;display:flex;align-items:center;flex-wrap:wrap;gap:.35rem}.password-rules{display:grid;grid-template-columns:1fr 1fr;gap:.22rem .65rem;margin:0;padding-left:1.15rem;color:var(--color-charcoal-600);font-size:.72rem}.password-rules .met{color:var(--color-forest-800)}.verification-note,.provision-note{margin:0;color:var(--color-charcoal-600);font-size:.78rem}.switch-mode{margin:0;text-align:center;color:var(--color-charcoal-700);font-size:.82rem}.link-button{padding:.2rem;border:0;color:var(--color-forest-900);background:transparent;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}.duplicate-signin-btn{margin-left:.35rem;padding:0;border:0;color:var(--color-forest-900,#003D30);background:transparent;font-weight:700;text-decoration:underline;cursor:pointer;display:inline}.pending-message{padding:.85rem;border:1px solid var(--color-sage-300);border-radius:.85rem;color:var(--color-charcoal-900);background:var(--color-sage-100)}.pending-message strong{font:600 1.1rem var(--font-serif);color:var(--color-forest-950)}.pending-message p{margin:.35rem 0 0;font-size:.86rem}.mismatch{margin:0}
     @media(max-width:520px){dialog.sign-in-dialog{width:calc(100% - 1rem);max-height:96dvh;border-radius:1.25rem}.dialog-header{padding:1.25rem 1.15rem 1.1rem}.dialog-body{padding:1.2rem 1.15rem 1.3rem}.title-row h2{font-size:1.35rem}.dialog-subtitle{font-size:.83rem}.password-rules{grid-template-columns:1fr 1fr}}
   `],
 })
@@ -113,6 +124,7 @@ export class SignInDialogComponent {
   private readonly router = inject(Router);
   readonly roles: AccountRole[] = ['STUDENT', 'FACULTY', 'LIBRARIAN'];
   readonly registrationRoles: RegistrationRole[] = ['STUDENT', 'FACULTY'];
+  readonly officialDepartments = OFFICIAL_DEPARTMENTS;
   readonly selectedRole = signal<AccountRole>('STUDENT');
   readonly mode = signal<'signIn' | 'register'>('signIn');
   readonly showPassword = signal(false);
@@ -132,6 +144,7 @@ export class SignInDialogComponent {
     email: ['', [Validators.required, Validators.maxLength(254)]],
     password: ['', [Validators.required, Validators.maxLength(1024)]],
     confirmPassword: [''],
+    department: [''],
   });
 
   constructor() {
@@ -154,6 +167,7 @@ export class SignInDialogComponent {
       this.clearServerFieldError('confirmPassword');
     });
     this.form.controls.confirmPassword.valueChanges.subscribe(() => this.clearServerFieldError('confirmPassword'));
+    this.form.controls.department.valueChanges.subscribe(() => this.clearServerFieldError('department'));
     this.configureValidators();
   }
 
@@ -182,6 +196,13 @@ export class SignInDialogComponent {
   }
   get passwordInvalid(): boolean { const c = this.form.controls.password; return c.invalid && (c.touched || c.dirty); }
   get confirmPasswordInvalid(): boolean { const c = this.form.controls.confirmPassword; return c.invalid && (c.touched || c.dirty); }
+  get departmentInvalid(): boolean {
+    const c = this.form.controls.department;
+    return (c.invalid && (c.touched || c.dirty)) || !!this.serverFieldErrors()['department'];
+  }
+  get departmentError(): string {
+    return this.serverFieldErrors()['department'] ?? 'Select your department.';
+  }
   get emailError(): string {
     if (this.duplicateEmailMessage()) {
       return this.duplicateEmailMessage();
@@ -255,7 +276,8 @@ export class SignInDialogComponent {
         email: value.email.trim(),
         password: value.password,
         confirmPassword: value.confirmPassword,
-        role: this.selectedRole() as RegistrationRole
+        role: this.selectedRole() as RegistrationRole,
+        department: value.department?.trim() || undefined
       })
         .pipe(finalize(() => this.pending.set(false))).subscribe({
           next: response => { this.registrationMessage.set(response.message); this.form.controls.password.reset(); this.form.controls.confirmPassword.reset(); },
@@ -290,7 +312,12 @@ export class SignInDialogComponent {
     this.form.controls.password.setValidators(passwordValidators);
     if (this.isRegister()) {
       this.form.controls.confirmPassword.setValidators([Validators.required, control => control.value === this.form.controls.password.value ? null : { passwordMismatch: true }]);
-    } else this.form.controls.confirmPassword.clearValidators();
+      this.form.controls.department.setValidators([Validators.required]);
+    } else {
+      this.form.controls.confirmPassword.clearValidators();
+      this.form.controls.department.clearValidators();
+    }
+    this.form.controls.department.updateValueAndValidity({ emitEvent: false });
     this.form.controls.email.updateValueAndValidity({ emitEvent: false });
     this.form.controls.password.updateValueAndValidity({ emitEvent: false });
     this.form.controls.confirmPassword.updateValueAndValidity({ emitEvent: false });
@@ -361,11 +388,12 @@ export class SignInDialogComponent {
     if (error instanceof HttpErrorResponse && error.status === 400) {
       const returned = error.error?.fieldErrors as Record<string, unknown> | undefined;
       const safeMessages: Record<string, string> = {};
-      const controlFields = ['email', 'password', 'confirmPassword'] as const;
+      const controlFields = ['email', 'password', 'confirmPassword', 'department'] as const;
       const safeText: Record<(typeof controlFields)[number], string> = {
         email: this.emailPolicyMessage,
         password: 'Password does not meet the listed requirements.',
         confirmPassword: 'Passwords must match exactly.',
+        department: 'Select one of the four approved academic departments.',
       };
       for (const field of controlFields) {
         if (typeof returned?.[field] !== 'string') continue;

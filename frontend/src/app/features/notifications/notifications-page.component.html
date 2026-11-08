@@ -194,6 +194,12 @@
                       <circle cx="12" cy="7" r="4"></circle>
                     </svg>
                   }
+                  @case ('book-open') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                  }
                   @default {
                     <!-- Default Book / Book-Due Icon -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -209,6 +215,9 @@
                 <div class="card-header-row">
                   <div class="title-with-dot">
                     <strong class="card-title">{{ item.title }}</strong>
+                    @if (item.category === 'NEW_BOOK_IN_WISHLIST_CATEGORY') {
+                      <span class="card-wishlist-pill">Wishlist</span>
+                    }
                     @if (!isRead(item)) {
                       <span class="card-unread-dot" aria-label="Unread notification">•</span>
                     }
@@ -271,6 +280,12 @@
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                     </svg>
                   }
+                  @case ('book-open') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                  }
                   @default {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -280,7 +295,12 @@
                 }
               </div>
               <div class="detail-title-block">
-                <h2 class="detail-title">{{ current.title }}</h2>
+                <div class="detail-badge-row">
+                  <h2 class="detail-title">{{ current.title }}</h2>
+                  @if (current.category === 'NEW_BOOK_IN_WISHLIST_CATEGORY') {
+                    <span class="badge-wishlist-match">Wishlist Match</span>
+                  }
+                </div>
                 <time class="detail-time">{{ current.createdAt | date:'EEEE, h:mm a' }}</time>
               </div>
             </div>

@@ -24,7 +24,7 @@ const book = {
   id: 'book-1', title: 'Available title', isbn: '9780306406157', authors: ['A. Author'], categories: ['Computing'],
   publisher: null, publicationYear: null, coverImageUrl: null, circulationPolicy: 'STANDARD', totalCopies: 1,
   availableCopies: 1, onLoanCopies: 0, lostCopies: 0, damagedCopies: 0, withdrawnCopies: 0,
-  description: null, active: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+  description: null, department: 'Computer Science and Engineering', active: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
 };
 
 describe('BookDetailComponent public reservation guard', () => {
@@ -90,7 +90,7 @@ describe('BookEditorComponent create validation and API flow', () => {
     fixture.componentInstance.form.patchValue({
       title: 'Python', authors: 'Shavali', categories: 'Programming', isbn: '9780306406157',
       numberOfCopies: '1', publisher: 'Sravan', publicationYear: '2019', coverImageUrl: '', description: 'Nice',
-      circulationPolicy: 'STANDARD', ...overrides,
+      circulationPolicy: 'STANDARD', department: 'Computer Science and Engineering', ...overrides,
     });
   }
 
@@ -335,6 +335,15 @@ describe('BookDetailComponent digital edition behavior', () => {
   it('exposes direct Read Online and Download links when signed in as student', () => {
     profile.set({ id: 's-1', email: 'student@example.com', role: 'STUDENT' });
     fixture.detectChanges();
+    http.expectOne('/api/v1/borrow-requests/eligibility?bookId=book-1').flush({
+      eligible: true,
+      hasActiveLoan: false,
+      hasActiveRequest: false,
+      activeRequestStatus: null,
+      hasReturnedHistory: false,
+      reason: null
+    });
+    fixture.detectChanges();
 
     const readLink = fixture.nativeElement.querySelector('.digital-actions a[href="/books/book-1/read"]');
     expect(readLink).not.toBeNull();
@@ -411,5 +420,118 @@ describe('BookEditorComponent digital edition management', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Digital edition removed successfully.');
     expect(fixture.nativeElement.textContent).toContain('None Attached');
+  });
+});
+
+describe('BookDetailComponent borrowing eligibility and duplicate restriction', () => {
+  let fixture: ComponentFixture<BookDetailComponent>;
+  let http: HttpTestingController;
+  let profile: ReturnType<typeof signal<UserProfile | null>>;
+
+  beforeEach(async () => {
+    profile = signal<UserProfile | null>({ id: 's-1', email: 'student@example.edu', role: 'STUDENT' });
+    await TestBed.configureTestingModule({
+      imports: [BookDetailComponent],
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'book-1' } } } },
+        { provide: AuthService, useValue: { profile, login: () => {} } },
+        { provide: RecommendationService, useValue: { getRecommendationsForBook: () => of([]), markHelpful: () => of({}), removeHelpful: () => of({}) } },
+        { provide: ReviewService, useValue: mockReviewService },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(BookDetailComponent);
+    fixture.detectChanges();
+    http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/v1/books/book-1').flush(book);
+    http.expectOne('/api/v1/wishlist/status?bookIds=book-1').flush({ 'book-1': false });
+    http.expectOne('/api/v1/reservations/books/book-1/active').flush(null);
+  });
+
+  afterEach(() => {
+    http.verify();
+    TestBed.resetTestingModule();
+  });
+
+  it('allows borrowing with enabled button when user previously returned the book', () => {
+    const eligReq = http.expectOne('/api/v1/borrow-requests/eligibility?bookId=book-1');
+    eligReq.flush({
+      eligible: true,
+      hasActiveLoan: false,
+      hasActiveRequest: false,
+      activeRequestStatus: null,
+      hasReturnedHistory: true,
+      reason: null
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.active-borrowing-box')).toBeNull();
+    const actionBtn = fixture.nativeElement.querySelector('.detail-copy .actions button');
+    expect(actionBtn.disabled).toBe(false);
+    expect(actionBtn.textContent.trim()).toBe('Request this book');
+    expect(fixture.nativeElement.textContent).not.toContain('You have already borrowed this book previously');
+  });
+
+  it('blocks duplicate borrowing when an active loan exists', () => {
+    const eligReq = http.expectOne('/api/v1/borrow-requests/eligibility?bookId=book-1');
+    eligReq.flush({
+      eligible: false,
+      hasActiveLoan: true,
+      hasActiveRequest: false,
+      activeRequestStatus: null,
+      hasReturnedHistory: false,
+      reason: 'You currently have an active loan for this book. Please return your current copy before requesting another.'
+    });
+    fixture.detectChanges();
+
+    const box = fixture.nativeElement.querySelector('.active-borrowing-box');
+    expect(box).not.toBeNull();
+    expect(box.textContent).toContain('You currently have an active loan for this book');
+    const disabledBtn = fixture.nativeElement.querySelector('.detail-copy .actions button.btn-disabled-action');
+    expect(disabledBtn).not.toBeNull();
+    expect(disabledBtn.disabled).toBe(true);
+    expect(disabledBtn.textContent.trim()).toBe('Active Loan in Progress');
+  });
+
+  it('blocks duplicate borrowing when a pending request exists', () => {
+    const eligReq = http.expectOne('/api/v1/borrow-requests/eligibility?bookId=book-1');
+    eligReq.flush({
+      eligible: false,
+      hasActiveLoan: false,
+      hasActiveRequest: true,
+      activeRequestStatus: 'PENDING',
+      hasReturnedHistory: false,
+      reason: 'You already have a pending borrowing request for this book.'
+    });
+    fixture.detectChanges();
+
+    const box = fixture.nativeElement.querySelector('.active-borrowing-box');
+    expect(box).not.toBeNull();
+    expect(box.textContent).toContain('You already have a pending borrowing request');
+    const disabledBtn = fixture.nativeElement.querySelector('.detail-copy .actions button.btn-disabled-action');
+    expect(disabledBtn).not.toBeNull();
+    expect(disabledBtn.disabled).toBe(true);
+    expect(disabledBtn.textContent.trim()).toBe('Request Pending Review');
+  });
+
+  it('blocks duplicate borrowing when an approved request awaits collection', () => {
+    const eligReq = http.expectOne('/api/v1/borrow-requests/eligibility?bookId=book-1');
+    eligReq.flush({
+      eligible: false,
+      hasActiveLoan: false,
+      hasActiveRequest: true,
+      activeRequestStatus: 'APPROVED',
+      hasReturnedHistory: false,
+      reason: 'You already have an approved request awaiting book issuance.'
+    });
+    fixture.detectChanges();
+
+    const box = fixture.nativeElement.querySelector('.active-borrowing-box');
+    expect(box).not.toBeNull();
+    expect(box.textContent).toContain('approved request awaiting book issuance');
+    const disabledBtn = fixture.nativeElement.querySelector('.detail-copy .actions button.btn-disabled-action');
+    expect(disabledBtn).not.toBeNull();
+    expect(disabledBtn.disabled).toBe(true);
+    expect(disabledBtn.textContent.trim()).toBe('Request Approved — Awaiting Pick-up');
   });
 });

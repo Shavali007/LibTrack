@@ -27,26 +27,26 @@ import { BorrowRequestRecord, BorrowingService } from '../circulation/borrowing.
     }
 
     <!-- Welcome Banner matching Reference Mockup -->
-    <section class="welcome-banner">
+    <section class="welcome-banner" aria-label="Welcome banner">
       <div class="welcome-left">
-        <span class="welcome-eyebrow">WELCOME BACK,</span>
+        <span class="welcome-eyebrow">LIBRARIAN WORKSPACE &bull; {{ formattedDate }}</span>
         <h1 class="welcome-title">
-          Librarian!
-          <svg class="welcome-sprout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 10a6 6 0 0 0-6-6H3v2a6 6 0 0 0 6 6h3"></path>
-            <path d="M12 14a6 6 0 0 1 6-6h3v2a6 6 0 0 1-6 6h-3"></path>
-            <path d="M12 22V10"></path>
-          </svg>
+          Welcome back, Librarian!
         </h1>
         <p class="welcome-subtitle">
-          Manage resources, support learners and keep the library running smoothly.
+          Manage library resources, support learners and keep the library running smoothly.
         </p>
       </div>
 
-      <!-- Right photographic plant & books asset pinned to right bottom -->
-      <div class="welcome-asset-wrap" aria-hidden="true">
-        <img src="/assets/banner-plant-books.png" alt="" class="banner-plant-img" />
+      <!-- Right section matching reference mockup visual asset with quote card, translucent finish, and plant -->
+      <div class="welcome-banner-right" aria-hidden="true">
+        <img src="/assets/banner-student-right.png" alt="" class="banner-right-asset" />
       </div>
+
+      <!-- Accessible quote text for assistive technology -->
+      <blockquote class="sr-only">
+        &ldquo;A library is not just a place to read, but a place to grow.&rdquo;
+      </blockquote>
     </section>
 
     <!-- Four Statistics Cards (Total Books, Book Copies, Active Members, Pending Requests) -->
@@ -302,21 +302,23 @@ import { BorrowRequestRecord, BorrowingService } from '../circulation/borrowing.
       border: 0;
     }
 
-    /* Welcome Banner - Proportionate to Reference Image */
+    /* Welcome Banner - Exact match to reference mockup visual treatment */
     .welcome-banner {
       display: flex;
       align-items: center;
-      min-height: 195px;
-      height: clamp(185px, 22vh, 215px);
+      justify-content: space-between;
+      min-height: 185px;
+      height: clamp(185px, 20vh, 205px);
       border-radius: var(--radius-panel, 12px);
       margin-bottom: 1.25rem;
-      background: #EFF1E6 url('/assets/banner-right.png') no-repeat right bottom / auto 100%;
+      background-color: #EDF1E3;
       border: 1px solid #E5E8DE;
       position: relative;
       overflow: hidden;
       box-shadow: 0 1px 6px rgba(40, 30, 10, 0.03);
       flex-shrink: 0;
-      padding: 2rem 2.5rem;
+      padding: 1.75rem 2.5rem;
+      box-sizing: border-box;
     }
 
     .welcome-left {
@@ -324,7 +326,9 @@ import { BorrowRequestRecord, BorrowingService } from '../circulation/borrowing.
       flex-direction: column;
       justify-content: center;
       z-index: 2;
-      max-width: 580px;
+      max-width: 480px;
+      flex: 1;
+      min-width: 0;
     }
 
     .welcome-eyebrow {
@@ -339,21 +343,14 @@ import { BorrowRequestRecord, BorrowingService } from '../circulation/borrowing.
 
     .welcome-title {
       font-family: var(--font-serif);
-      font-size: clamp(2.3rem, 2.9vw, 2.85rem);
+      font-size: clamp(2.1rem, 2.7vw, 2.75rem);
       font-weight: 700;
       color: #112A20;
       margin: 0;
-      line-height: 1.1;
+      line-height: 1.15;
       display: flex;
       align-items: center;
       gap: 0.65rem;
-    }
-
-    .welcome-sprout {
-      width: 1.9rem;
-      height: 1.9rem;
-      color: #003D30;
-      flex-shrink: 0;
     }
 
     .welcome-subtitle {
@@ -363,20 +360,25 @@ import { BorrowRequestRecord, BorrowingService } from '../circulation/borrowing.
       line-height: 1.45;
     }
 
-    .welcome-asset-wrap {
+    /* Right visual asset: Contains reference quote card with translucent glass finish, soft shadow, books, and plant */
+    .welcome-banner-right {
       position: absolute;
       right: 0;
+      top: 0;
       bottom: 0;
       height: 100%;
       z-index: 1;
       pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
     }
 
-    .banner-plant-img {
+    .banner-right-asset {
       height: 100%;
-      max-height: 215px;
-      object-fit: contain;
-      object-position: bottom right;
+      width: auto;
+      object-fit: cover;
+      object-position: right center;
       display: block;
     }
 
@@ -794,19 +796,13 @@ import { BorrowRequestRecord, BorrowingService } from '../circulation/borrowing.
     }
 
     /* Responsive */
-    @media (max-width: 1100px) {
-      .welcome-banner {
-        height: auto;
-        min-height: auto;
-        max-height: none;
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 1.5rem;
-        background-image: none;
+    @media (max-width: 960px) {
+      .welcome-banner-right {
+        opacity: 0.35;
       }
-      .welcome-asset-wrap {
-        display: none;
-      }
+    }
+
+    @media (max-width: 1024px) {
       .stats-grid {
         grid-template-columns: repeat(2, 1fr);
       }
@@ -820,6 +816,14 @@ import { BorrowRequestRecord, BorrowingService } from '../circulation/borrowing.
     }
 
     @media (max-width: 640px) {
+      .welcome-banner {
+        padding: 1.5rem 1.25rem;
+        height: auto;
+        min-height: 175px;
+      }
+      .welcome-banner-right {
+        opacity: 0.25;
+      }
       .stats-grid {
         grid-template-columns: 1fr;
       }
@@ -832,6 +836,16 @@ import { BorrowRequestRecord, BorrowingService } from '../circulation/borrowing.
 export class LibrarianDashboardComponent implements OnInit {
   private readonly dashboardService = inject(LibrarianDashboardService);
   private readonly borrowingService = inject(BorrowingService);
+
+  get formattedDate(): string {
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    };
+    return new Intl.DateTimeFormat('en-GB', options).format(new Date()).toUpperCase();
+  }
 
   readonly stats = signal<DashboardStats | null>(null);
   readonly statsLoading = signal(true);
